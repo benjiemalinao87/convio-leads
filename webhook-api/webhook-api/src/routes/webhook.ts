@@ -511,18 +511,9 @@ webhook.delete('/:webhookId', async (c) => {
       }, 404)
     }
 
-    // Check if webhook is already deleted (soft-deleted)
-    if (results[0].is_active === 0) {
-      return c.json({
-        error: 'Webhook already deleted',
-        message: `Webhook ${webhookId} has already been deleted`,
-        timestamp: new Date().toISOString()
-      }, 400)
-    }
-
-    // Soft delete by marking as inactive
+    // Hard delete the webhook configuration
     await db.prepare(
-      'UPDATE webhook_configs SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE webhook_id = ?'
+      'DELETE FROM webhook_configs WHERE webhook_id = ?'
     ).bind(webhookId).run()
     
     return c.json({
