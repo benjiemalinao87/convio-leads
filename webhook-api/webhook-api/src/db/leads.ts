@@ -10,10 +10,19 @@ export interface LeadRecord {
   email?: string; // Make email optional to match schema validation
   phone?: string;
   address?: string;
+  address2?: string; // New field - apt, unit, suite
   city?: string;
   state?: string;
   zip_code?: string;
   source: string;
+
+  // Business-specific fields (new)
+  productid?: string; // Expected: Kitchen, Bath, Roofing, Basement Waterproofing, Solar
+  subsource?: string; // Specific campaign, affiliate, or channel
+  landing_page_url?: string; // Page URL where form was submitted
+  consent_description?: string; // Full SMS/marketing consent language
+  consent_value?: boolean; // true = consent given, false = not given
+  tcpa_compliance?: boolean; // Was TCPA language shown & agreed to
   campaign_id?: string;
   utm_source?: string;
   utm_medium?: string;
@@ -51,24 +60,27 @@ export class LeadDatabase {
     const stmt = await this.db.prepare(`
       INSERT INTO leads (
         id, contact_id, webhook_id, lead_type, first_name, last_name, email, phone,
-        address, city, state, zip_code, source, campaign_id,
+        address, address2, city, state, zip_code, source, campaign_id,
+        productid, subsource, landing_page_url, consent_description, consent_value, tcpa_compliance,
         utm_source, utm_medium, utm_campaign,
         monthly_electric_bill, property_type, roof_condition, roof_age, shade_coverage,
         system_type, system_age, service_type, urgency, property_size,
         policy_type, coverage_amount, current_premium, property_value, claims_history,
-        raw_payload, ip_address, user_agent, 
+        raw_payload, ip_address, user_agent,
         created_at, updated_at, processed_at, status, notes,
         conversion_score, revenue_potential, status_changed_at, status_changed_by,
         priority, assigned_to, follow_up_date, contact_attempts
       ) VALUES (
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
       )
     `    ).bind(
       leadId, lead.contact_id || null, lead.webhook_id, lead.lead_type, lead.first_name, lead.last_name, lead.email || null, lead.phone || null,
-      lead.address || null, lead.city || null, lead.state || null, lead.zip_code || null,
+      lead.address || null, lead.address2 || null, lead.city || null, lead.state || null, lead.zip_code || null,
       lead.source, lead.campaign_id || null,
+      lead.productid || null, lead.subsource || null, lead.landing_page_url || null,
+      lead.consent_description || null, lead.consent_value || null, lead.tcpa_compliance || null,
       lead.utm_source || null, lead.utm_medium || null, lead.utm_campaign || null,
       lead.monthly_electric_bill || null, lead.property_type || null, lead.roof_condition || null,
       lead.roof_age || null, lead.shade_coverage || null,

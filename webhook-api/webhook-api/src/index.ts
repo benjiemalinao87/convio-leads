@@ -6,6 +6,7 @@ import { timing } from 'hono/timing'
 import { webhookRouter } from './routes/webhook'
 import { healthRouter } from './routes/health'
 import leadsRouter from './routes/leads'
+import conversionsRouter from './routes/conversions'
 import { requestValidation } from './middleware/validation'
 import { errorHandler } from './middleware/error-handler'
 import { D1Database } from '@cloudflare/workers-types'
@@ -56,6 +57,7 @@ app.onError(errorHandler)
 app.route('/health', healthRouter)
 app.route('/webhook', webhookRouter)
 app.route('/leads', leadsRouter)
+app.route('/conversions', conversionsRouter)
 
 // Root endpoint
 app.get('/', (c) => {

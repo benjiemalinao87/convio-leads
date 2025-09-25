@@ -1,24 +1,58 @@
 import { z } from 'zod'
 
-// Base lead schema
+// Base lead schema - supports both business schema and existing schema for backward compatibility
 export const BaseLeadSchema = z.object({
-  // Common fields across all lead providers
-  firstName: z.string().min(1, "First name is required"),
-  lastName: z.string().min(1, "Last name is required"),
+  // Required fields (support both naming conventions)
+  firstName: z.string().min(1, "First name is required").optional(),
+  firstname: z.string().min(1, "First name is required").optional(),
+  lastName: z.string().min(1, "Last name is required").optional(),
+  lastname: z.string().min(1, "Last name is required").optional(),
+  source: z.string().min(1, "Lead source is required"),
+
+  // Contact information
   email: z.string().email("Invalid email format").optional(),
   phone: z.string().min(10, "Phone number must be at least 10 digits").optional(),
+
+  // Address fields - support both schemas
   address: z.string().optional(),
+  address1: z.string().optional(),
+  address2: z.string().optional(), // New field
   city: z.string().optional(),
   state: z.string().optional(),
   zipCode: z.string().optional(),
-  source: z.string().min(1, "Lead source is required"),
+  zip: z.string().optional(), // Alternative naming
+
+  // Business-specific fields (new)
+  productid: z.string().optional(), // Expected: Kitchen, Bath, Roofing, Basement Waterproofing, Solar
+  subsource: z.string().optional(), // Specific campaign, affiliate, or channel
+  landing_page_url: z.string().url().optional(), // Page URL where form was submitted
+  consent: z.object({
+    description: z.string(), // Full SMS/marketing consent language
+    value: z.boolean() // true = consent given, false = not given
+  }).optional(),
+  tcpa_compliance: z.boolean().optional(), // Was TCPA language shown & agreed to
+
+  // Existing fields
   campaign: z.string().optional(),
   notes: z.string().optional(),
   timestamp: z.string().datetime().optional(),
+  created_at: z.string().datetime().optional(), // ISO 8601 format
+})
+.refine((data) => {
+  // Ensure at least one first name field is provided
+  return data.firstName || data.firstname
+}, {
+  message: "Either firstName or firstname is required"
+})
+.refine((data) => {
+  // Ensure at least one last name field is provided
+  return data.lastName || data.lastname
+}, {
+  message: "Either lastName or lastname is required"
 })
 
 // Solar-specific lead schema
-export const SolarLeadSchema = BaseLeadSchema.extend({
+export const SolarLeadSchema = BaseLeadSchema.merge(z.object({
   propertyType: z.enum(['single-family', 'townhouse', 'condo', 'apartment', 'commercial']).optional(),
   monthlyElectricBill: z.number().positive().optional(),
   roofCondition: z.enum(['excellent', 'good', 'fair', 'poor']).optional(),
@@ -27,10 +61,10 @@ export const SolarLeadSchema = BaseLeadSchema.extend({
   homeownershipStatus: z.enum(['own', 'rent', 'other']).optional(),
   creditScore: z.enum(['excellent', 'good', 'fair', 'poor']).optional(),
   annualIncome: z.enum(['under-50k', '50k-75k', '75k-100k', '100k-150k', 'over-150k']).optional(),
-})
+}))
 
 // HVAC-specific lead schema
-export const HVACLeadSchema = BaseLeadSchema.extend({
+export const HVACLeadSchema = BaseLeadSchema.merge(z.object({
   serviceType: z.enum(['installation', 'repair', 'maintenance', 'consultation']).optional(),
   systemAge: z.number().min(0).max(50).optional(),
   systemType: z.enum(['central-air', 'heat-pump', 'ductless', 'window-unit', 'other']).optional(),
@@ -38,10 +72,10 @@ export const HVACLeadSchema = BaseLeadSchema.extend({
   urgency: z.enum(['immediate', 'within-week', 'within-month', 'planning']).optional(),
   budget: z.enum(['under-5k', '5k-10k', '10k-15k', '15k-20k', 'over-20k']).optional(),
   preferredContactTime: z.enum(['morning', 'afternoon', 'evening', 'weekend']).optional(),
-})
+}))
 
 // Insurance-specific lead schema
-export const InsuranceLeadSchema = BaseLeadSchema.extend({
+export const InsuranceLeadSchema = BaseLeadSchema.merge(z.object({
   insuranceType: z.enum(['auto', 'home', 'life', 'health', 'business', 'other']).optional(),
   currentProvider: z.string().optional(),
   currentPremium: z.number().positive().optional(),
@@ -59,7 +93,7 @@ export const InsuranceLeadSchema = BaseLeadSchema.extend({
     homeAge: z.number().min(0).max(200),
     securitySystem: z.boolean(),
   }).optional(),
-})
+}))
 
 // Webhook metadata schema
 export const WebhookMetadataSchema = z.object({

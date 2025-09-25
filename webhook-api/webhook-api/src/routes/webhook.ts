@@ -277,15 +277,26 @@ webhook.post('/:webhookId', async (c) => {
           contact_id: contactId, // Link to contact
           webhook_id: webhookId,
           lead_type: config.lead_type,
-          first_name: normalizedLead.firstName || normalizedLead.first_name || '',
-          last_name: normalizedLead.lastName || normalizedLead.last_name || '',
+          // Support both naming conventions for names
+          first_name: normalizedLead.firstName || normalizedLead.firstname || '',
+          last_name: normalizedLead.lastName || normalizedLead.lastname || '',
           email: normalizedLead.email, // Lead-specific email (may differ from contact)
           phone: normalizedPhone,
-          address: normalizedLead.address,
+          // Support both address naming conventions
+          address: normalizedLead.address || normalizedLead.address1,
+          address2: normalizedLead.address2,
           city: normalizedLead.city,
           state: normalizedLead.state,
-          zip_code: normalizedLead.zipCode || normalizedLead.zip_code,
+          zip_code: normalizedLead.zipCode || normalizedLead.zip,
           source: normalizedLead.source,
+
+          // Business-specific fields (new)
+          productid: normalizedLead.productid,
+          subsource: normalizedLead.subsource,
+          landing_page_url: normalizedLead.landing_page_url,
+          consent_description: normalizedLead.consent?.description,
+          consent_value: normalizedLead.consent?.value,
+          tcpa_compliance: normalizedLead.tcpa_compliance,
           campaign_id: normalizedLead.campaignId || normalizedLead.campaign_id,
           utm_source: normalizedLead.utmSource || normalizedLead.utm_source,
           utm_medium: normalizedLead.utmMedium || normalizedLead.utm_medium,

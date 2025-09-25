@@ -37,40 +37,27 @@ signature = HMAC-SHA256(secret + payload)
 ```
 
 ### Security Headers
-
 All responses include security headers:
-
-```http
-X-Content-Type-Options: nosniff
-X-Frame-Options: DENY
-X-XSS-Protection: 1; mode=block
-```
+- `X-Content-Type-Options: nosniff`
+- `X-Frame-Options: DENY`
+- `X-XSS-Protection: 1; mode=block`
 
 ### CORS Configuration
-
 Allowed origins:
-
-```
-https://homeprojectpartners.com
-https://api.homeprojectpartners.com
-http://localhost:5173
-http://localhost:3000
-http://localhost:8080
-```
+- `https://homeprojectpartners.com`
+- `https://api.homeprojectpartners.com`
+- `http://localhost:5173`
+- `http://localhost:3000`
+- `http://localhost:8080`
 
 ## Rate Limiting
 
-**Configuration:**
-- Limit: 100 requests per minute per IP address
-- Window: 60 seconds (rolling window)
-
-**Response Headers:**
-
-```http
-X-RateLimit-Limit: 100
-X-RateLimit-Remaining: <remaining>
-X-RateLimit-Reset: <timestamp>
-```
+- **Limit**: 100 requests per minute per IP address
+- **Window**: 60 seconds (rolling window)
+- **Headers returned**:
+  - `X-RateLimit-Limit: 100`
+  - `X-RateLimit-Remaining: <remaining>`
+  - `X-RateLimit-Reset: <timestamp>`
 
 When rate limit is exceeded:
 ```json
@@ -249,22 +236,17 @@ Receive and process lead data via webhook.
 - `webhookId` (string): Webhook identifier
 
 **Headers**:
-```http
-Content-Type: application/json (required)
-X-Webhook-Signature: sha256=<signature> (optional, required if WEBHOOK_SECRET is configured)
-```
+- `Content-Type: application/json` (required)
+- `X-Webhook-Signature: sha256=<signature>` (optional, required if WEBHOOK_SECRET is configured)
 
 **Request Body**: Varies by lead type (see [Data Schemas](#data-schemas))
 
 **Phone Number Normalization**:
 Phone numbers are automatically normalized to E.164 format (+1XXXXXXXXXX) when stored in the database. The API accepts phone numbers in various formats:
-
-```
-"5551234567"     → "+15551234567"
-"555-123-4567"   → "+15551234567"
-"(555) 123-4567" → "+15551234567"
-"+15551234567"   → "+15551234567"
-```
+- `"5551234567"` → `"+15551234567"`
+- `"555-123-4567"` → `"+15551234567"`
+- `"(555) 123-4567"` → `"+15551234567"`
+- `"+15551234567"` → `"+15551234567"`
 
 **Response** (201):
 ```json
@@ -406,7 +388,7 @@ Enable or disable a webhook configuration.
 #### GET /leads
 Get all leads with optional filtering.
 
-**Query Parameters:**
+**Query Parameters**:
 - `webhook_id` (string): Filter by webhook ID
 - `status` (string): Filter by lead status
 - `from_date` (string): Filter from date (YYYY-MM-DD)
@@ -444,7 +426,7 @@ Get all leads with optional filtering.
 #### GET /leads/statistics
 Get lead statistics and metrics.
 
-**Query Parameters:**
+**Query Parameters**:
 - `webhook_id` (string): Filter by webhook ID
 - `status` (string): Filter by lead status
 - `from_date` (string): Filter from date
@@ -485,7 +467,7 @@ Get leads by specific status.
 **Parameters**:
 - `status` (string): One of: new, contacted, qualified, converted, rejected
 
-**Query Parameters:**
+**Query Parameters**:
 - `limit` (number): Maximum results (default: 100)
 
 **Response** (200):
@@ -515,7 +497,7 @@ Get analytics for a specific webhook.
 **Parameters**:
 - `webhookId` (string): Webhook identifier
 
-**Query Parameters:**
+**Query Parameters**:
 - `days` (number): Number of days to analyze (default: 30)
 
 **Response** (200):
@@ -938,11 +920,8 @@ The Conversion Tracking API enables external systems to log conversion events, u
 #### Authentication Headers
 
 All conversion endpoints require these headers:
-
-```http
-X-Workspace-ID: Your workspace identifier
-X-API-Key: Your workspace API key
-```
+- `X-Workspace-ID`: Your workspace identifier
+- `X-API-Key`: Your workspace API key
 
 #### POST /conversions/workspace/register
 Register a new workspace for conversion tracking.
@@ -973,10 +952,8 @@ Register a new workspace for conversion tracking.
 Log a new conversion event with custom metadata.
 
 **Headers**:
-```http
-X-Workspace-ID: Your workspace ID
-X-API-Key: Your workspace API key
-```
+- `X-Workspace-ID`: Your workspace ID
+- `X-API-Key`: Your workspace API key
 
 **Request Body**:
 ```json
@@ -1020,10 +997,8 @@ X-API-Key: Your workspace API key
 Update contact conversion status and metadata.
 
 **Headers**:
-```http
-X-Workspace-ID: Your workspace ID
-X-API-Key: Your workspace API key
-```
+- `X-Workspace-ID`: Your workspace ID
+- `X-API-Key`: Your workspace API key
 
 **Parameters**:
 - `id` (number): Contact ID
@@ -1057,7 +1032,7 @@ X-API-Key: Your workspace API key
 #### GET /conversions
 Query conversions with advanced filters.
 
-**Query Parameters:**
+**Query Parameters**:
 - `workspace_id` (string, optional): Filter by workspace
 - `contact_id` (number, optional): Filter by contact
 - `lead_id` (number, optional): Filter by lead
@@ -1107,7 +1082,7 @@ Query conversions with advanced filters.
 #### GET /conversions/analytics
 Get comprehensive conversion analytics and metrics.
 
-**Query Parameters:**
+**Query Parameters**:
 - `workspace_id` (string, optional): Filter by workspace
 - `from_date` (string, optional): Start date (default: 30 days ago)
 - `to_date` (string, optional): End date (default: now)
@@ -1184,7 +1159,7 @@ Get comprehensive conversion analytics and metrics.
 #### GET /conversions/funnel
 Get conversion funnel visualization data.
 
-**Query Parameters:**
+**Query Parameters**:
 - `workspace_id` (string, optional): Filter by workspace
 - `from_date` (string, optional): Start date (default: 30 days ago)
 - `to_date` (string, optional): End date (default: now)
@@ -1258,53 +1233,19 @@ Workspaces provide multi-tenant isolation and tracking:
 
 ## Data Schemas
 
-### Business Lead Schema (Primary)
-**This is our primary, recommended schema for lead submission:**
-
-```json
-{
-  // Required Fields
-  "firstname": "John",
-  "lastname": "Doe",
-  "source": "Google Ads",
-
-  // Contact Information (optional but recommended)
-  "phone": "5551234567",       // Format: 10 digits only (no spaces, dashes, or country code)
-  "email": "john.doe@example.com",
-  "address1": "123 Main Street",
-  "address2": "Apt 4B",        // Optional: Apt, Unit, Suite
-  "city": "Los Angeles",
-  "state": "CA",               // Format: State abbreviation
-  "zip": "90210",              // Format: 5 digits only
-
-  // Business-Specific Fields
-  "productid": "Solar",        // Expected values: Kitchen, Bath, Roofing, Basement Waterproofing, Solar
-  "subsource": "Solar Campaign", // Optional: Specific campaign, affiliate, or channel
-  "created_at": "2025-09-25T18:00:00.000Z", // ISO 8601 format (UTC recommended)
-  "landing_page_url": "https://example.com/solar", // Optional: Page URL where form was submitted
-
-  // Consent & Compliance
-  "consent": {
-    "description": "By providing your phone number, you consent to receive marketing messages via text. Reply STOP to opt out.",
-    "value": true              // Boolean: true = consent given, false = not given
-  },
-  "tcpa_compliance": true      // Boolean: Was TCPA language shown & agreed to
-}
-```
-
-### Legacy Schema (Backward Compatibility)
-The API also supports the legacy field naming for backward compatibility:
+### Base Lead Schema
+All lead types include these base fields:
 
 ```typescript
 {
-  firstName: string;      // Alternative to "firstname"
-  lastName: string;       // Alternative to "lastname"
+  firstName: string;      // Required
+  lastName: string;       // Required
   email?: string;         // Optional, but validated if provided
   phone?: string;         // Optional, minimum 10 digits if provided
-  address?: string;       // Alternative to "address1"
+  address?: string;
   city?: string;
   state?: string;
-  zipCode?: string;       // Alternative to "zip"
+  zipCode?: string;
   source: string;         // Required
   campaign?: string;
   notes?: string;
@@ -1464,28 +1405,17 @@ A comprehensive test script is provided at `/webhook-api/test-webhook-api.sh`.
 # Test health endpoint
 curl -X GET https://api.homeprojectpartners.com/health
 
-# Test webhook endpoint with Business Schema
-curl -X POST https://api.homeprojectpartners.com/webhook/click-ventures_ws_us_general_656 \
+# Test webhook endpoint
+curl -X POST https://api.homeprojectpartners.com/webhook/ws_cal_solar_001 \
   -H "Content-Type: application/json" \
   -d '{
-    "firstname": "John",
-    "lastname": "Doe",
+    "firstName": "John",
+    "lastName": "Doe",
     "email": "john.doe@example.com",
-    "phone": "5551234567",
-    "address1": "123 Main Street",
-    "address2": "Apt 4B",
-    "city": "Los Angeles",
-    "state": "CA",
-    "zip": "90210",
+    "phone": "555-123-4567",
     "source": "Google Ads",
-    "productid": "Solar",
-    "subsource": "Solar Installation Campaign",
-    "landing_page_url": "https://solarpanel.com/ca-landing",
-    "consent": {
-      "description": "By providing your phone number, you consent to receive marketing messages via text. Reply STOP to opt out.",
-      "value": true
-    },
-    "tcpa_compliance": true
+    "monthlyElectricBill": 250,
+    "propertyType": "single-family"
   }'
 
 # Get leads

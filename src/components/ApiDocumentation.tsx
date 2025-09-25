@@ -70,22 +70,33 @@ const ApiDocumentation = ({ open, onOpenChange }: ApiDocumentationProps) => {
       path: '/webhook/:webhookId',
       title: 'Receive Lead Data',
       description: 'Submit lead data via webhook',
-      example: `curl -X POST https://api.homeprojectpartners.com/webhook/ws_cal_solar_001 \\
+      example: `curl -X POST https://api.homeprojectpartners.com/webhook/click-ventures_ws_us_general_656 \\
   -H "Content-Type: application/json" \\
   -H "X-Webhook-Signature: sha256=abc123..." \\
   -d '{
-    "firstName": "John",
-    "lastName": "Doe",
+    "firstname": "John",
+    "lastname": "Doe",
     "email": "john.doe@example.com",
-    "phone": "555-123-4567",
+    "phone": "5551234567",
+    "address1": "123 Main Street",
+    "address2": "Apt 4B",
+    "city": "Los Angeles",
+    "state": "CA",
+    "zip": "90210",
     "source": "Google Ads",
-    "monthlyElectricBill": 250,
-    "propertyType": "single-family"
+    "productid": "Solar",
+    "subsource": "Solar Installation Campaign",
+    "landing_page_url": "https://solarpanel.com/ca-landing",
+    "consent": {
+      "description": "By providing your phone number, you consent to receive marketing messages via text. Reply STOP to opt out.",
+      "value": true
+    },
+    "tcpa_compliance": true
   }'`,
       response: `{
   "status": "success",
   "message": "Lead received and processed successfully",
-  "webhook_id": "ws_cal_solar_001",
+  "webhook_id": "click-ventures_ws_us_general_656",
   "contact_id": 12345,
   "email": "john.doe@example.com",
   "processed_at": "2024-09-24T21:00:00.000Z",
@@ -208,13 +219,209 @@ const ApiDocumentation = ({ open, onOpenChange }: ApiDocumentationProps) => {
   },
   "timestamp": "2025-09-25T11:45:00.000Z"
 }`
+    },
+    {
+      id: 'workspace-register',
+      method: 'POST',
+      path: '/conversions/workspace/register',
+      title: 'Register Workspace',
+      description: 'Register a new workspace for conversion tracking',
+      example: `curl -X POST https://api.homeprojectpartners.com/conversions/workspace/register \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "workspace_id": "demo_sales_team",
+    "name": "Demo Sales Team",
+    "permissions": ["read", "write", "convert"]
+  }'`,
+      response: `{
+  "success": true,
+  "workspace": {
+    "id": "demo_sales_team",
+    "name": "Demo Sales Team",
+    "api_key": "ws_x82lzd6tt9ebb8pezd337",
+    "permissions": ["read", "write", "convert"]
+  }
+}`
+    },
+    {
+      id: 'conversion-log',
+      method: 'POST',
+      path: '/conversions/log',
+      title: 'Log Conversion',
+      description: 'Log a new conversion event with custom metadata',
+      example: `curl -X POST https://api.homeprojectpartners.com/conversions/log \\
+  -H "Content-Type: application/json" \\
+  -H "X-Workspace-ID: demo_sales_team" \\
+  -H "X-API-Key: your_workspace_api_key" \\
+  -d '{
+    "contact_id": 650963,
+    "lead_id": 1234567890,
+    "workspace_id": "demo_sales_team",
+    "converted_by": "john_sales_agent",
+    "conversion_type": "sale",
+    "conversion_value": 45000,
+    "custom_data": {
+      "product": "Premium Solar System",
+      "contract_id": "SOL-2025-001",
+      "financing_type": "loan",
+      "system_size_kw": 12.5
+    }
+  }'`,
+      response: `{
+  "success": true,
+  "conversion": {
+    "id": "33d60a6b-b83a-471d-aa84-a9824f873e38",
+    "contact_id": 650963,
+    "lead_id": 1234567890,
+    "workspace_id": "demo_sales_team",
+    "conversion_type": "sale",
+    "conversion_value": 45000,
+    "converted_at": "2025-09-25T18:01:11.063Z"
+  }
+}`
+    },
+    {
+      id: 'conversion-contact-update',
+      method: 'PATCH',
+      path: '/conversions/contacts/:id',
+      title: 'Update Contact Conversion',
+      description: 'Update contact conversion status and metadata',
+      example: `curl -X PATCH https://api.homeprojectpartners.com/conversions/contacts/650963 \\
+  -H "Content-Type: application/json" \\
+  -H "X-Workspace-ID: demo_sales_team" \\
+  -H "X-API-Key: your_workspace_api_key" \\
+  -d '{
+    "conversion_status": "converted",
+    "converted_by": "john_sales_agent",
+    "qualification_score": 95,
+    "custom_metadata": {
+      "interested_products": ["solar", "battery"],
+      "decision_timeline": "30_days"
+    }
+  }'`,
+      response: `{
+  "success": true,
+  "contact_id": "650963",
+  "updates_applied": true
+}`
+    },
+    {
+      id: 'conversions-list',
+      method: 'GET',
+      path: '/conversions',
+      title: 'Query Conversions',
+      description: 'Query conversions with advanced filters and pagination',
+      example: `curl -X GET "https://api.homeprojectpartners.com/conversions?conversion_type=sale&min_value=10000&limit=10"`,
+      response: `{
+  "success": true,
+  "conversions": [
+    {
+      "id": "33d60a6b-b83a-471d-aa84-a9824f873e38",
+      "contact_id": 650963,
+      "lead_id": 1234567890,
+      "workspace_id": "demo_sales_team",
+      "converted_by": "john_sales_agent",
+      "converted_at": "2025-09-25T18:01:11.063Z",
+      "conversion_type": "sale",
+      "conversion_value": 45000,
+      "currency": "USD",
+      "first_name": "John",
+      "last_name": "Doe",
+      "workspace_name": "Demo Sales Team",
+      "custom_data": {
+        "product": "Premium Solar System",
+        "contract_id": "SOL-2025-001"
+      }
+    }
+  ],
+  "pagination": {
+    "total": 1,
+    "limit": 100,
+    "offset": 0,
+    "has_more": false
+  }
+}`
+    },
+    {
+      id: 'conversions-analytics',
+      method: 'GET',
+      path: '/conversions/analytics',
+      title: 'Conversion Analytics',
+      description: 'Get comprehensive conversion analytics and metrics',
+      example: `curl -X GET "https://api.homeprojectpartners.com/conversions/analytics?from_date=2025-01-01&workspace_id=demo_sales_team"`,
+      response: `{
+  "success": true,
+  "analytics": {
+    "summary": {
+      "total_conversions": 3,
+      "total_value": 53500,
+      "average_value": 17833.33,
+      "unique_contacts": 3,
+      "active_workspaces": 2,
+      "conversion_rate": "15.2"
+    },
+    "by_type": [
+      {
+        "conversion_type": "sale",
+        "count": 1,
+        "total_value": 45000,
+        "avg_value": 45000
+      }
+    ],
+    "by_workspace": [
+      {
+        "workspace_id": "demo_sales_team",
+        "workspace_name": "Demo Sales Team",
+        "conversions": 2,
+        "total_value": 45000,
+        "unique_contacts": 2
+      }
+    ]
+  }
+}`
+    },
+    {
+      id: 'conversions-funnel',
+      method: 'GET',
+      path: '/conversions/funnel',
+      title: 'Conversion Funnel',
+      description: 'Get conversion funnel visualization data',
+      example: `curl -X GET "https://api.homeprojectpartners.com/conversions/funnel?workspace_id=demo_sales_team"`,
+      response: `{
+  "success": true,
+  "funnel": {
+    "stages": [
+      {
+        "name": "Leads Received",
+        "count": 100,
+        "percentage": 100
+      },
+      {
+        "name": "Contacted",
+        "count": 75,
+        "percentage": 75
+      },
+      {
+        "name": "Qualified",
+        "count": 30,
+        "percentage": 30
+      },
+      {
+        "name": "Converted",
+        "count": 15,
+        "percentage": 15
+      }
+    ],
+    "conversion_rate": 15.0
+  }
+}`
     }
   ];
 
   const schemas = [
     {
-      name: 'Complete Lead Schema',
-      description: 'All available fields for lead data - use any combination based on your lead type',
+      name: 'Business Lead Schema (Primary)',
+      description: 'Our primary, recommended schema for lead submission with business-focused fields and TCPA compliance',
       fields: [
         // Required Core Fields
         { name: 'firstName', type: 'string', required: true, description: 'First name of the lead' },
@@ -479,51 +686,31 @@ const ApiDocumentation = ({ open, onOpenChange }: ApiDocumentationProps) => {
                           size="sm"
                           onClick={() => copyToClipboard(`{
   // Required Fields
-  "firstName": "John",
-  "lastName": "Doe",
-  "email": "john.doe@example.com",
+  "firstname": "John",
+  "lastname": "Doe",
   "source": "Google Ads",
 
-  // Contact Information (optional)
-  "phone": "555-123-4567",
-  "address": "123 Main Street",
+  // Contact Information (optional but recommended)
+  "phone": "5551234567",
+  "email": "john.doe@example.com",
+  "address1": "123 Main Street",
+  "address2": "Apt 4B",
   "city": "Los Angeles",
   "state": "CA",
-  "zipCode": "90210",
+  "zip": "90210",
 
-  // Marketing & Campaign Tracking (optional)
-  "campaignId": "summer_2024_solar",
-  "utmSource": "google",
-  "utmMedium": "cpc",
-  "utmCampaign": "solar_leads_ca",
+  // Business-Specific Fields
+  "productid": "Solar",
+  "subsource": "Solar Installation Campaign",
+  "created_at": "2025-09-25T18:00:00.000Z",
+  "landing_page_url": "https://solarpanel.com/ca-landing",
 
-  // Solar-Related Fields (optional)
-  "monthlyElectricBill": 250,
-  "propertyType": "single-family",
-  "roofCondition": "good",
-  "roofAge": 8,
-  "shadeCoverage": "minimal",
-
-  // HVAC-Related Fields (optional)
-  "systemType": "central-air",
-  "systemAge": 12,
-  "serviceType": "installation",
-  "urgency": "within-month",
-  "propertySize": 2400,
-
-  // Insurance-Related Fields (optional)
-  "policyType": "home",
-  "coverageAmount": 500000,
-  "currentPremium": 1200,
-  "propertyValue": 750000,
-  "claimsHistory": "No claims in past 5 years",
-
-  // Analytics & Revenue (optional)
-  "conversionScore": 85,
-  "revenuePotential": 25000,
-
-  // Additional Metadata (optional)
-  "notes": "Interested in solar installation, prefers financing options"
+  // Consent & Compliance
+  "consent": {
+    "description": "By providing your phone number, you consent to receive marketing messages via text. Reply STOP to opt out.",
+    "value": true
+  },
+  "tcpa_compliance": true
 }`)}
                           className="h-6 w-6 p-0"
                         >
@@ -534,58 +721,38 @@ const ApiDocumentation = ({ open, onOpenChange }: ApiDocumentationProps) => {
                         <pre className="text-xs font-mono whitespace-pre-wrap text-foreground min-w-0">
 {`{
   // Required Fields
-  "firstName": "John",
-  "lastName": "Doe",
-  "email": "john.doe@example.com",
+  "firstname": "John",
+  "lastname": "Doe",
   "source": "Google Ads",
 
-  // Contact Information (optional)
-  "phone": "555-123-4567",
-  "address": "123 Main Street",
+  // Contact Information (optional but recommended)
+  "phone": "5551234567",
+  "email": "john.doe@example.com",
+  "address1": "123 Main Street",
+  "address2": "Apt 4B",
   "city": "Los Angeles",
   "state": "CA",
-  "zipCode": "90210",
+  "zip": "90210",
 
-  // Marketing & Campaign Tracking (optional)
-  "campaignId": "summer_2024_solar",
-  "utmSource": "google",
-  "utmMedium": "cpc",
-  "utmCampaign": "solar_leads_ca",
+  // Business-Specific Fields
+  "productid": "Solar",
+  "subsource": "Solar Installation Campaign",
+  "created_at": "2025-09-25T18:00:00.000Z",
+  "landing_page_url": "https://solarpanel.com/ca-landing",
 
-  // Solar-Related Fields (optional)
-  "monthlyElectricBill": 250,
-  "propertyType": "single-family",
-  "roofCondition": "good",
-  "roofAge": 8,
-  "shadeCoverage": "minimal",
-
-  // HVAC-Related Fields (optional)
-  "systemType": "central-air",
-  "systemAge": 12,
-  "serviceType": "installation",
-  "urgency": "within-month",
-  "propertySize": 2400,
-
-  // Insurance-Related Fields (optional)
-  "policyType": "home",
-  "coverageAmount": 500000,
-  "currentPremium": 1200,
-  "propertyValue": 750000,
-  "claimsHistory": "No claims in past 5 years",
-
-  // Analytics & Revenue (optional)
-  "conversionScore": 85,
-  "revenuePotential": 25000,
-
-  // Additional Metadata (optional)
-  "notes": "Interested in solar installation, prefers financing options"
+  // Consent & Compliance
+  "consent": {
+    "description": "By providing your phone number, you consent to receive marketing messages via text. Reply STOP to opt out.",
+    "value": true
+  },
+  "tcpa_compliance": true
 }`}
                         </pre>
                       </div>
 
                       <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
                         <p className="text-sm text-blue-800 dark:text-blue-200">
-                          <strong>Note:</strong> Only the required fields (firstName, lastName, email, source) are mandatory.
+                          <strong>Note:</strong> Only the required fields (firstname, lastname, source) are mandatory. Email and phone are highly recommended.
                           Include any combination of optional fields based on your lead type and available data.
                         </p>
                       </div>

@@ -10,7 +10,8 @@ import {
   X,
   ChevronDown,
   LogOut,
-  User
+  User,
+  BookOpen
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -28,6 +29,7 @@ const navigation = [
   { name: 'Webhooks', href: '/webhooks', icon: FolderOpen },
   { name: 'Leads', href: '/leads', icon: Users },
   { name: 'Analytics', href: '/analytics', icon: TrendingUp },
+  { name: 'Documentation', href: '/docs', icon: BookOpen },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 
