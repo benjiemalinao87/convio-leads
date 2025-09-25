@@ -492,7 +492,7 @@ webhook.delete('/:webhookId', async (c) => {
   if (!WEBHOOK_PATTERN.test(webhookId)) {
     return c.json({
       error: 'Invalid webhook ID format',
-      message: 'Webhook ID must follow pattern: ws_[region]_[category]_[id]',
+      message: 'Webhook ID must follow pattern: [name-prefix]_ws_[region]_[category]_[id] (e.g., click-ventures_ws_cal_solar_001)',
       timestamp: new Date().toISOString()
     }, 400)
   }
@@ -513,7 +513,13 @@ webhook.delete('/:webhookId', async (c) => {
       }, 404)
     }
 
-    // Hard delete the webhook configuration
+    // Count leads before deletion for reporting
+    const { results: leadCount } = await db.prepare(
+      'SELECT COUNT(*) as count FROM leads WHERE webhook_id = ?'
+    ).bind(webhookId).all()
+
+    // Only delete the webhook configuration - keep all leads data
+    // The leads will become "orphaned" but remain accessible in the system
     await db.prepare(
       'DELETE FROM webhook_configs WHERE webhook_id = ?'
     ).bind(webhookId).run()
@@ -522,6 +528,8 @@ webhook.delete('/:webhookId', async (c) => {
       status: 'success',
       message: 'Webhook configuration deleted successfully',
       webhook_id: webhookId,
+      leads_preserved: leadCount[0]?.count || 0,
+      note: 'All leads data has been preserved and remains accessible',
       timestamp: new Date().toISOString()
     })
 
