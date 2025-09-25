@@ -277,6 +277,25 @@ webhook.post('/:webhookId', async (c) => {
       try {
         leadId = await db.saveLead(leadRecord)
         console.log(`Lead saved to database with ID: ${leadId}`)
+
+        // Update webhook statistics in webhook_configs table
+        if (leadId) {
+          try {
+            await ((c.env as any) as any).LEADS_DB.prepare(`
+              UPDATE webhook_configs
+              SET
+                total_leads = total_leads + 1,
+                last_lead_at = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+              WHERE webhook_id = ? AND is_active = 1
+            `).bind(webhookId).run()
+
+            console.log(`Updated webhook ${webhookId} statistics: total_leads incremented`)
+          } catch (updateError) {
+            console.error('Failed to update webhook statistics:', updateError)
+            // Don't fail the webhook processing if stats update fails
+          }
+        }
       } catch (dbError) {
         console.error('Database error:', dbError)
         // Continue processing even if database save fails
@@ -317,10 +336,26 @@ webhook.get('/', async (c) => {
   try {
     const db = ((c.env as any) as any).LEADS_DB
     
-    // Fetch webhook configurations from D1 database
-    const { results } = await db.prepare(
-      'SELECT webhook_id, name, description, lead_type, is_active, total_leads, created_at FROM webhook_configs WHERE is_active = 1 ORDER BY created_at DESC'
-    ).all()
+    // Fetch webhook configurations with statistics from D1 database
+    const { results } = await db.prepare(`
+      SELECT
+        w.webhook_id,
+        w.name,
+        w.description,
+        w.lead_type,
+        w.is_active,
+        w.total_leads,
+        w.created_at,
+        w.last_lead_at,
+        COUNT(l.id) as actual_lead_count,
+        AVG(CASE WHEN l.status = 'converted' THEN 1.0 ELSE 0.0 END) * 100 as conversion_rate,
+        SUM(CASE WHEN l.revenue_potential IS NOT NULL THEN l.revenue_potential ELSE 0 END) as total_revenue
+      FROM webhook_configs w
+      LEFT JOIN leads l ON w.webhook_id = l.webhook_id
+      WHERE w.is_active = 1
+      GROUP BY w.webhook_id, w.name, w.description, w.lead_type, w.is_active, w.total_leads, w.created_at, w.last_lead_at
+      ORDER BY w.created_at DESC
+    `).all()
 
     const webhooks = results.map((config: any) => ({
       id: config.webhook_id,
@@ -331,7 +366,13 @@ webhook.get('/', async (c) => {
       endpoints: {
         health: `/webhook/${config.webhook_id}`,
         receive: `/webhook/${config.webhook_id}`
-      }
+      },
+      // Return actual statistics
+      total_leads: config.actual_lead_count || 0,
+      conversion_rate: config.conversion_rate || 0,
+      total_revenue: config.total_revenue || 0,
+      created_at: config.created_at,
+      last_lead_at: config.last_lead_at
     }))
 
     return c.json({
