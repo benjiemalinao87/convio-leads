@@ -145,39 +145,55 @@ const ApiDocumentation = ({ open, onOpenChange }: ApiDocumentationProps) => {
 
   const schemas = [
     {
-      name: 'Base Lead Schema',
-      description: 'Common fields for all lead types',
+      name: 'Complete Lead Schema',
+      description: 'All available fields for lead data - use any combination based on your lead type',
       fields: [
+        // Required Core Fields
         { name: 'firstName', type: 'string', required: true, description: 'First name of the lead' },
         { name: 'lastName', type: 'string', required: true, description: 'Last name of the lead' },
-        { name: 'email', type: 'string', required: false, description: 'Email address (validated if provided)' },
+        { name: 'email', type: 'string', required: true, description: 'Email address of the lead' },
+        { name: 'source', type: 'string', required: true, description: 'Lead source (e.g., "Google Ads", "Facebook", "Referral")' },
+
+        // Contact Information
         { name: 'phone', type: 'string', required: false, description: 'Phone number (min 10 digits)' },
         { name: 'address', type: 'string', required: false, description: 'Street address' },
-        { name: 'city', type: 'string', required: false, description: 'City' },
+        { name: 'city', type: 'string', required: false, description: 'City name' },
         { name: 'state', type: 'string', required: false, description: 'State/Province' },
         { name: 'zipCode', type: 'string', required: false, description: 'ZIP/Postal code' },
-        { name: 'source', type: 'string', required: true, description: 'Lead source (e.g., "Google Ads")' }
-      ]
-    },
-    {
-      name: 'Solar Lead Schema',
-      description: 'Additional fields for solar leads',
-      fields: [
-        { name: 'propertyType', type: 'enum', required: false, description: 'single-family | townhouse | condo | apartment | commercial' },
+
+        // Marketing & Campaign Tracking
+        { name: 'campaignId', type: 'string', required: false, description: 'Campaign identifier for tracking' },
+        { name: 'utmSource', type: 'string', required: false, description: 'UTM source parameter' },
+        { name: 'utmMedium', type: 'string', required: false, description: 'UTM medium parameter' },
+        { name: 'utmCampaign', type: 'string', required: false, description: 'UTM campaign parameter' },
+
+        // Solar-Related Fields
         { name: 'monthlyElectricBill', type: 'number', required: false, description: 'Monthly electric bill amount' },
-        { name: 'roofCondition', type: 'enum', required: false, description: 'excellent | good | fair | poor' },
+        { name: 'propertyType', type: 'string', required: false, description: 'Property type (e.g., single-family, townhouse, condo, apartment, commercial)' },
+        { name: 'roofCondition', type: 'string', required: false, description: 'Condition of roof (excellent, good, fair, poor)' },
         { name: 'roofAge', type: 'number', required: false, description: 'Age of roof in years (0-100)' },
-        { name: 'shadeIssues', type: 'boolean', required: false, description: 'Property has shade issues' }
-      ]
-    },
-    {
-      name: 'HVAC Lead Schema',
-      description: 'Additional fields for HVAC leads',
-      fields: [
-        { name: 'serviceType', type: 'enum', required: false, description: 'installation | repair | maintenance | consultation' },
-        { name: 'systemAge', type: 'number', required: false, description: 'Age of current system (0-50 years)' },
-        { name: 'systemType', type: 'enum', required: false, description: 'central-air | heat-pump | ductless | window-unit | other' },
-        { name: 'urgency', type: 'enum', required: false, description: 'immediate | within-week | within-month | planning' }
+        { name: 'shadeCoverage', type: 'string', required: false, description: 'Shade coverage on property (none, minimal, moderate, heavy)' },
+
+        // HVAC-Related Fields
+        { name: 'systemType', type: 'string', required: false, description: 'HVAC system type (central-air, heat-pump, ductless, window-unit, other)' },
+        { name: 'systemAge', type: 'number', required: false, description: 'Age of current HVAC system in years (0-50)' },
+        { name: 'serviceType', type: 'string', required: false, description: 'Type of service needed (installation, repair, maintenance, consultation)' },
+        { name: 'urgency', type: 'string', required: false, description: 'Urgency level (immediate, within-week, within-month, planning)' },
+        { name: 'propertySize', type: 'number', required: false, description: 'Property size in square feet' },
+
+        // Insurance-Related Fields
+        { name: 'policyType', type: 'string', required: false, description: 'Type of insurance policy (home, auto, life, business)' },
+        { name: 'coverageAmount', type: 'number', required: false, description: 'Desired coverage amount' },
+        { name: 'currentPremium', type: 'number', required: false, description: 'Current premium amount' },
+        { name: 'propertyValue', type: 'number', required: false, description: 'Property value for insurance' },
+        { name: 'claimsHistory', type: 'string', required: false, description: 'Claims history information' },
+
+        // Analytics & Revenue
+        { name: 'conversionScore', type: 'number', required: false, description: 'Conversion likelihood score (0-100)' },
+        { name: 'revenuePotential', type: 'number', required: false, description: 'Estimated revenue potential' },
+
+        // Additional Metadata (handled automatically)
+        { name: 'notes', type: 'string', required: false, description: 'Additional notes about the lead' }
       ]
     }
   ];
@@ -382,23 +398,122 @@ const ApiDocumentation = ({ open, onOpenChange }: ApiDocumentationProps) => {
                       <p className="text-sm text-muted-foreground">{schema.description}</p>
                     </CardHeader>
                     <CardContent>
-                      <div className="space-y-3">
-                        {schema.fields.map((field) => (
-                          <div key={field.name} className="flex items-start gap-4 py-2 border-b border-border/50 last:border-0">
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2 mb-1">
-                                <code className="text-sm font-mono font-medium">{field.name}</code>
-                                {field.required && (
-                                  <Badge variant="destructive" className="text-xs">Required</Badge>
-                                )}
-                              </div>
-                              <p className="text-xs text-muted-foreground">{field.description}</p>
-                            </div>
-                            <Badge variant="outline" className="text-xs font-mono shrink-0">
-                              {field.type}
-                            </Badge>
-                          </div>
-                        ))}
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium">JSON Schema Example</span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => copyToClipboard(`{
+  // Required Fields
+  "firstName": "John",
+  "lastName": "Doe",
+  "email": "john.doe@example.com",
+  "source": "Google Ads",
+
+  // Contact Information (optional)
+  "phone": "555-123-4567",
+  "address": "123 Main Street",
+  "city": "Los Angeles",
+  "state": "CA",
+  "zipCode": "90210",
+
+  // Marketing & Campaign Tracking (optional)
+  "campaignId": "summer_2024_solar",
+  "utmSource": "google",
+  "utmMedium": "cpc",
+  "utmCampaign": "solar_leads_ca",
+
+  // Solar-Related Fields (optional)
+  "monthlyElectricBill": 250,
+  "propertyType": "single-family",
+  "roofCondition": "good",
+  "roofAge": 8,
+  "shadeCoverage": "minimal",
+
+  // HVAC-Related Fields (optional)
+  "systemType": "central-air",
+  "systemAge": 12,
+  "serviceType": "installation",
+  "urgency": "within-month",
+  "propertySize": 2400,
+
+  // Insurance-Related Fields (optional)
+  "policyType": "home",
+  "coverageAmount": 500000,
+  "currentPremium": 1200,
+  "propertyValue": 750000,
+  "claimsHistory": "No claims in past 5 years",
+
+  // Analytics & Revenue (optional)
+  "conversionScore": 85,
+  "revenuePotential": 25000,
+
+  // Additional Metadata (optional)
+  "notes": "Interested in solar installation, prefers financing options"
+}`)}
+                          className="h-6 w-6 p-0"
+                        >
+                          <Copy className="w-3 h-3" />
+                        </Button>
+                      </div>
+                      <div className="bg-muted p-4 rounded-lg overflow-x-auto">
+                        <pre className="text-xs font-mono whitespace-pre-wrap text-foreground min-w-0">
+{`{
+  // Required Fields
+  "firstName": "John",
+  "lastName": "Doe",
+  "email": "john.doe@example.com",
+  "source": "Google Ads",
+
+  // Contact Information (optional)
+  "phone": "555-123-4567",
+  "address": "123 Main Street",
+  "city": "Los Angeles",
+  "state": "CA",
+  "zipCode": "90210",
+
+  // Marketing & Campaign Tracking (optional)
+  "campaignId": "summer_2024_solar",
+  "utmSource": "google",
+  "utmMedium": "cpc",
+  "utmCampaign": "solar_leads_ca",
+
+  // Solar-Related Fields (optional)
+  "monthlyElectricBill": 250,
+  "propertyType": "single-family",
+  "roofCondition": "good",
+  "roofAge": 8,
+  "shadeCoverage": "minimal",
+
+  // HVAC-Related Fields (optional)
+  "systemType": "central-air",
+  "systemAge": 12,
+  "serviceType": "installation",
+  "urgency": "within-month",
+  "propertySize": 2400,
+
+  // Insurance-Related Fields (optional)
+  "policyType": "home",
+  "coverageAmount": 500000,
+  "currentPremium": 1200,
+  "propertyValue": 750000,
+  "claimsHistory": "No claims in past 5 years",
+
+  // Analytics & Revenue (optional)
+  "conversionScore": 85,
+  "revenuePotential": 25000,
+
+  // Additional Metadata (optional)
+  "notes": "Interested in solar installation, prefers financing options"
+}`}
+                        </pre>
+                      </div>
+
+                      <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                        <p className="text-sm text-blue-800 dark:text-blue-200">
+                          <strong>Note:</strong> Only the required fields (firstName, lastName, email, source) are mandatory.
+                          Include any combination of optional fields based on your lead type and available data.
+                        </p>
                       </div>
                     </CardContent>
                   </Card>

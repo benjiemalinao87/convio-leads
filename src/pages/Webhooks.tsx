@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import {
   Plus,
   Copy,
@@ -29,6 +30,7 @@ interface APIWebhook {
   type: string;
   region: string;
   category: string;
+  enabled: boolean;
   endpoints: {
     health: string;
     receive: string;
@@ -47,12 +49,13 @@ interface WebhookWithStats {
   type: string;
   region: string;
   category: string;
+  enabled: boolean;
   webhook_url: string;
   created_at: string;
   total_leads: number;
   conversion_rate: number;
   total_revenue: number;
-  status: 'active' | 'new';
+  status: 'active' | 'new' | 'disabled';
 }
 
 export default function Webhooks() {
@@ -84,18 +87,24 @@ export default function Webhooks() {
 
       // Use real statistics from the API response
       const webhooksWithStats = webhooksData.webhooks.map((webhook: APIWebhook) => {
+        const getStatus = () => {
+          if (!webhook.enabled) return 'disabled' as const;
+          return (webhook.total_leads || 0) > 0 ? 'active' as const : 'new' as const;
+        };
+
         return {
           id: webhook.id,
           name: webhook.name,
           type: webhook.type,
           region: webhook.region,
           category: webhook.category,
+          enabled: webhook.enabled,
           webhook_url: `${API_BASE}${webhook.endpoints.receive}`,
           created_at: webhook.created_at || new Date().toISOString(),
           total_leads: webhook.total_leads || 0,
           conversion_rate: webhook.conversion_rate || 0,
           total_revenue: webhook.total_revenue || 0,
-          status: (webhook.total_leads || 0) > 0 ? 'active' as const : 'new' as const,
+          status: getStatus(),
         };
       });
 
@@ -197,6 +206,43 @@ export default function Webhooks() {
     });
   };
 
+  const handleToggleWebhook = async (webhookId: string, currentEnabled: boolean) => {
+    try {
+      const response = await fetch(`${API_BASE}/webhook/${webhookId}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          enabled: !currentEnabled
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to update webhook status');
+      }
+
+      const result = await response.json();
+
+      toast({
+        title: "Webhook Updated",
+        description: `Webhook has been ${!currentEnabled ? 'enabled' : 'disabled'} successfully.`,
+      });
+
+      // Refresh the webhooks list
+      await fetchWebhooks();
+
+    } catch (error) {
+      console.error('Failed to toggle webhook:', error);
+      toast({
+        title: "Update Failed",
+        description: error instanceof Error ? error.message : 'Failed to update webhook status',
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <Layout>
       <div className="space-y-8">
@@ -260,18 +306,30 @@ export default function Webhooks() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge variant={webhook.total_leads > 0 ? "default" : "secondary"}>
-                    {webhook.total_leads > 0 ? "Active" : "New"}
+                  <Badge variant={
+                    webhook.status === 'active' ? "default" :
+                    webhook.status === 'disabled' ? "destructive" : "secondary"
+                  }>
+                    {webhook.status === 'active' ? "Active" :
+                     webhook.status === 'disabled' ? "Disabled" : "New"}
                   </Badge>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleDeleteWebhook(webhook.id, webhook.name)}
-                    className="h-8 w-8 p-0 text-destructive hover:text-destructive-foreground hover:bg-destructive"
-                    title="Delete webhook"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={webhook.enabled}
+                      onCheckedChange={() => handleToggleWebhook(webhook.id, webhook.enabled)}
+                      disabled={isLoading}
+                      className="data-[state=checked]:bg-primary"
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDeleteWebhook(webhook.id, webhook.name)}
+                      className="h-8 w-8 p-0 text-destructive hover:text-destructive-foreground hover:bg-destructive"
+                      title="Delete webhook"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
               </div>
 

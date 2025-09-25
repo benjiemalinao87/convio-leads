@@ -36,6 +36,7 @@ interface APIWebhook {
   type: string;
   region: string;
   category: string;
+  enabled: boolean;
   total_leads: number;
   conversion_rate: number;
   total_revenue: number;
@@ -317,9 +318,9 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Workspace Overview */}
+      {/* Webhook Overview */}
       <Card className="glass-card p-6">
-        <h3 className="text-lg font-semibold mb-6 text-foreground">Workspace Performance</h3>
+        <h3 className="text-lg font-semibold mb-6 text-foreground">Webhook Performance</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {webhooks.map((webhook) => (
             <div key={webhook.id} className="p-4 rounded-lg border border-border/50 bg-secondary/20">

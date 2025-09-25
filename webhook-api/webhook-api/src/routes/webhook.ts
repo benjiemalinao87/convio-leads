@@ -352,9 +352,8 @@ webhook.get('/', async (c) => {
         SUM(CASE WHEN l.revenue_potential IS NOT NULL THEN l.revenue_potential ELSE 0 END) as total_revenue
       FROM webhook_configs w
       LEFT JOIN leads l ON w.webhook_id = l.webhook_id
-      WHERE w.is_active = 1
       GROUP BY w.webhook_id, w.name, w.description, w.lead_type, w.is_active, w.total_leads, w.created_at, w.last_lead_at
-      ORDER BY w.created_at DESC
+      ORDER BY w.is_active DESC, w.created_at DESC
     `).all()
 
     const webhooks = results.map((config: any) => ({
@@ -363,6 +362,7 @@ webhook.get('/', async (c) => {
       type: config.lead_type,
       region: config.webhook_id.split('_')[1] || 'unknown',
       category: config.webhook_id.split('_')[2] || 'unknown',
+      enabled: config.is_active === 1,
       endpoints: {
         health: `/webhook/${config.webhook_id}`,
         receive: `/webhook/${config.webhook_id}`
@@ -498,17 +498,26 @@ webhook.delete('/:webhookId', async (c) => {
   try {
     const db = ((c.env as any) as any).LEADS_DB
 
-    // Check if webhook exists in database
+    // Check if webhook exists in database (including inactive ones)
     const { results } = await db.prepare(
-      'SELECT webhook_id, name FROM webhook_configs WHERE webhook_id = ? AND is_active = 1'
+      'SELECT webhook_id, name, is_active FROM webhook_configs WHERE webhook_id = ?'
     ).bind(webhookId).all()
 
     if (results.length === 0) {
       return c.json({
         error: 'Webhook not found',
-        message: `Webhook ${webhookId} does not exist or is already inactive`,
+        message: `Webhook ${webhookId} does not exist`,
         timestamp: new Date().toISOString()
       }, 404)
+    }
+
+    // Check if webhook is already deleted (soft-deleted)
+    if (results[0].is_active === 0) {
+      return c.json({
+        error: 'Webhook already deleted',
+        message: `Webhook ${webhookId} has already been deleted`,
+        timestamp: new Date().toISOString()
+      }, 400)
     }
 
     // Soft delete by marking as inactive
@@ -528,6 +537,82 @@ webhook.delete('/:webhookId', async (c) => {
     return c.json({
       error: 'Database error',
       message: 'Failed to delete webhook configuration',
+      timestamp: new Date().toISOString()
+    }, 500)
+  }
+})
+
+// Enable/disable a webhook
+webhook.patch('/:webhookId/status', async (c) => {
+  const webhookId = c.req.param('webhookId')
+
+  // Validate webhook ID format
+  if (!WEBHOOK_PATTERN.test(webhookId)) {
+    return c.json({
+      error: 'Invalid webhook ID format',
+      message: 'Webhook ID must follow pattern: ws_[region]_[category]_[id]',
+      timestamp: new Date().toISOString()
+    }, 400)
+  }
+
+  try {
+    const requestBody = await c.req.json()
+    const { enabled } = requestBody
+
+    if (typeof enabled !== 'boolean') {
+      return c.json({
+        error: 'Invalid request',
+        message: 'enabled field must be a boolean value',
+        timestamp: new Date().toISOString()
+      }, 400)
+    }
+
+    const db = ((c.env as any) as any).LEADS_DB
+
+    // Check if webhook exists in database (including inactive ones)
+    const { results } = await db.prepare(
+      'SELECT webhook_id, name, is_active FROM webhook_configs WHERE webhook_id = ?'
+    ).bind(webhookId).all()
+
+    if (results.length === 0) {
+      return c.json({
+        error: 'Webhook not found',
+        message: `Webhook ${webhookId} does not exist`,
+        timestamp: new Date().toISOString()
+      }, 404)
+    }
+
+    const currentStatus = results[0].is_active === 1
+
+    // Check if status is already what was requested
+    if (currentStatus === enabled) {
+      return c.json({
+        status: 'success',
+        message: `Webhook ${webhookId} is already ${enabled ? 'enabled' : 'disabled'}`,
+        webhook_id: webhookId,
+        enabled: enabled,
+        timestamp: new Date().toISOString()
+      })
+    }
+
+    // Update the status
+    await db.prepare(
+      'UPDATE webhook_configs SET is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE webhook_id = ?'
+    ).bind(enabled ? 1 : 0, webhookId).run()
+
+    return c.json({
+      status: 'success',
+      message: `Webhook ${webhookId} has been ${enabled ? 'enabled' : 'disabled'} successfully`,
+      webhook_id: webhookId,
+      enabled: enabled,
+      timestamp: new Date().toISOString()
+    })
+
+  } catch (error) {
+    console.error('Update webhook status error:', error)
+    return c.json({
+      error: 'Database error',
+      message: 'Failed to update webhook status',
       timestamp: new Date().toISOString()
     }, 500)
   }
