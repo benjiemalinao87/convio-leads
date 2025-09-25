@@ -7,7 +7,7 @@ export interface LeadRecord {
   lead_type: string;
   first_name: string;
   last_name: string;
-  email: string;
+  email?: string; // Make email optional to match schema validation
   phone?: string;
   address?: string;
   city?: string;
@@ -56,14 +56,17 @@ export class LeadDatabase {
         monthly_electric_bill, property_type, roof_condition, roof_age, shade_coverage,
         system_type, system_age, service_type, urgency, property_size,
         policy_type, coverage_amount, current_premium, property_value, claims_history,
-        raw_payload, ip_address, user_agent, status, conversion_score, revenue_potential
+        raw_payload, ip_address, user_agent, 
+        created_at, updated_at, processed_at, status, notes,
+        conversion_score, revenue_potential, status_changed_at, status_changed_by,
+        priority, assigned_to, follow_up_date, contact_attempts
       ) VALUES (
         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-        ?, ?, ?, ?, ?, ?, ?
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
       )
-    `).bind(
-      leadId, lead.contact_id || null, lead.webhook_id, lead.lead_type, lead.first_name, lead.last_name, lead.email, lead.phone || null,
+    `    ).bind(
+      leadId, lead.contact_id || null, lead.webhook_id, lead.lead_type, lead.first_name, lead.last_name, lead.email || null, lead.phone || null,
       lead.address || null, lead.city || null, lead.state || null, lead.zip_code || null,
       lead.source, lead.campaign_id || null,
       lead.utm_source || null, lead.utm_medium || null, lead.utm_campaign || null,
@@ -74,7 +77,12 @@ export class LeadDatabase {
       lead.policy_type || null, lead.coverage_amount || null, lead.current_premium || null,
       lead.property_value || null, lead.claims_history || null,
       lead.raw_payload, lead.ip_address || null, lead.user_agent || null,
-      lead.status || 'new', lead.conversion_score || null, lead.revenue_potential || null
+      // Timestamp fields - let DB use defaults
+      null, null, null, // created_at, updated_at, processed_at
+      lead.status || 'new', null, // status, notes
+      lead.conversion_score || null, lead.revenue_potential || null,
+      null, null, // status_changed_at, status_changed_by
+      1, null, null, 0 // priority (default 1), assigned_to, follow_up_date, contact_attempts (default 0)
     );
 
     const result = await stmt.run();

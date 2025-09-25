@@ -194,9 +194,9 @@ export function LeadsTable({ leads, onViewLead, onEditLead, onDeleteLead, isCont
                 <div>
                   <div className="font-semibold">{lead.name}</div>
                   <div className="text-sm text-muted-foreground">{lead.position}</div>
-                  {isContactMode && lead.leadCount && lead.leadCount > 1 && (
+                  {isContactMode && lead.leadCount && (
                     <div className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-md mt-1 inline-block">
-                      {lead.leadCount} leads
+                      {lead.leadCount} {lead.leadCount === 1 ? 'lead' : 'leads'}
                     </div>
                   )}
                 </div>

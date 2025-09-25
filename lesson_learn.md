@@ -162,3 +162,113 @@ Cloudflare Workers deployment failing with "lockfile had changes, but lockfile i
 - ❌ **DON'T**: Mix package managers (npm/bun) in parent/child directories without explicit configuration
 - ❌ **DON'T**: Rely on automatic package manager detection when using monorepo structures
 - ❌ **DON'T**: Ignore package manager conflicts in deployment logs
+
+## Webhook API Lead Creation Issue (September 25, 2025)
+
+### Problem
+Webhook API endpoint `POST /webhook/click-ventures_ws_us_general_656` successfully creates contacts but fails to create associated leads. The API returns `"lead_id": null` even though the response claims "Lead stored and linked to contact".
+
+### Root Cause Analysis
+1. **Silent error handling**: The webhook processing has a `catch (dbError)` block that logs errors but continues processing
+2. **Missing error validation**: Lead creation errors are caught silently and `leadId` remains `null`
+3. **Misleading response messages**: API returns success message even when lead creation fails
+4. **No proper error propagation**: Database errors in lead creation don't bubble up to the response
+
+### Investigation Results
+- ✅ Contact creation works correctly (contact_id: 133339, 785558 created successfully)
+- ❌ Lead creation fails silently (lead_id always returns null)
+- ✅ Webhook configuration exists and is active
+- ✅ Phone number normalization works correctly
+- ❌ Lead records are not being saved to the leads table
+
+### Expected vs Actual Behavior
+**Expected**: Contact creation should result in a linked lead being created
+**Actual**: Only contact is created, no associated lead is saved
+
+### Code Location
+- File: `/webhook-api/webhook-api/src/routes/webhook.ts`
+- Lines: 336-339 (silent error handling)
+- Lines: 314-315 (lead creation logic)
+
+### Key Lessons
+- ✅ **DO**: Always validate that database operations succeed before returning success responses
+- ✅ **DO**: Log detailed error information when database operations fail
+- ✅ **DO**: Return appropriate error codes when core functionality fails
+- ✅ **DO**: Test the complete workflow end-to-end, not just individual components
+- ✅ **DO**: Make error handling explicit rather than silently continuing on failures
+- ❌ **DON'T**: Use silent error handling for critical business logic like lead creation
+- ❌ **DON'T**: Return success responses when core operations fail
+- ❌ **DON'T**: Assume database operations succeed without proper validation
+- ❌ **DON'T**: Hide database errors from API responses when they indicate real problems
+
+### Recommended Fix
+1. Remove silent error handling for lead creation failures
+2. Add proper error validation after `leadDb.saveLead()` call
+3. Return appropriate error responses when lead creation fails
+4. Add transaction support to ensure contact and lead are created atomically
+5. Update response messages to accurately reflect what operations succeeded/failed
+
+### Solution Implemented (September 25, 2025)
+
+**Root Cause**: SQL INSERT statement had column/value mismatch (39 values for 38 columns) and interface type mismatch (`email` was required in `LeadRecord` but optional in schema validation).
+
+**Fixes Applied**:
+1. **Fixed Interface Mismatch**: Changed `email: string` to `email?: string` in `LeadRecord` interface to match schema validation
+2. **Fixed SQL Column Mismatch**: Added missing columns to INSERT statement:
+   - `created_at, updated_at, processed_at, status, notes`
+   - `conversion_score, revenue_potential, status_changed_at, status_changed_by`
+   - `priority, assigned_to, follow_up_date, contact_attempts`
+3. **Improved Error Handling**: Replaced silent `catch` with proper error responses showing actual database errors
+4. **Added Lead ID Validation**: Check that `leadId` is not null before returning success
+
+**Results**:
+- ✅ Contact creation: Working correctly
+- ✅ Lead creation: Now working (lead_id: 6520643649, 3894605030 created successfully)
+- ✅ Error reporting: Database errors now properly reported to API consumers
+- ✅ End-to-end workflow: Complete contact + lead creation workflow functioning
+
+**Test Evidence**:
+```json
+{
+  "status": "success",
+  "lead_id": 6520643649,
+  "contact_id": 193591,
+  "webhook_id": "click-ventures_ws_us_general_656"
+}
+```
+
+**Files Modified**:
+- `/webhook-api/webhook-api/src/db/leads.ts` (Interface and SQL fixes)
+- `/webhook-api/webhook-api/src/routes/webhook.ts` (Error handling fixes)
+
+## Contact Lead Count Display Fix (September 25, 2025)
+
+### Problem
+Lead count was not showing for contacts in the dashboard. The contact table should display how many leads each contact has, but the count was only appearing for contacts with more than 1 lead.
+
+### Root Cause
+Display logic in `LeadsTable.tsx` had condition `lead.leadCount > 1` which prevented showing lead count for contacts with exactly 1 lead.
+
+### Solution Applied
+**Updated Display Logic**: Changed condition from `lead.leadCount > 1` to just `lead.leadCount` so all contacts show their lead count:
+```typescript
+// Before: Only showed for contacts with 2+ leads
+{isContactMode && lead.leadCount && lead.leadCount > 1 && (
+  <div>{lead.leadCount} leads</div>
+)}
+
+// After: Shows for all contacts with proper singular/plural
+{isContactMode && lead.leadCount && (
+  <div>{lead.leadCount} {lead.leadCount === 1 ? 'lead' : 'leads'}</div>
+)}
+```
+
+### Key Lessons
+- ✅ **DO**: Show lead counts for all contacts, not just those with multiple leads
+- ✅ **DO**: Use proper singular/plural grammar in UI text
+- ✅ **DO**: Check display conditions carefully when debugging missing UI elements
+- ❌ **DON'T**: Hide relevant information based on arbitrary thresholds
+- ❌ **DON'T**: Assume edge cases (single lead) don't need to be displayed
+
+**Files Modified**:
+- `/src/components/leads/LeadsTable.tsx` (Display logic fix)

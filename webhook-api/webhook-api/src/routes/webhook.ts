@@ -314,28 +314,39 @@ webhook.post('/:webhookId', async (c) => {
         leadId = await leadDb.saveLead(leadRecord)
         console.log(`Lead saved to database with ID: ${leadId} for contact ID: ${contactId}`)
 
-        // Step 3: Update webhook statistics
-        if (leadId) {
-          try {
-            await ((c.env as any) as any).LEADS_DB.prepare(`
-              UPDATE webhook_configs
-              SET
-                total_leads = total_leads + 1,
-                last_lead_at = CURRENT_TIMESTAMP,
-                updated_at = CURRENT_TIMESTAMP
-              WHERE webhook_id = ? AND is_active = 1
-            `).bind(webhookId).run()
+        // Validate that lead was actually created
+        if (!leadId) {
+          throw new Error('Lead creation failed - leadId is null')
+        }
 
-            console.log(`Updated webhook ${webhookId} statistics: total_leads incremented`)
-          } catch (updateError) {
-            console.error('Failed to update webhook statistics:', updateError)
-            // Don't fail the webhook processing if stats update fails
-          }
+        // Step 3: Update webhook statistics
+        try {
+          await ((c.env as any) as any).LEADS_DB.prepare(`
+            UPDATE webhook_configs
+            SET
+              total_leads = total_leads + 1,
+              last_lead_at = CURRENT_TIMESTAMP,
+              updated_at = CURRENT_TIMESTAMP
+            WHERE webhook_id = ? AND is_active = 1
+          `).bind(webhookId).run()
+
+          console.log(`Updated webhook ${webhookId} statistics: total_leads incremented`)
+        } catch (updateError) {
+          console.error('Failed to update webhook statistics:', updateError)
+          // Don't fail the webhook processing if stats update fails
         }
 
       } catch (dbError) {
-        console.error('Database error:', dbError)
-        // Continue processing even if database save fails
+        console.error('Database error during contact/lead creation:', dbError)
+        
+        // Return proper error response instead of silent failure
+        return c.json({
+          error: 'Database error',
+          message: 'Failed to create contact or lead in database',
+          webhook_id: webhookId,
+          details: dbError instanceof Error ? dbError.message : 'Unknown database error',
+          timestamp: new Date().toISOString()
+        }, 500)
       }
     }
 
