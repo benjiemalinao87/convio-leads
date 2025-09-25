@@ -140,6 +140,33 @@ const ApiDocumentation = ({ open, onOpenChange }: ApiDocumentationProps) => {
   "old_status": "new",
   "new_status": "contacted"
 }`
+    },
+    {
+      id: 'phone-search',
+      method: 'GET',
+      path: '/leads/search/phone/:phoneNumber',
+      title: 'Search by Phone',
+      description: 'Search for contacts by phone number with automatic normalization',
+      example: `curl -X GET "https://api.homeprojectpartners.com/leads/search/phone/555-987-6543"`,
+      response: `{
+  "status": "success",
+  "search_phone": "555-987-6543",
+  "normalized_phone": "+15559876543",
+  "count": 1,
+  "contacts": [
+    {
+      "id": 9,
+      "webhook_id": "ws_us_general_187",
+      "first_name": "Sarah",
+      "last_name": "Johnson",
+      "email": "sarah.johnson@test.com",
+      "phone": "+15559876543",
+      "source": "Phone Normalization Test",
+      "status": "new",
+      "created_at": "2025-09-25 05:59:47"
+    }
+  ]
+}`
     }
   ];
 
@@ -155,7 +182,7 @@ const ApiDocumentation = ({ open, onOpenChange }: ApiDocumentationProps) => {
         { name: 'source', type: 'string', required: true, description: 'Lead source (e.g., "Google Ads", "Facebook", "Referral")' },
 
         // Contact Information
-        { name: 'phone', type: 'string', required: false, description: 'Phone number (min 10 digits)' },
+        { name: 'phone', type: 'string', required: false, description: 'Phone number (min 10 digits) - automatically normalized to +1 format' },
         { name: 'address', type: 'string', required: false, description: 'Street address' },
         { name: 'city', type: 'string', required: false, description: 'City name' },
         { name: 'state', type: 'string', required: false, description: 'State/Province' },
