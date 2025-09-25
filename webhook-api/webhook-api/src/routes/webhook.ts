@@ -14,8 +14,8 @@ import { normalizePhoneNumber } from '../utils/phone'
 
 const webhook = new Hono()
 
-// Webhook pattern matcher - matches ws_[region]_[category]_[id]
-const WEBHOOK_PATTERN = /^ws_([a-z]{2,3})_([a-z]+)_(\d{3})$/
+// Webhook pattern matcher - matches [name-prefix]_ws_[region]_[category]_[id]
+const WEBHOOK_PATTERN = /^([a-z0-9-]+)_ws_([a-z]{2,3})_([a-z]+)_(\d{3})$/
 
 // Helper function to get lead schema based on webhook ID
 function getLeadSchema(webhookId: string) {
@@ -81,8 +81,8 @@ webhook.get('/:webhookId', async (c) => {
   if (!WEBHOOK_PATTERN.test(webhookId)) {
     return c.json({
       error: 'Invalid webhook ID format',
-      message: 'Webhook ID must follow pattern: ws_[region]_[category]_[id] (e.g., ws_cal_solar_001)',
-      expected_format: 'ws_[2-3 letter region]_[category]_[3 digit id]',
+      message: 'Webhook ID must follow pattern: [name-prefix]_ws_[region]_[category]_[id] (e.g., click-ventures_ws_cal_solar_001)',
+      expected_format: '[name-prefix]_ws_[2-3 letter region]_[category]_[3 digit id]',
       timestamp: new Date().toISOString()
     }, 400)
   }
@@ -414,9 +414,10 @@ webhook.post('/', async (c) => {
       }, 400)
     }
 
-    // Generate webhook ID with random suffix to avoid collisions
+    // Generate webhook ID with name prefix and random suffix to avoid collisions
     const randomSuffix = Math.floor(Math.random() * 900) + 100 // 100-999
-    const webhookId = `ws_${region.toLowerCase()}_${category.toLowerCase()}_${randomSuffix}`
+    const namePrefix = name.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
+    const webhookId = `${namePrefix}_ws_${region.toLowerCase()}_${category.toLowerCase()}_${randomSuffix}`
 
     // Validate webhook ID format
     if (!WEBHOOK_PATTERN.test(webhookId)) {
