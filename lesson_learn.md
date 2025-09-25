@@ -130,3 +130,29 @@ User reported that the API Documentation component dialog could not be scrolled 
 - ❌ **DON'T**: Over-complicate flex container nesting for dialog content areas
 - ❌ **DON'T**: Use `overflow-hidden` on containers that need to scroll
 - ❌ **DON'T**: Rely on implicit height inheritance in deeply nested scroll containers
+
+## Cloudflare Workers Package Manager Conflict Fix (September 25, 2025)
+
+### Problem
+Cloudflare Workers deployment failing with "lockfile had changes, but lockfile is frozen" error when trying to deploy webhook API. The build was attempting to use `bun install --frozen-lockfile` but the webhook API uses npm with `package-lock.json`.
+
+### Root Cause
+- Main project has `bun.lockb` file in root directory
+- Webhook API subdirectory (`/webhook-api/webhook-api/`) uses npm with `package-lock.json`
+- Cloudflare detected Bun lockfile and tried to use Bun for deployment
+- Mismatch between package managers caused frozen lockfile error
+
+### Solution Applied
+1. **Added explicit build configuration** in `wrangler.jsonc` to force npm usage: `"build": { "command": "npm install && npm run build" }`
+2. **Created `.npmrc` file** in webhook-api directory to explicitly specify npm as package manager
+3. **Documented the fix** to prevent future confusion about mixed package managers
+
+### Key Lessons
+- ✅ **DO**: Use consistent package managers within subdirectories when deploying to Cloudflare
+- ✅ **DO**: Add explicit build commands in `wrangler.jsonc` when package manager detection might fail
+- ✅ **DO**: Create `.npmrc` files to explicitly specify package manager preferences
+- ✅ **DO**: Check parent directories for conflicting lockfiles when deployment fails
+- ✅ **DO**: Understand that Cloudflare Workers auto-detects package managers from lockfiles
+- ❌ **DON'T**: Mix package managers (npm/bun) in parent/child directories without explicit configuration
+- ❌ **DON'T**: Rely on automatic package manager detection when using monorepo structures
+- ❌ **DON'T**: Ignore package manager conflicts in deployment logs

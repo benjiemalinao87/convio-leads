@@ -83,15 +83,15 @@ export function LeadDetailsDialog({ lead, open, onOpenChange, onEdit }: LeadDeta
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [showActivityModal, setShowActivityModal] = useState(false);
 
-  const API_BASE = 'https://api.homeprojectpartners.com';
+  const API_BASE = import.meta.env.DEV ? 'http://localhost:8890' : 'https://api.homeprojectpartners.com';
 
   // Map mock lead ID to API lead ID (you'll need to adjust this mapping)
   const getApiLeadId = (mockLead: Lead): number | null => {
     // For now, just use a simple mapping - you might need to store this differently
     const idMap: { [key: string]: number } = {
       '1': 1, // Alice Johnson - Solar lead
-      '2': 2, // Bob Smith - HVAC lead
-      '3': 3, // Another lead
+      '2': 2, // Bob Smith - HVAC lead #1
+      '3': 3, // Bob Smith - HVAC lead #2 (with status updates)
     };
     return idMap[mockLead.id] || null;
   };
@@ -213,8 +213,29 @@ export function LeadDetailsDialog({ lead, open, onOpenChange, onEdit }: LeadDeta
         return <Mail className="h-3 w-3" />;
       case 'note':
         return <FileText className="h-3 w-3" />;
+      case 'status_change':
+        return <RefreshCw className="h-3 w-3" />;
+      case 'assignment':
+        return <User className="h-3 w-3" />;
       default:
         return <MessageSquare className="h-3 w-3" />;
+    }
+  };
+
+  const getActivityIconBg = (type: string) => {
+    switch (type) {
+      case 'call':
+        return 'bg-blue-500';
+      case 'email':
+        return 'bg-green-500';
+      case 'note':
+        return 'bg-gray-500';
+      case 'status_change':
+        return 'bg-purple-500';
+      case 'assignment':
+        return 'bg-orange-500';
+      default:
+        return 'bg-primary';
     }
   };
 
@@ -380,7 +401,7 @@ export function LeadDetailsDialog({ lead, open, onOpenChange, onEdit }: LeadDeta
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sm text-muted-foreground">Status:</span>
-                    {getStatusBadge(lead.status)}
+                    {getStatusBadge(apiLead?.status || lead.status)}
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sm text-muted-foreground">Source:</span>
@@ -410,7 +431,10 @@ export function LeadDetailsDialog({ lead, open, onOpenChange, onEdit }: LeadDeta
                   {displayActivities.length > 0 ? displayActivities.map((activity, index) => (
                     <div key={activity.id} className="flex space-x-3">
                       <div className="flex flex-col items-center">
-                        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                        <div className={cn(
+                          "flex h-6 w-6 items-center justify-center rounded-full text-white",
+                          getActivityIconBg(activity.type)
+                        )}>
                           {getActivityIcon(activity.type)}
                         </div>
                         {index < displayActivities.length - 1 && (
@@ -421,7 +445,7 @@ export function LeadDetailsDialog({ lead, open, onOpenChange, onEdit }: LeadDeta
                         <div className="flex items-center justify-between">
                           <p className="text-sm font-medium">{activity.title}</p>
                           <p className="text-xs text-muted-foreground">
-                            {formatDateShort(activity.timestamp)}
+                            {formatDate(activity.timestamp)}
                           </p>
                         </div>
                         {activity.description && (

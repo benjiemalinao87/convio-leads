@@ -259,7 +259,7 @@ export class LeadDatabase {
       throw new Error(`Lead with ID ${leadId} not found`);
     }
 
-    const oldStatus = currentLead.status;
+    const oldStatus = (currentLead as any).status as string;
 
     // Update the lead with new status and metadata
     await this.db.prepare(`
@@ -310,7 +310,7 @@ export class LeadDatabase {
       changedByName: options.changedByName
     });
 
-    return { success: true, oldStatus };
+    return { success: true, oldStatus: oldStatus as string };
   }
 
   async recordStatusChange(
@@ -440,8 +440,8 @@ export class LeadDatabase {
         AND DATE(created_at) = ?
     `).bind(webhookId, today).first();
 
-    const conversionRate = stats && stats.total_leads > 0
-      ? (stats.converted_leads / stats.total_leads) * 100
+    const conversionRate = stats && (stats as any).total_leads > 0
+      ? ((stats as any).converted_leads / (stats as any).total_leads) * 100
       : 0;
 
     await this.db.prepare(`
@@ -461,5 +461,13 @@ export class LeadDatabase {
       conversionRate,
       stats?.total_revenue || 0
     ).run();
+  }
+
+  async getLeadById(leadId: number): Promise<any | null> {
+    const result = await this.db.prepare(`
+      SELECT * FROM leads WHERE id = ?
+    `).bind(leadId).first();
+
+    return result || null;
   }
 }

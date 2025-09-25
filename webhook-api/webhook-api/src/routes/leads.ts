@@ -91,7 +91,7 @@ leads.get('/statistics', async (c) => {
     // Calculate conversion rate if we have data
     const conversionRate = statistics.total_count > 0
       ? ((statistics.converted_count / statistics.total_count) * 100).toFixed(2)
-      : 0
+      : "0"
 
     return c.json({
       status: 'success',
@@ -216,9 +216,7 @@ leads.get('/:leadId', async (c) => {
 
   try {
     const db = new LeadDatabase((c.env as any).LEADS_DB)
-    const result = await db.db.prepare(`
-      SELECT * FROM leads WHERE id = ?
-    `).bind(leadId).first()
+    const result = await db.getLeadById(leadId)
 
     if (!result) {
       return c.json({

@@ -87,7 +87,7 @@ webhook.get('/:webhookId', async (c) => {
   }
 
   try {
-    const db = c.env.LEADS_DB as any
+    const db = ((c.env as any) as any).LEADS_DB
 
     // Check if webhook exists in database
     const { results } = await db.prepare(
@@ -149,7 +149,7 @@ webhook.post('/:webhookId', async (c) => {
     }
 
     // Check if webhook is configured in database
-    const db = c.env.LEADS_DB as any
+    const db = ((c.env as any) as any).LEADS_DB
     const { results } = await db.prepare(
       'SELECT webhook_id, name, lead_type, is_active FROM webhook_configs WHERE webhook_id = ? AND is_active = 1'
     ).bind(webhookId).all()
@@ -186,7 +186,7 @@ webhook.post('/:webhookId', async (c) => {
     }
 
     // Validate webhook signature if secret is provided
-    const webhookSecret = (c.env as any)?.WEBHOOK_SECRET
+    const webhookSecret = ((c.env as any) as any)?.WEBHOOK_SECRET
     if (webhookSecret && signature) {
       const rawBody = JSON.stringify(requestBody)
       const isValidSignature = await validateWebhookSignature(rawBody, signature, webhookSecret)
@@ -230,8 +230,8 @@ webhook.post('/:webhookId', async (c) => {
 
     // Store lead in database if D1 is available
     let leadId: number | null = null
-    if ((c.env as any).LEADS_DB) {
-      const db = new LeadDatabase((c.env as any).LEADS_DB)
+    if (((c.env as any) as any).LEADS_DB) {
+      const db = new LeadDatabase(((c.env as any) as any).LEADS_DB)
 
       // Get lead type from webhook config
       const config = LeadProviderConfig[webhookId as LeadProviderId]
@@ -315,7 +315,7 @@ webhook.post('/:webhookId', async (c) => {
 // List all configured webhooks
 webhook.get('/', async (c) => {
   try {
-    const db = c.env.LEADS_DB as any
+    const db = ((c.env as any) as any).LEADS_DB
     
     // Fetch webhook configurations from D1 database
     const { results } = await db.prepare(
@@ -385,7 +385,7 @@ webhook.post('/', async (c) => {
       }, 400)
     }
 
-    const db = c.env.LEADS_DB as any
+    const db = ((c.env as any) as any).LEADS_DB
 
     // Check if webhook already exists in database
     const { results: existing } = await db.prepare(
@@ -455,7 +455,7 @@ webhook.delete('/:webhookId', async (c) => {
   }
 
   try {
-    const db = c.env.LEADS_DB as any
+    const db = ((c.env as any) as any).LEADS_DB
 
     // Check if webhook exists in database
     const { results } = await db.prepare(
