@@ -33,6 +33,11 @@ interface APIWebhook {
     health: string;
     receive: string;
   };
+  total_leads?: number;
+  conversion_rate?: number;
+  total_revenue?: number;
+  created_at?: string;
+  last_lead_at?: string;
 }
 
 // Webhook with statistics
@@ -77,16 +82,8 @@ export default function Webhooks() {
       }
       const webhooksData = await webhooksResponse.json();
 
-      // Fetch statistics for each webhook
+      // Use real statistics from the API response
       const webhooksWithStats = webhooksData.webhooks.map((webhook: APIWebhook) => {
-        // Generate mock stats based on webhook ID for demo purposes
-        // In a real implementation, these would come from a /leads/stats endpoint
-        const mockStats = {
-          total_leads: webhook.id === 'ws_cal_solar_001' ? 45 : webhook.id === 'ws_tx_hvac_002' ? 32 : 18,
-          conversion_rate: webhook.id === 'ws_cal_solar_001' ? 12.5 : webhook.id === 'ws_tx_hvac_002' ? 15.8 : 8.2,
-          total_revenue: webhook.id === 'ws_cal_solar_001' ? 125000 : webhook.id === 'ws_tx_hvac_002' ? 89000 : 42000,
-        };
-
         return {
           id: webhook.id,
           name: webhook.name,
@@ -94,11 +91,11 @@ export default function Webhooks() {
           region: webhook.region,
           category: webhook.category,
           webhook_url: `${API_BASE}${webhook.endpoints.receive}`,
-          created_at: new Date().toISOString(),
-          total_leads: mockStats.total_leads,
-          conversion_rate: mockStats.conversion_rate,
-          total_revenue: mockStats.total_revenue,
-          status: mockStats.total_leads > 0 ? 'active' as const : 'new' as const,
+          created_at: webhook.created_at || new Date().toISOString(),
+          total_leads: webhook.total_leads || 0,
+          conversion_rate: webhook.conversion_rate || 0,
+          total_revenue: webhook.total_revenue || 0,
+          status: (webhook.total_leads || 0) > 0 ? 'active' as const : 'new' as const,
         };
       });
 

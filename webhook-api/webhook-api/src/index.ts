@@ -30,7 +30,11 @@ app.use('*', cors({
     'https://dash.homeprojectpartners.com',
     'http://localhost:5173',
     'http://localhost:3000',
-    'http://localhost:8080'
+    'http://localhost:8080',
+    'http://localhost:4173',
+    'http://localhost:8888',
+    'http://localhost:8889',
+    'http://localhost:8890'
   ],
   allowHeaders: ['Content-Type', 'Authorization', 'X-Webhook-Signature'],
   allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
