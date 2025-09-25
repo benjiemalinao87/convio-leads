@@ -1,22 +1,14 @@
-# Welcome to your Lovable project
+# Convio Leads Management
 
 ## Project info
 
-**URL**: https://lovable.dev/projects/9ce29af8-79d9-4e17-8b61-73c6be28ecc8
+Lead management and analytics platform built with modern web technologies.
 
 ## How can I edit this code?
 
-There are several ways of editing your application.
-
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/9ce29af8-79d9-4e17-8b61-73c6be28ecc8) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
 **Use your preferred IDE**
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+Clone this repo and push changes using your own IDE.
 
 The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
 
@@ -62,12 +54,11 @@ This project is built with:
 
 ## How can I deploy this project?
 
-Simply open [Lovable](https://lovable.dev/projects/9ce29af8-79d9-4e17-8b61-73c6be28ecc8) and click on Share -> Publish.
+This project can be deployed to any static hosting service that supports SPAs (Single Page Applications). Popular options include:
 
-## Can I connect a custom domain to my Lovable project?
+- Vercel
+- Netlify
+- AWS S3 + CloudFront
+- GitHub Pages
 
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+Simply build the project with `npm run build` and deploy the `dist` folder.

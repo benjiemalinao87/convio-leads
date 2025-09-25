@@ -104,7 +104,7 @@ export default function Analytics() {
                 <SelectValue placeholder="Select workspace" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Workspaces</SelectItem>
+                <SelectItem value="all">All Webhooks</SelectItem>
                 {mockWorkspaces.map(workspace => (
                   <SelectItem key={workspace.id} value={workspace.id}>
                     {workspace.name}

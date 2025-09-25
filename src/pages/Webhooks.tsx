@@ -1,0 +1,420 @@
+import { useState, useEffect } from 'react';
+import { Layout } from '@/components/dashboard/Layout';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
+import {
+  Plus,
+  Copy,
+  ExternalLink,
+  Calendar,
+  Users,
+  DollarSign,
+  TrendingUp,
+  RefreshCw,
+  Trash2,
+  FileText
+} from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
+import ApiDocumentation from '@/components/ApiDocumentation';
+
+// API Webhook interface
+interface APIWebhook {
+  id: string;
+  name: string;
+  type: string;
+  region: string;
+  category: string;
+  endpoints: {
+    health: string;
+    receive: string;
+  };
+}
+
+// Webhook with statistics
+interface WebhookWithStats {
+  id: string;
+  name: string;
+  type: string;
+  region: string;
+  category: string;
+  webhook_url: string;
+  created_at: string;
+  total_leads: number;
+  conversion_rate: number;
+  total_revenue: number;
+  status: 'active' | 'new';
+}
+
+export default function Webhooks() {
+  const [webhooks, setWebhooks] = useState<WebhookWithStats[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isApiDocOpen, setIsApiDocOpen] = useState(false);
+  const [newWebhookName, setNewWebhookName] = useState('');
+  const { toast } = useToast();
+
+  const API_BASE = import.meta.env.DEV ? 'http://localhost:8890' : 'https://api.homeprojectpartners.com';
+
+  useEffect(() => {
+    fetchWebhooks();
+  }, []);
+
+  const fetchWebhooks = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      // Fetch webhook configurations
+      const webhooksResponse = await fetch(`${API_BASE}/webhook`);
+      if (!webhooksResponse.ok) {
+        throw new Error('Failed to fetch webhooks');
+      }
+      const webhooksData = await webhooksResponse.json();
+
+      // Fetch statistics for each webhook
+      const webhooksWithStats = webhooksData.webhooks.map((webhook: APIWebhook) => {
+        // Generate mock stats based on webhook ID for demo purposes
+        // In a real implementation, these would come from a /leads/stats endpoint
+        const mockStats = {
+          total_leads: webhook.id === 'ws_cal_solar_001' ? 45 : webhook.id === 'ws_tx_hvac_002' ? 32 : 18,
+          conversion_rate: webhook.id === 'ws_cal_solar_001' ? 12.5 : webhook.id === 'ws_tx_hvac_002' ? 15.8 : 8.2,
+          total_revenue: webhook.id === 'ws_cal_solar_001' ? 125000 : webhook.id === 'ws_tx_hvac_002' ? 89000 : 42000,
+        };
+
+        return {
+          id: webhook.id,
+          name: webhook.name,
+          type: webhook.type,
+          region: webhook.region,
+          category: webhook.category,
+          webhook_url: `${API_BASE}${webhook.endpoints.receive}`,
+          created_at: new Date().toISOString(),
+          total_leads: mockStats.total_leads,
+          conversion_rate: mockStats.conversion_rate,
+          total_revenue: mockStats.total_revenue,
+          status: mockStats.total_leads > 0 ? 'active' as const : 'new' as const,
+        };
+      });
+
+      setWebhooks(webhooksWithStats);
+    } catch (err) {
+      console.error('Failed to fetch webhooks:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch webhooks');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCreateWebhook = async () => {
+    if (!newWebhookName.trim()) return;
+
+    try {
+      setIsLoading(true);
+      
+      const response = await fetch(`${API_BASE}/webhook`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: newWebhookName,
+          type: 'lead',
+          region: 'us', // Default region - could be made configurable
+          category: 'general' // Default category - could be made configurable
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to create webhook');
+      }
+
+      const result = await response.json();
+      
+      toast({
+        title: "Webhook Created",
+        description: `${newWebhookName} has been configured successfully with ID: ${result.webhook?.id}`,
+      });
+
+      setNewWebhookName('');
+      setIsCreateDialogOpen(false);
+      
+      // Refresh the webhooks list
+      await fetchWebhooks();
+      
+    } catch (error) {
+      console.error('Failed to create webhook:', error);
+      toast({
+        title: "Creation Failed",
+        description: error instanceof Error ? error.message : 'Failed to create webhook',
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteWebhook = async (webhookId: string, webhookName: string) => {
+    if (!confirm(`Are you sure you want to delete "${webhookName}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE}/webhook/${webhookId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete webhook');
+      }
+
+      toast({
+        title: "Webhook Deleted",
+        description: `${webhookName} has been deleted successfully.`,
+      });
+
+      // Refresh the webhooks list
+      await fetchWebhooks();
+      
+    } catch (error) {
+      console.error('Failed to delete webhook:', error);
+      toast({
+        title: "Deletion Failed",
+        description: error instanceof Error ? error.message : 'Failed to delete webhook',
+        variant: "destructive",
+      });
+    }
+  };
+
+  const copyWebhookUrl = (url: string) => {
+    navigator.clipboard.writeText(url);
+    toast({
+      title: "Copied to Clipboard",
+      description: "Webhook URL copied successfully.",
+    });
+  };
+
+  return (
+    <Layout>
+      <div className="space-y-8">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold gradient-text">Webhooks</h1>
+            <p className="text-muted-foreground mt-1">
+              Manage your webhook endpoints for automated lead collection
+            </p>
+          </div>
+          
+          <div className="flex gap-2">
+            <Button
+              onClick={() => setIsApiDocOpen(true)}
+              variant="outline"
+              className="flex items-center gap-2"
+            >
+              <FileText className="h-4 w-4" />
+              API Documentation
+            </Button>
+            <Button
+              onClick={fetchWebhooks}
+              disabled={isLoading}
+              variant="outline"
+            >
+              <RefreshCw className={cn("h-4 w-4 mr-2", isLoading && "animate-spin")} />
+              {isLoading ? 'Loading...' : 'Refresh'}
+            </Button>
+            <Button
+              onClick={() => setIsCreateDialogOpen(true)}
+              className="flex items-center gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              Add Webhook
+            </Button>
+          </div>
+        </div>
+
+        {/* Error state */}
+        {error && (
+          <Card className="bg-destructive/10 border-destructive">
+            <CardContent className="pt-6">
+              <p className="text-destructive">Error: {error}</p>
+              <Button onClick={fetchWebhooks} className="mt-2" size="sm">
+                Retry
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Webhooks Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {webhooks.map((webhook) => (
+            <Card key={webhook.id} className="glass-card p-6 transition-all duration-300 hover:shadow-glow">
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-foreground mb-1">{webhook.name}</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Created {new Date(webhook.created_at).toLocaleDateString()}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant={webhook.total_leads > 0 ? "default" : "secondary"}>
+                    {webhook.total_leads > 0 ? "Active" : "New"}
+                  </Badge>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleDeleteWebhook(webhook.id, webhook.name)}
+                    className="h-8 w-8 p-0 text-destructive hover:text-destructive-foreground hover:bg-destructive"
+                    title="Delete webhook"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+
+              {/* Stats */}
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                <div className="flex items-center space-x-2">
+                  <Users className="w-4 h-4 text-primary" />
+                  <div>
+                    <p className="text-sm text-muted-foreground">Leads</p>
+                    <p className="font-semibold text-foreground">{webhook.total_leads}</p>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <TrendingUp className="w-4 h-4 text-success" />
+                  <div>
+                    <p className="text-sm text-muted-foreground">Conversion</p>
+                    <p className="font-semibold text-foreground">{webhook.conversion_rate}%</p>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <DollarSign className="w-4 h-4 text-warning" />
+                  <div>
+                    <p className="text-sm text-muted-foreground">Revenue</p>
+                    <p className="font-semibold text-foreground">${webhook.total_revenue.toLocaleString()}</p>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Calendar className="w-4 h-4 text-accent" />
+                  <div>
+                    <p className="text-sm text-muted-foreground">Avg. Time</p>
+                    <p className="font-semibold text-foreground">2.4 days</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Webhook URL */}
+              <div className="border border-border/50 rounded-lg p-3 bg-secondary/20">
+                <div className="flex items-center justify-between mb-2">
+                  <Label className="text-xs font-medium text-muted-foreground">Webhook URL</Label>
+                  <div className="flex space-x-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => copyWebhookUrl(webhook.webhook_url)}
+                      className="h-6 w-6 p-0"
+                    >
+                      <Copy className="w-3 h-3" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                    </Button>
+                  </div>
+                </div>
+                <p className="text-xs font-mono text-foreground break-all bg-background/50 p-2 rounded border">
+                  {webhook.webhook_url}
+                </p>
+              </div>
+            </Card>
+          ))}
+        </div>
+
+        {/* Empty State */}
+        {!isLoading && webhooks.length === 0 && !error && (
+          <Card className="glass-card p-12 text-center">
+            <div className="mx-auto w-24 h-24 bg-gradient-primary rounded-full flex items-center justify-center mb-4">
+              <ExternalLink className="w-12 h-12 text-primary-foreground" />
+            </div>
+            <h3 className="text-lg font-semibold text-foreground mb-2">No Webhooks Configured</h3>
+            <p className="text-muted-foreground mb-6">
+              Create your first webhook endpoint to start collecting leads automatically.
+            </p>
+            <Button 
+              onClick={() => setIsCreateDialogOpen(true)}
+              className="bg-gradient-primary hover:bg-primary/90"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Create First Webhook
+            </Button>
+          </Card>
+        )}
+
+        {/* Loading State */}
+        {isLoading && webhooks.length === 0 && (
+          <Card className="glass-card p-12 text-center">
+            <div className="mx-auto w-24 h-24 bg-gradient-primary rounded-full flex items-center justify-center mb-4">
+              <RefreshCw className="w-12 h-12 text-primary-foreground animate-spin" />
+            </div>
+            <h3 className="text-lg font-semibold text-foreground mb-2">Loading Webhooks</h3>
+            <p className="text-muted-foreground">
+              Fetching webhook configurations from the API...
+            </p>
+          </Card>
+        )}
+
+        {/* Create Webhook Dialog */}
+        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Create New Webhook</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="webhook-name">Webhook Name</Label>
+                <Input
+                  id="webhook-name"
+                  value={newWebhookName}
+                  onChange={(e) => setNewWebhookName(e.target.value)}
+                  placeholder="e.g., Solar Leads - Texas"
+                  className="mt-1"
+                />
+              </div>
+              <div className="flex justify-end space-x-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setIsCreateDialogOpen(false)}
+                  disabled={isLoading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleCreateWebhook}
+                  disabled={!newWebhookName.trim() || isLoading}
+                >
+                  {isLoading ? 'Creating...' : 'Create Webhook'}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* API Documentation Dialog */}
+        <ApiDocumentation
+          open={isApiDocOpen}
+          onOpenChange={setIsApiDocOpen}
+        />
+      </div>
+    </Layout>
+  );
+}

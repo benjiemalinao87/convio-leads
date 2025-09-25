@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: BarChart3 },
-  { name: 'Workspaces', href: '/workspaces', icon: FolderOpen },
+  { name: 'Webhooks', href: '/webhooks', icon: FolderOpen },
   { name: 'Leads', href: '/leads', icon: Users },
   { name: 'Analytics', href: '/analytics', icon: TrendingUp },
   { name: 'Settings', href: '/settings', icon: Settings },

@@ -1,0 +1,37 @@
+{
+	"name": "convio-leads-webhook-api",
+	"version": "1.0.0",
+	"private": true,
+	"description": "Webhook API for receiving and processing lead data from third-party providers using Hono and Cloudflare Workers",
+	"scripts": {
+		"dev": "wrangler dev",
+		"start": "wrangler dev",
+		"build": "tsc --noEmit",
+		"deploy": "wrangler deploy",
+		"deploy:production": "wrangler deploy --env production",
+		"deploy:staging": "wrangler deploy --env staging",
+		"test": "vitest",
+		"test:watch": "vitest --watch",
+		"test:coverage": "vitest --coverage",
+		"cf-typegen": "wrangler types",
+		"setup": "npm install && npm run cf-typegen",
+		"logs": "wrangler tail",
+		"logs:production": "wrangler tail --env production",
+		"secret:set": "wrangler secret put",
+		"secret:list": "wrangler secret list",
+		"kv:create": "wrangler kv:namespace create",
+		"d1:create": "wrangler d1 create",
+		"validate": "npm run build && npm run test"
+	},
+	"devDependencies": {
+		"@cloudflare/vitest-pool-workers": "^0.8.19",
+		"@types/node": "^24.5.2",
+		"typescript": "^5.5.2",
+		"vitest": "~3.2.0",
+		"wrangler": "^4.40.0"
+	},
+	"dependencies": {
+		"hono": "^4.9.8",
+		"zod": "^4.1.11"
+	}
+}

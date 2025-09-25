@@ -1,0 +1,62 @@
+import { Hono } from 'hono'
+import { cors } from 'hono/cors'
+import { logger } from 'hono/logger'
+import { poweredBy } from 'hono/powered-by'
+import { timing } from 'hono/timing'
+import { webhookRouter } from './routes/webhook'
+import { healthRouter } from './routes/health'
+import leadsRouter from './routes/leads'
+import { requestValidation } from './middleware/validation'
+import { errorHandler } from './middleware/error-handler'
+import { D1Database } from '@cloudflare/workers-types'
+
+type Bindings = {
+  // Define your Cloudflare bindings here
+  LEADS_DB?: D1Database
+  // KV: KVNamespace
+  WEBHOOK_SECRET?: string
+}
+
+const app = new Hono<{ Bindings: Bindings }>()
+
+// Global middleware
+app.use('*', logger())
+app.use('*', poweredBy())
+app.use('*', timing())
+app.use('*', cors({
+  origin: ['https://homeprojectpartners.com', 'https://api.homeprojectpartners.com', 'http://localhost:5173', 'http://localhost:3000', 'http://localhost:8080'],
+  allowHeaders: ['Content-Type', 'Authorization', 'X-Webhook-Signature'],
+  allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+}))
+
+// Request validation middleware
+app.use('/webhook/*', requestValidation)
+
+// Error handling
+app.onError(errorHandler)
+
+// Routes
+app.route('/health', healthRouter)
+app.route('/webhook', webhookRouter)
+app.route('/leads', leadsRouter)
+
+// Root endpoint
+app.get('/', (c) => {
+  return c.json({
+    service: 'Convio Leads Webhook API',
+    version: '1.0.0',
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+  })
+})
+
+// 404 handler
+app.notFound((c) => {
+  return c.json({
+    error: 'Not Found',
+    message: 'The requested endpoint does not exist',
+    timestamp: new Date().toISOString()
+  }, 404)
+})
+
+export default app

@@ -1,0 +1,84 @@
+/**
+ * Convio Leads Webhook API - Cloudflare Workers Configuration
+ * For more details on how to configure Wrangler, refer to:
+ * https://developers.cloudflare.com/workers/wrangler/configuration/
+ */
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "convio-leads-webhook-api",
+	"main": "src/index.ts",
+	"account_id": "208f128290b10d58d5de18909148acc0",
+	"compatibility_date": "2025-09-24",
+	"compatibility_flags": [
+		"global_fetch_strictly_public"
+	],
+	"observability": {
+		"enabled": true
+	},
+	/**
+	 * Environment Variables for development
+	 */
+	"vars": {
+		"ENVIRONMENT": "development",
+		"API_VERSION": "1.0.0"
+	},
+	/**
+	 * Custom domains (configure after deploying)
+	 */
+	// "routes": [
+	//   {
+	//     "pattern": "api.leadmanager.com/webhook/*",
+	//     "zone_name": "leadmanager.com"
+	//   }
+	// ],
+	/**
+	 * Smart Placement for optimal performance
+	 */
+	"placement": { "mode": "smart" },
+	/**
+	 * D1 Database binding
+	 */
+	"d1_databases": [
+		{
+			"binding": "LEADS_DB",
+			"database_name": "convio-leads",
+			"database_id": "235f12f1-c287-4705-a42d-a62a6f59fced"
+		}
+	],
+	/**
+	 * Future KV storage binding
+	 */
+	// "kv_namespaces": [
+	//   {
+	//     "binding": "LEADS_CACHE",
+	//     "id": "your-kv-namespace-id"
+	//   }
+	// ],
+	/**
+	 * Analytics Engine binding
+	 */
+	// "analytics_engine_datasets": [
+	//   {
+	//     "binding": "WEBHOOK_ANALYTICS",
+	//     "dataset": "webhook_events"
+	//   }
+	// ],
+	/**
+	 * Queues for asynchronous lead processing
+	 */
+	// "queues": {
+	//   "producers": [
+	//     {
+	//       "binding": "LEAD_PROCESSOR_QUEUE",
+	//       "queue": "lead-processing"
+	//     }
+	//   ],
+	//   "consumers": [
+	//     {
+	//       "queue": "lead-processing",
+	//       "max_batch_size": 10,
+	//       "max_batch_timeout": 5
+	//     }
+	//   ]
+	// }
+}
