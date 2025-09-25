@@ -19,7 +19,8 @@ import {
   Edit,
   MessageSquare,
   Plus,
-  RefreshCw
+  RefreshCw,
+  Eye
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -28,6 +29,7 @@ interface LeadDetailsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onEdit?: (lead: Lead) => void;
+  onViewLead?: (lead: Lead) => void;
   isContactMode?: boolean;
 }
 
@@ -77,7 +79,7 @@ interface APIStatusHistory {
   created_at: string;
 }
 
-export function LeadDetailsDialog({ lead, open, onOpenChange, onEdit, isContactMode = false }: LeadDetailsDialogProps) {
+export function LeadDetailsDialog({ lead, open, onOpenChange, onEdit, onViewLead, isContactMode = false }: LeadDetailsDialogProps) {
   const [apiLead, setApiLead] = useState<APILead | null>(null);
   const [contactLeads, setContactLeads] = useState<APILead[]>([]);
   const [activities, setActivities] = useState<APIActivity[]>([]);
@@ -117,6 +119,8 @@ export function LeadDetailsDialog({ lead, open, onOpenChange, onEdit, isContactM
     setIsLoading(true);
     try {
       console.log('Fetching data for API lead ID:', apiLeadId);
+      console.log('Lead contact_id:', lead.contact_id);
+      console.log('Is contact mode:', isContactMode);
 
       let requests = [
         fetch(`${API_BASE}/leads/${apiLeadId}`),
@@ -159,6 +163,8 @@ export function LeadDetailsDialog({ lead, open, onOpenChange, onEdit, isContactM
       // Handle contact leads if in contact mode
       if (contactLeadsResponse && contactLeadsResponse.ok) {
         const contactLeadsData = await contactLeadsResponse.json();
+        console.log('Contact leads data received:', contactLeadsData);
+        console.log('Number of contact leads:', contactLeadsData.leads?.length || 0);
         setContactLeads(contactLeadsData.leads || []);
       } else if (contactLeadsResponse) {
         console.error('Contact leads response not OK:', await contactLeadsResponse.text());
@@ -214,6 +220,33 @@ export function LeadDetailsDialog({ lead, open, onOpenChange, onEdit, isContactM
       month: 'short',
       day: 'numeric',
     });
+  };
+
+  // Convert API lead to Lead format for onViewLead callback
+  const convertAPILeadToLead = (apiLead: APILead): Lead => {
+    return {
+      id: apiLead.id.toString(),
+      name: `${apiLead.first_name} ${apiLead.last_name}`,
+      position: 'Customer', // Default position
+      company: 'Unknown Company', // Could be enhanced to fetch from contact
+      email: apiLead.email,
+      phone: apiLead.phone || '',
+      status: apiLead.status as Lead['status'],
+      value: apiLead.revenue_potential || 0,
+      source: apiLead.source,
+      lastActivity: apiLead.updated_at,
+      createdAt: apiLead.created_at,
+      webhook: apiLead.webhook_id,
+      assignedTo: apiLead.assigned_to || '',
+      contact_id: apiLead.contact_id
+    };
+  };
+
+  const handleSwitchToLead = (contactLead: APILead) => {
+    if (onViewLead) {
+      const convertedLead = convertAPILeadToLead(contactLead);
+      onViewLead(convertedLead);
+    }
   };
 
   // Use API activities or fallback to mock data
@@ -275,12 +308,19 @@ export function LeadDetailsDialog({ lead, open, onOpenChange, onEdit, isContactM
         <DialogHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <DialogTitle className="text-2xl">{lead.name}</DialogTitle>
+              <DialogTitle className="text-2xl">
+                {lead.name}
+                {isContactMode && contactLeads.length > 1 && (
+                  <span className="text-sm font-normal text-muted-foreground ml-2">
+                    (Contact with {contactLeads.length} leads)
+                  </span>
+                )}
+              </DialogTitle>
               <button
                 onClick={() => setShowStatusModal(true)}
                 className="hover:opacity-80 transition-opacity"
               >
-                {getStatusBadge(apiLead?.status || lead.status)}
+                {getStatusBadge((apiLead?.status || lead.status) as Lead['status'])}
               </button>
               {isLoading && (
                 <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />
@@ -302,6 +342,94 @@ export function LeadDetailsDialog({ lead, open, onOpenChange, onEdit, isContactM
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main Information */}
           <div className="lg:col-span-2 space-y-6">
+            {/* Debug Info - Remove after fixing */}
+            {isContactMode && (
+              <Card className="border-yellow-200 bg-yellow-50/30">
+                <CardContent className="p-4">
+                  <div className="text-sm">
+                    <strong>Debug Info:</strong><br/>
+                    Contact ID: {lead.contact_id || 'undefined'}<br/>
+                    Contact Leads Length: {contactLeads.length}<br/>
+                    Is Contact Mode: {isContactMode.toString()}<br/>
+                    API Base: {API_BASE}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Contact Leads (when in contact mode) - Show at top */}
+            {isContactMode && contactLeads.length > 0 && (
+              <Card className="border-blue-200 bg-blue-50/30">
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center justify-between">
+                    <div className="flex items-center">
+                      <FileText className="h-5 w-5 mr-2 text-blue-600" />
+                      <span>All Leads for this Contact</span>
+                      <Badge variant="secondary" className="ml-2">
+                        {contactLeads.length} leads
+                      </Badge>
+                    </div>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {contactLeads.map((contactLead, index) => (
+                      <div key={contactLead.id} className={cn(
+                        "border rounded-lg p-3 space-y-2 transition-colors",
+                        contactLead.id.toString() === lead.id ? "border-blue-500 bg-blue-50" : "border-gray-200 bg-white"
+                      )}>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <span className="font-medium text-blue-600">
+                              Lead #{contactLead.id}
+                              {contactLead.id.toString() === lead.id && (
+                                <Badge variant="outline" className="ml-2 text-xs">Current</Badge>
+                              )}
+                            </span>
+                            {getStatusBadge(contactLead.status as Lead['status'] || 'new')}
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <p className="font-semibold">{formatCurrency(contactLead.revenue_potential || 0)}</p>
+                            {contactLead.id.toString() !== lead.id && (
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => handleSwitchToLead(contactLead)}
+                                className="text-xs"
+                              >
+                                <Eye className="h-3 w-3 mr-1" />
+                                View
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div>
+                            <span className="text-muted-foreground">Source:</span> {contactLead.source}
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Webhook:</span> 
+                            <span className="ml-1 text-xs bg-gray-100 px-2 py-0.5 rounded">{contactLead.webhook_id}</span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Created:</span> {formatDateShort(contactLead.created_at)}
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Priority:</span> {contactLead.priority || 1}
+                          </div>
+                        </div>
+                        {contactLead.notes && (
+                          <p className="text-sm text-muted-foreground bg-secondary/20 p-2 rounded">
+                            {contactLead.notes}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Contact Information */}
             <Card>
               <CardHeader>
@@ -348,53 +476,6 @@ export function LeadDetailsDialog({ lead, open, onOpenChange, onEdit, isContactM
               </CardContent>
             </Card>
 
-            {/* Contact Leads (when in contact mode) */}
-            {isContactMode && contactLeads.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center">
-                    <FileText className="h-5 w-5 mr-2" />
-                    All Leads for Contact ({contactLeads.length})
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {contactLeads.map((contactLead) => (
-                      <div key={contactLead.id} className="border rounded-lg p-3 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-2">
-                            <span className="font-medium text-blue-600">Lead #{contactLead.id}</span>
-                            {getStatusBadge(contactLead.status as Lead['status'])}
-                          </div>
-                          <div className="text-right">
-                            <p className="font-semibold">{formatCurrency(contactLead.revenue_potential || 0)}</p>
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2 text-sm">
-                          <div>
-                            <span className="text-muted-foreground">Source:</span> {contactLead.source}
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">Webhook:</span> {contactLead.webhook_id}
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">Created:</span> {formatDateShort(contactLead.created_at)}
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">Updated:</span> {formatDateShort(contactLead.updated_at)}
-                          </div>
-                        </div>
-                        {contactLead.notes && (
-                          <p className="text-sm text-muted-foreground bg-secondary/20 p-2 rounded">
-                            {contactLead.notes}
-                          </p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
 
             {/* Lead Details */}
             <Card>
@@ -506,7 +587,7 @@ export function LeadDetailsDialog({ lead, open, onOpenChange, onEdit, isContactM
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sm text-muted-foreground">Status:</span>
-                    {getStatusBadge(apiLead?.status || lead.status)}
+                    {getStatusBadge((apiLead?.status || lead.status) as Lead['status'])}
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sm text-muted-foreground">Source:</span>

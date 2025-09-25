@@ -3,6 +3,7 @@ import { Layout } from '@/components/dashboard/Layout';
 import { LeadsTable } from '@/components/leads/LeadsTable';
 import { LeadsFiltersComponent, LeadsFilters } from '@/components/leads/LeadsFilters';
 import { LeadDetailsDialog } from '@/components/leads/LeadDetailsDialog';
+import { LeadEditDialog } from '@/components/leads/LeadEditDialog';
 import { Lead } from '@/data/leadsData';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -65,7 +66,6 @@ const convertAPILeadToLead = (apiLead: APILead): Lead => {
     value: apiLead.revenue_potential || 0,
     assignedTo: apiLead.assigned_to || 'Unassigned',
     webhook: getWebhookDisplayName(apiLead.webhook_id),
-    priority: apiLead.priority || 1,
     createdAt: apiLead.created_at,
     lastActivity: apiLead.updated_at,
     notes: apiLead.notes || '',
@@ -82,6 +82,7 @@ const Leads = () => {
   });
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [apiLeads, setApiLeads] = useState<Lead[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -224,8 +225,20 @@ const Leads = () => {
   };
 
   const handleEditLead = (lead: Lead) => {
-    console.log('Edit lead:', lead);
-    // TODO: Implement lead edit functionality
+    setSelectedLead(lead);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleSaveLead = (updatedLead: Lead) => {
+    // Update the lead in the local state
+    setApiLeads(prev => prev.map(lead =>
+      lead.id === updatedLead.id ? updatedLead : lead
+    ));
+
+    // If this was the selected lead in details dialog, update it too
+    if (selectedLead && selectedLead.id === updatedLead.id) {
+      setSelectedLead(updatedLead);
+    }
   };
 
   const handleDeleteLead = async (leadId: string) => {
@@ -403,7 +416,16 @@ const Leads = () => {
           open={isDetailsDialogOpen}
           onOpenChange={setIsDetailsDialogOpen}
           onEdit={handleEditLead}
+          onViewLead={handleViewLead}
           isContactMode={true}
+        />
+
+        {/* Lead Edit Dialog */}
+        <LeadEditDialog
+          lead={selectedLead}
+          open={isEditDialogOpen}
+          onOpenChange={setIsEditDialogOpen}
+          onSave={handleSaveLead}
         />
       </div>
     </Layout>
