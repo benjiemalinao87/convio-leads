@@ -240,6 +240,13 @@ Receive and process lead data via webhook.
 
 **Request Body**: Varies by lead type (see [Data Schemas](#data-schemas))
 
+**Phone Number Normalization**:
+Phone numbers are automatically normalized to E.164 format (+1XXXXXXXXXX) when stored in the database. The API accepts phone numbers in various formats:
+- `"5551234567"` → `"+15551234567"`
+- `"555-123-4567"` → `"+15551234567"`
+- `"(555) 123-4567"` → `"+15551234567"`
+- `"+15551234567"` → `"+15551234567"`
+
 **Response** (201):
 ```json
 {
@@ -519,6 +526,75 @@ Get a single lead by ID.
   },
   "timestamp": "2024-09-24T21:00:00.000Z"
 }
+```
+
+#### GET /leads/search/phone/:phoneNumber
+Search for contacts by phone number with automatic normalization.
+
+**Parameters**:
+- `phoneNumber` (string): Phone number in any format (555-123-4567, 5551234567, (555) 123-4567, +15551234567)
+
+**Features**:
+- Automatic phone number normalization to +1 format
+- Supports various input formats (with/without dashes, parentheses, country code)
+- Returns all contacts that match the normalized phone number
+
+**Response** (200):
+```json
+{
+  "status": "success",
+  "search_phone": "555-987-6543",
+  "normalized_phone": "+15559876543",
+  "count": 1,
+  "contacts": [
+    {
+      "id": 9,
+      "webhook_id": "ws_us_general_187",
+      "lead_type": "lead",
+      "first_name": "Sarah",
+      "last_name": "Johnson",
+      "email": "sarah.johnson@test.com",
+      "phone": "+15559876543",
+      "address": null,
+      "city": null,
+      "state": null,
+      "zip_code": null,
+      "source": "Phone Normalization Test",
+      "status": "new",
+      "created_at": "2025-09-25 05:59:47",
+      "updated_at": "2025-09-25 05:59:47",
+      "processed_at": null,
+      "revenue_potential": null,
+      "conversion_score": null,
+      "priority": 1,
+      "assigned_to": null,
+      "follow_up_date": null,
+      "contact_attempts": 0
+    }
+  ],
+  "timestamp": "2025-09-25T06:00:22.878Z"
+}
+```
+
+**Error Responses**:
+
+Invalid phone number (400):
+```json
+{
+  "error": "Invalid phone number",
+  "message": "Please provide a valid phone number format",
+  "examples": ["5551234567", "555-123-4567", "(555) 123-4567", "+15551234567"],
+  "timestamp": "2025-09-25T06:01:16.486Z"
+}
+```
+
+**Example Usage**:
+```bash
+# Search with different formats - all find the same contact
+curl "https://api.homeprojectpartners.com/leads/search/phone/555-987-6543"
+curl "https://api.homeprojectpartners.com/leads/search/phone/5559876543"
+curl "https://api.homeprojectpartners.com/leads/search/phone/(555) 987-6543"
+curl "https://api.homeprojectpartners.com/leads/search/phone/+15559876543"
 ```
 
 #### PATCH /leads/:leadId/status
