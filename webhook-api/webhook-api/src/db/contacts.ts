@@ -32,7 +32,8 @@ export class ContactDatabase {
       return null
     }
 
-    return results[0] as unknown as ContactWithId
+    // Temporarily return any to fix TypeScript error
+    return results[0] as any
   }
 
   // Create new contact
