@@ -16,6 +16,12 @@
 		"enabled": true
 	},
 	/**
+	 * Build configuration - Force npm usage instead of Bun
+	 */
+	"build": {
+		"command": "npm install && npm run build"
+	},
+	/**
 	 * Environment Variables for development
 	 */
 	"vars": {
