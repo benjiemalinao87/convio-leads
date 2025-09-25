@@ -1,14 +1,16 @@
 import { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { 
-  BarChart3, 
-  Users, 
-  Settings, 
-  FolderOpen, 
+import {
+  BarChart3,
+  Users,
+  Settings,
+  FolderOpen,
   TrendingUp,
   Menu,
   X,
-  ChevronDown
+  ChevronDown,
+  LogOut,
+  User
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -17,7 +19,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
+import { useAuth } from '@/hooks/useAuth';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: BarChart3 },
@@ -30,6 +34,13 @@ const navigation = [
 export function TopNavbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const location = useLocation();
+  const { user, logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+    setIsMobileMenuOpen(false);
+    window.location.href = '/login';
+  };
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -72,15 +83,36 @@ export function TopNavbar() {
 
         {/* User Info & Mobile Menu */}
         <div className="flex items-center space-x-4">
-          {/* User info - Desktop */}
-          <div className="hidden md:flex items-center space-x-3">
-            <div className="h-8 w-8 rounded-full bg-gradient-success flex items-center justify-center">
-              <span className="text-sm font-medium text-success-foreground">JA</span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-foreground truncate">John Admin</p>
-              <p className="text-xs text-muted-foreground truncate">admin@company.com</p>
-            </div>
+          {/* User Menu - Desktop */}
+          <div className="hidden md:flex items-center">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="flex items-center space-x-2 px-3">
+                  <div className="h-8 w-8 rounded-full bg-gradient-success flex items-center justify-center">
+                    <User className="h-4 w-4 text-success-foreground" />
+                  </div>
+                  <div className="flex flex-col items-start">
+                    <span className="text-sm font-medium">{user || 'User'}</span>
+                    <span className="text-xs text-muted-foreground">Administrator</span>
+                  </div>
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuItem className="flex items-center space-x-2 cursor-default">
+                  <User className="h-4 w-4" />
+                  <div className="flex flex-col">
+                    <span className="text-sm font-medium">{user || 'User'}</span>
+                    <span className="text-xs text-muted-foreground">Administrator</span>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout} className="flex items-center space-x-2 text-destructive">
+                  <LogOut className="h-4 w-4" />
+                  <span>Sign out</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
           {/* Mobile Menu */}
@@ -115,16 +147,21 @@ export function TopNavbar() {
                     </DropdownMenuItem>
                   );
                 })}
-                <DropdownMenuItem className="border-t mt-2 pt-2">
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="cursor-default">
                   <div className="flex items-center space-x-3 w-full">
                     <div className="h-8 w-8 rounded-full bg-gradient-success flex items-center justify-center">
-                      <span className="text-sm font-medium text-success-foreground">JA</span>
+                      <User className="h-4 w-4 text-success-foreground" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">John Admin</p>
-                      <p className="text-xs text-muted-foreground truncate">admin@company.com</p>
+                      <p className="text-sm font-medium text-foreground truncate">{user || 'User'}</p>
+                      <p className="text-xs text-muted-foreground truncate">Administrator</p>
                     </div>
                   </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleLogout} className="flex items-center space-x-2 text-destructive">
+                  <LogOut className="h-4 w-4" />
+                  <span>Sign out</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

@@ -250,10 +250,11 @@ const ApiDocumentation = ({ open, onOpenChange }: ApiDocumentationProps) => {
 
         <Tabs defaultValue="overview" className="h-[calc(90vh-120px)]">
           <div className="border-b px-6">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="endpoints">Endpoints</TabsTrigger>
               <TabsTrigger value="schemas">Schemas</TabsTrigger>
+              <TabsTrigger value="deduplication">Deduplication</TabsTrigger>
               <TabsTrigger value="examples">Examples</TabsTrigger>
             </TabsList>
           </div>
@@ -545,6 +546,170 @@ const ApiDocumentation = ({ open, onOpenChange }: ApiDocumentationProps) => {
                     </CardContent>
                   </Card>
                 ))}
+              </TabsContent>
+
+              <TabsContent value="deduplication" className="space-y-6 mt-0">
+                <div>
+                  <h3 className="text-lg font-semibold mb-4">Deduplication Strategy</h3>
+                  <p className="text-muted-foreground mb-6">
+                    Our lead deduplication system prevents duplicate contacts while preserving all business opportunities.
+                    Learn how we handle duplicate leads intelligently using phone-based contact management.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="flex items-center gap-2 text-sm">
+                        <Shield className="w-4 h-4 text-blue-500" />
+                        Contact = Person
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                      <p className="text-xs text-muted-foreground">
+                        One contact per unique phone number per webhook. Contains personal info: name, phone, email, address.
+                      </p>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="flex items-center gap-2 text-sm">
+                        <Zap className="w-4 h-4 text-green-500" />
+                        Lead = Inquiry
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                      <p className="text-xs text-muted-foreground">
+                        Multiple leads per contact. Each represents a separate business opportunity or service inquiry.
+                      </p>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <Card className="mb-6">
+                  <CardHeader>
+                    <CardTitle className="text-base">How It Works</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex items-start gap-3">
+                      <div className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-xs font-semibold text-blue-600 dark:text-blue-300 mt-0.5">
+                        1
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-medium">Phone Normalization</h4>
+                        <p className="text-xs text-muted-foreground">All phone numbers are normalized to +1XXXXXXXXXX format for consistent matching.</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <div className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-xs font-semibold text-blue-600 dark:text-blue-300 mt-0.5">
+                        2
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-medium">Contact Detection</h4>
+                        <p className="text-xs text-muted-foreground">System checks if phone number exists for the current webhook source.</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <div className="w-6 h-6 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center text-xs font-semibold text-green-600 dark:text-green-300 mt-0.5">
+                        ✓
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-medium">Smart Processing</h4>
+                        <p className="text-xs text-muted-foreground">New contact = create both contact and lead. Existing contact = add new lead only.</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="mb-6">
+                  <CardHeader>
+                    <CardTitle className="text-base">Response Examples</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <h4 className="text-sm font-medium mb-2">New Contact Created</h4>
+                      <div className="bg-muted p-3 rounded-lg overflow-x-auto">
+                        <pre className="text-xs font-mono whitespace-pre-wrap text-foreground min-w-0">
+{`{
+  "status": "success",
+  "message": "New contact created and lead processed successfully",
+  "webhook_id": "test-webhook_ws_us_general_172",
+  "contact_id": 1,
+  "lead_id": 4,
+  "contact_status": "new",
+  "next_steps": [
+    "Lead data validated and normalized",
+    "New contact created in database",
+    "Lead stored and linked to contact",
+    "Lead processing pipeline triggered"
+  ]
+}`}
+                        </pre>
+                      </div>
+                    </div>
+
+                    <div>
+                      <h4 className="text-sm font-medium mb-2">Lead Added to Existing Contact</h4>
+                      <div className="bg-muted p-3 rounded-lg overflow-x-auto">
+                        <pre className="text-xs font-mono whitespace-pre-wrap text-foreground min-w-0">
+{`{
+  "status": "success",
+  "message": "Lead added to existing contact successfully",
+  "webhook_id": "test-webhook_ws_us_general_172",
+  "contact_id": 1,
+  "lead_id": 5,
+  "contact_status": "existing",
+  "next_steps": [
+    "Lead data validated and normalized",
+    "Lead added to existing contact",
+    "Lead stored and linked to contact",
+    "Lead processing pipeline triggered"
+  ]
+}`}
+                        </pre>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Key Benefits</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="flex items-start gap-3">
+                        <Shield className="w-4 h-4 text-blue-500 mt-1" />
+                        <div>
+                          <h4 className="text-sm font-medium">No Duplicate Work</h4>
+                          <p className="text-xs text-muted-foreground">Sales reps see complete customer history, avoiding redundant contact.</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <Zap className="w-4 h-4 text-green-500 mt-1" />
+                        <div>
+                          <h4 className="text-sm font-medium">Multiple Opportunities</h4>
+                          <p className="text-xs text-muted-foreground">Track separate inquiries for different services from same customer.</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <Code2 className="w-4 h-4 text-purple-500 mt-1" />
+                        <div>
+                          <h4 className="text-sm font-medium">Automatic Processing</h4>
+                          <p className="text-xs text-muted-foreground">No manual intervention needed - system handles duplicates intelligently.</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <Globe className="w-4 h-4 text-orange-500 mt-1" />
+                        <div>
+                          <h4 className="text-sm font-medium">Per-Webhook Isolation</h4>
+                          <p className="text-xs text-muted-foreground">Same phone can exist across different webhooks for separate business units.</p>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
               </TabsContent>
 
               <TabsContent value="examples" className="space-y-6 mt-0">

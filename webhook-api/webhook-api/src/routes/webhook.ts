@@ -10,12 +10,15 @@ import {
   WebhookPayloadType
 } from '../types/leads'
 import { LeadDatabase, LeadRecord } from '../db/leads'
+import { ContactDatabase, ContactRecord } from '../db/contacts'
 import { normalizePhoneNumber } from '../utils/phone'
 
 const webhook = new Hono()
 
-// Webhook pattern matcher - matches [name-prefix]_ws_[region]_[category]_[id]
-const WEBHOOK_PATTERN = /^([a-z0-9-]+)_ws_([a-z]{2,3})_([a-z]+)_(\d{3})$/
+// Webhook pattern matcher - matches both old and new formats:
+// New: [name-prefix]_ws_[region]_[category]_[id]
+// Old: ws_[region]_[category]_[id]
+const WEBHOOK_PATTERN = /^(([a-z0-9-]+)_)?ws_([a-z]{2,3})_([a-z]+)_(\d{3})$/
 
 // Helper function to get lead schema based on webhook ID
 function getLeadSchema(webhookId: string) {
@@ -81,7 +84,7 @@ webhook.get('/:webhookId', async (c) => {
   if (!WEBHOOK_PATTERN.test(webhookId)) {
     return c.json({
       error: 'Invalid webhook ID format',
-      message: 'Webhook ID must follow pattern: [name-prefix]_ws_[region]_[category]_[id] (e.g., click-ventures_ws_cal_solar_001)',
+      message: 'Webhook ID must follow pattern: [name-prefix]_ws_[region]_[category]_[id] or ws_[region]_[category]_[id] (e.g., click-ventures_ws_cal_solar_001 or ws_cal_solar_001)',
       expected_format: '[name-prefix]_ws_[2-3 letter region]_[category]_[3 digit id]',
       timestamp: new Date().toISOString()
     }, 400)
@@ -229,57 +232,89 @@ webhook.post('/:webhookId', async (c) => {
       timestamp: new Date().toISOString()
     })
 
-    // Store lead in database if D1 is available
+    // Process contact and lead in database if D1 is available
+    let contactId: number | null = null
     let leadId: number | null = null
+    let isNewContact = false
+
     if (((c.env as any) as any).LEADS_DB) {
-      const db = new LeadDatabase(((c.env as any) as any).LEADS_DB)
+      const leadDb = new LeadDatabase(((c.env as any) as any).LEADS_DB)
+      const contactDb = new ContactDatabase(((c.env as any) as any).LEADS_DB)
 
-      // Get static config for additional processing (optional, may be undefined for dynamic webhooks)
-      const staticConfig = LeadProviderConfig[webhookId as LeadProviderId]
+      // Normalize phone number - this is our unique identifier per webhook
+      const normalizedPhone = normalizePhoneNumber(normalizedLead.phone)
 
-      // Prepare lead record for database
-      const leadRecord: LeadRecord = {
-        webhook_id: webhookId,
-        lead_type: config.lead_type, // Use lead_type from database webhook config
-        first_name: normalizedLead.firstName || normalizedLead.first_name || '',
-        last_name: normalizedLead.lastName || normalizedLead.last_name || '',
-        email: normalizedLead.email,
-        phone: normalizePhoneNumber(normalizedLead.phone) || undefined,
-        address: normalizedLead.address,
-        city: normalizedLead.city,
-        state: normalizedLead.state,
-        zip_code: normalizedLead.zipCode || normalizedLead.zip_code,
-        source: normalizedLead.source,
-        campaign_id: normalizedLead.campaignId || normalizedLead.campaign_id,
-        utm_source: normalizedLead.utmSource || normalizedLead.utm_source,
-        utm_medium: normalizedLead.utmMedium || normalizedLead.utm_medium,
-        utm_campaign: normalizedLead.utmCampaign || normalizedLead.utm_campaign,
-        monthly_electric_bill: normalizedLead.monthlyElectricBill,
-        property_type: normalizedLead.propertyType,
-        roof_condition: normalizedLead.roofCondition,
-        roof_age: normalizedLead.roofAge,
-        shade_coverage: normalizedLead.shadeCoverage,
-        system_type: normalizedLead.systemType,
-        system_age: normalizedLead.systemAge,
-        service_type: normalizedLead.serviceType,
-        urgency: normalizedLead.urgency,
-        property_size: normalizedLead.propertySize,
-        policy_type: normalizedLead.policyType,
-        coverage_amount: normalizedLead.coverageAmount,
-        current_premium: normalizedLead.currentPremium,
-        property_value: normalizedLead.propertyValue,
-        claims_history: normalizedLead.claimsHistory,
-        raw_payload: JSON.stringify(requestBody),
-        ip_address: c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For'),
-        user_agent: c.req.header('User-Agent'),
-        status: 'new'
+      if (!normalizedPhone) {
+        return c.json({
+          error: 'Invalid phone number',
+          message: 'A valid phone number is required for lead processing',
+          timestamp: new Date().toISOString()
+        }, 400)
       }
 
       try {
-        leadId = await db.saveLead(leadRecord)
-        console.log(`Lead saved to database with ID: ${leadId}`)
+        // Step 1: Find or create contact based on webhook_id + phone
+        const contactRecord: ContactRecord = {
+          webhook_id: webhookId,
+          phone: normalizedPhone,
+          first_name: normalizedLead.firstName || normalizedLead.first_name || '',
+          last_name: normalizedLead.lastName || normalizedLead.last_name || '',
+          email: normalizedLead.email,
+          address: normalizedLead.address,
+          city: normalizedLead.city,
+          state: normalizedLead.state,
+          zip_code: normalizedLead.zipCode || normalizedLead.zip_code
+        }
 
-        // Update webhook statistics in webhook_configs table
+        const { contact, isNew } = await contactDb.findOrCreateContact(webhookId, normalizedPhone, contactRecord)
+        contactId = contact.id
+        isNewContact = isNew
+
+        console.log(`${isNew ? 'Created new' : 'Found existing'} contact ID: ${contactId} for phone: ${normalizedPhone}`)
+
+        // Step 2: Create lead linked to contact
+        const leadRecord: LeadRecord = {
+          contact_id: contactId, // Link to contact
+          webhook_id: webhookId,
+          lead_type: config.lead_type,
+          first_name: normalizedLead.firstName || normalizedLead.first_name || '',
+          last_name: normalizedLead.lastName || normalizedLead.last_name || '',
+          email: normalizedLead.email, // Lead-specific email (may differ from contact)
+          phone: normalizedPhone,
+          address: normalizedLead.address,
+          city: normalizedLead.city,
+          state: normalizedLead.state,
+          zip_code: normalizedLead.zipCode || normalizedLead.zip_code,
+          source: normalizedLead.source,
+          campaign_id: normalizedLead.campaignId || normalizedLead.campaign_id,
+          utm_source: normalizedLead.utmSource || normalizedLead.utm_source,
+          utm_medium: normalizedLead.utmMedium || normalizedLead.utm_medium,
+          utm_campaign: normalizedLead.utmCampaign || normalizedLead.utm_campaign,
+          monthly_electric_bill: normalizedLead.monthlyElectricBill,
+          property_type: normalizedLead.propertyType,
+          roof_condition: normalizedLead.roofCondition,
+          roof_age: normalizedLead.roofAge,
+          shade_coverage: normalizedLead.shadeCoverage,
+          system_type: normalizedLead.systemType,
+          system_age: normalizedLead.systemAge,
+          service_type: normalizedLead.serviceType,
+          urgency: normalizedLead.urgency,
+          property_size: normalizedLead.propertySize,
+          policy_type: normalizedLead.policyType,
+          coverage_amount: normalizedLead.coverageAmount,
+          current_premium: normalizedLead.currentPremium,
+          property_value: normalizedLead.propertyValue,
+          claims_history: normalizedLead.claimsHistory,
+          raw_payload: JSON.stringify(requestBody),
+          ip_address: c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For'),
+          user_agent: c.req.header('User-Agent'),
+          status: 'new'
+        }
+
+        leadId = await leadDb.saveLead(leadRecord)
+        console.log(`Lead saved to database with ID: ${leadId} for contact ID: ${contactId}`)
+
+        // Step 3: Update webhook statistics
         if (leadId) {
           try {
             await ((c.env as any) as any).LEADS_DB.prepare(`
@@ -297,28 +332,44 @@ webhook.post('/:webhookId', async (c) => {
             // Don't fail the webhook processing if stats update fails
           }
         }
+
       } catch (dbError) {
         console.error('Database error:', dbError)
         // Continue processing even if database save fails
       }
     }
 
-    return c.json({
+    // Create appropriate response based on contact status
+    const responseData = {
       status: 'success',
-      message: 'Lead received and processed successfully',
+      message: isNewContact
+        ? 'New contact created and lead processed successfully'
+        : 'Lead added to existing contact successfully',
       webhook_id: webhookId,
-      contact_id: leadId || null,
-      lead_id: leadId || null, // Keep for backwards compatibility
+      contact_id: contactId || null,
+      lead_id: leadId || null,
       email: normalizedLead.email,
       processed_at: normalizedLead.processed_at,
-      next_steps: [
-        'Lead data validated and normalized',
-        leadId ? 'Lead stored in database' : 'Lead processed (database not configured)',
-        'Lead processing pipeline triggered',
-        'CRM notification sent'
-      ],
+      contact_status: isNewContact ? 'new' : 'existing',
+      next_steps: isNewContact
+        ? [
+            'Lead data validated and normalized',
+            'New contact created in database',
+            'Lead stored and linked to contact',
+            'Lead processing pipeline triggered',
+            'CRM notification sent'
+          ]
+        : [
+            'Lead data validated and normalized',
+            'Lead added to existing contact',
+            'Lead stored and linked to contact',
+            'Lead processing pipeline triggered',
+            'CRM notification sent'
+          ],
       timestamp: new Date().toISOString()
-    }, 201)
+    }
+
+    return c.json(responseData, 201)
 
   } catch (error) {
     console.error(`Webhook ${webhookId} processing error:`, error)
@@ -492,7 +543,7 @@ webhook.delete('/:webhookId', async (c) => {
   if (!WEBHOOK_PATTERN.test(webhookId)) {
     return c.json({
       error: 'Invalid webhook ID format',
-      message: 'Webhook ID must follow pattern: [name-prefix]_ws_[region]_[category]_[id] (e.g., click-ventures_ws_cal_solar_001)',
+      message: 'Webhook ID must follow pattern: [name-prefix]_ws_[region]_[category]_[id] or ws_[region]_[category]_[id] (e.g., click-ventures_ws_cal_solar_001 or ws_cal_solar_001)',
       timestamp: new Date().toISOString()
     }, 400)
   }
