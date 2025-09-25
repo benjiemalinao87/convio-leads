@@ -31,16 +31,17 @@ import {
 import { cn } from '@/lib/utils';
 
 interface LeadsTableProps {
-  leads: Lead[];
+  leads: (Lead & { leadCount?: number; totalValue?: number; leads?: Lead[] })[];
   onViewLead?: (lead: Lead) => void;
   onEditLead?: (lead: Lead) => void;
   onDeleteLead?: (leadId: string) => void;
+  isContactMode?: boolean;
 }
 
 type SortField = 'name' | 'company' | 'status' | 'value' | 'createdAt';
 type SortDirection = 'asc' | 'desc';
 
-export function LeadsTable({ leads, onViewLead, onEditLead, onDeleteLead }: LeadsTableProps) {
+export function LeadsTable({ leads, onViewLead, onEditLead, onDeleteLead, isContactMode = false }: LeadsTableProps) {
   const [sortField, setSortField] = useState<SortField>('createdAt');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
@@ -193,6 +194,11 @@ export function LeadsTable({ leads, onViewLead, onEditLead, onDeleteLead }: Lead
                 <div>
                   <div className="font-semibold">{lead.name}</div>
                   <div className="text-sm text-muted-foreground">{lead.position}</div>
+                  {isContactMode && lead.leadCount && lead.leadCount > 1 && (
+                    <div className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-md mt-1 inline-block">
+                      {lead.leadCount} leads
+                    </div>
+                  )}
                 </div>
               </TableCell>
               <TableCell>
@@ -220,7 +226,7 @@ export function LeadsTable({ leads, onViewLead, onEditLead, onDeleteLead }: Lead
                 {getStatusBadge(lead.status)}
               </TableCell>
               <TableCell className="text-right font-semibold">
-                {formatCurrency(lead.value)}
+                {formatCurrency(isContactMode && lead.totalValue ? lead.totalValue : lead.value)}
               </TableCell>
               <TableCell className="text-sm text-muted-foreground">
                 {formatDate(lead.createdAt)}

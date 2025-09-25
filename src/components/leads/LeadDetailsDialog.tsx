@@ -28,11 +28,13 @@ interface LeadDetailsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onEdit?: (lead: Lead) => void;
+  isContactMode?: boolean;
 }
 
 // API interfaces
 interface APILead {
   id: number;
+  contact_id?: number;
   webhook_id: string;
   lead_type: string;
   first_name: string;
@@ -75,8 +77,9 @@ interface APIStatusHistory {
   created_at: string;
 }
 
-export function LeadDetailsDialog({ lead, open, onOpenChange, onEdit }: LeadDetailsDialogProps) {
+export function LeadDetailsDialog({ lead, open, onOpenChange, onEdit, isContactMode = false }: LeadDetailsDialogProps) {
   const [apiLead, setApiLead] = useState<APILead | null>(null);
+  const [contactLeads, setContactLeads] = useState<APILead[]>([]);
   const [activities, setActivities] = useState<APIActivity[]>([]);
   const [statusHistory, setStatusHistory] = useState<APIStatusHistory[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -115,11 +118,19 @@ export function LeadDetailsDialog({ lead, open, onOpenChange, onEdit }: LeadDeta
     try {
       console.log('Fetching data for API lead ID:', apiLeadId);
 
-      const [leadResponse, activitiesResponse, historyResponse] = await Promise.all([
+      let requests = [
         fetch(`${API_BASE}/leads/${apiLeadId}`),
         fetch(`${API_BASE}/leads/${apiLeadId}/activities`),
         fetch(`${API_BASE}/leads/${apiLeadId}/history`)
-      ]);
+      ];
+
+      // If in contact mode and we have a contact_id, also fetch all leads for this contact
+      if (isContactMode && lead.contact_id) {
+        requests.push(fetch(`${API_BASE}/leads?contact_id=${lead.contact_id}`));
+      }
+
+      const responses = await Promise.all(requests);
+      const [leadResponse, activitiesResponse, historyResponse, contactLeadsResponse] = responses;
 
       console.log('Lead response status:', leadResponse.status);
 
@@ -143,6 +154,14 @@ export function LeadDetailsDialog({ lead, open, onOpenChange, onEdit }: LeadDeta
         setStatusHistory(historyData.history || []);
       } else {
         console.error('History response not OK:', await historyResponse.text());
+      }
+
+      // Handle contact leads if in contact mode
+      if (contactLeadsResponse && contactLeadsResponse.ok) {
+        const contactLeadsData = await contactLeadsResponse.json();
+        setContactLeads(contactLeadsData.leads || []);
+      } else if (contactLeadsResponse) {
+        console.error('Contact leads response not OK:', await contactLeadsResponse.text());
       }
     } catch (error) {
       console.error('Failed to fetch lead data:', error);
@@ -329,6 +348,54 @@ export function LeadDetailsDialog({ lead, open, onOpenChange, onEdit }: LeadDeta
               </CardContent>
             </Card>
 
+            {/* Contact Leads (when in contact mode) */}
+            {isContactMode && contactLeads.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center">
+                    <FileText className="h-5 w-5 mr-2" />
+                    All Leads for Contact ({contactLeads.length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {contactLeads.map((contactLead) => (
+                      <div key={contactLead.id} className="border rounded-lg p-3 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <span className="font-medium text-blue-600">Lead #{contactLead.id}</span>
+                            {getStatusBadge(contactLead.status as Lead['status'])}
+                          </div>
+                          <div className="text-right">
+                            <p className="font-semibold">{formatCurrency(contactLead.revenue_potential || 0)}</p>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div>
+                            <span className="text-muted-foreground">Source:</span> {contactLead.source}
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Webhook:</span> {contactLead.webhook_id}
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Created:</span> {formatDateShort(contactLead.created_at)}
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Updated:</span> {formatDateShort(contactLead.updated_at)}
+                          </div>
+                        </div>
+                        {contactLead.notes && (
+                          <p className="text-sm text-muted-foreground bg-secondary/20 p-2 rounded">
+                            {contactLead.notes}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Lead Details */}
             <Card>
               <CardHeader>
@@ -414,10 +481,22 @@ export function LeadDetailsDialog({ lead, open, onOpenChange, onEdit }: LeadDeta
                           <RefreshCw className="h-3 w-3 animate-spin" />
                           Loading...
                         </span>
-                      ) : apiLead?.id ? (
+                      ) : apiLead?.contact_id ? (
+                        `#${apiLead.contact_id}`
+                      ) : lead.contact_id ? (
+                        `#${lead.contact_id}`
+                      ) : (
+                        <span className="text-muted-foreground">#N/A</span>
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Lead ID:</span>
+                    <span className="text-sm font-mono font-medium text-blue-600">
+                      {apiLead?.id ? (
                         `#${apiLead.id}`
                       ) : (
-                        <span className="text-muted-foreground">#{getApiLeadId(lead) || 'N/A'}</span>
+                        `#${lead.id}`
                       )}
                     </span>
                   </div>

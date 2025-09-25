@@ -10,6 +10,7 @@ leads.get('/', async (c) => {
   const status = c.req.query('status')
   const fromDate = c.req.query('from_date')
   const toDate = c.req.query('to_date')
+  const contactId = c.req.query('contact_id')
   const limit = parseInt(c.req.query('limit') || '100')
 
   if (!(c.env as any).LEADS_DB) {
@@ -21,6 +22,37 @@ leads.get('/', async (c) => {
 
   try {
     const db = new LeadDatabase((c.env as any).LEADS_DB)
+
+    // If contact_id filtering is requested, handle it separately
+    if (contactId) {
+      const contactIdNum = parseInt(contactId)
+      if (isNaN(contactIdNum)) {
+        return c.json({
+          error: 'Invalid contact ID',
+          message: 'Contact ID must be a valid number',
+          timestamp: new Date().toISOString()
+        }, 400)
+      }
+
+      const leadDb = (c.env as any).LEADS_DB
+      const { results } = await leadDb.prepare(`
+        SELECT * FROM leads
+        WHERE contact_id = ?
+        ORDER BY created_at DESC
+        LIMIT ?
+      `).bind(contactIdNum, limit).all()
+
+      return c.json({
+        status: 'success',
+        count: results.length,
+        filters: {
+          contact_id: contactIdNum,
+          limit: limit
+        },
+        leads: results,
+        timestamp: new Date().toISOString()
+      })
+    }
 
     // If filtering parameters are provided, use the filtered query
     if (status || fromDate || toDate) {
@@ -578,6 +610,153 @@ leads.get('/search/phone/:phoneNumber', async (c) => {
     return c.json({
       error: 'Database error',
       message: 'Failed to search contacts',
+      timestamp: new Date().toISOString()
+    }, 500)
+  }
+})
+
+// Delete a contact and all associated leads
+leads.delete('/contact/:contactId', async (c) => {
+  const contactId = parseInt(c.req.param('contactId'))
+
+  if (!(c.env as any).LEADS_DB) {
+    return c.json({
+      error: 'Database not configured',
+      message: 'D1 database is not configured for this environment'
+    }, 503)
+  }
+
+  if (isNaN(contactId)) {
+    return c.json({
+      error: 'Invalid contact ID',
+      message: 'Contact ID must be a valid number',
+      timestamp: new Date().toISOString()
+    }, 400)
+  }
+
+  try {
+    const db = (c.env as any).LEADS_DB
+
+    // First, check if the contact exists
+    const { results: existingContact } = await db.prepare(`
+      SELECT id, first_name, last_name, email, phone, webhook_id
+      FROM contacts
+      WHERE id = ?
+    `).bind(contactId).all()
+
+    if (existingContact.length === 0) {
+      return c.json({
+        error: 'Contact not found',
+        message: `No contact found with ID ${contactId}`,
+        timestamp: new Date().toISOString()
+      }, 404)
+    }
+
+    const contact = existingContact[0]
+
+    // Count associated leads
+    const { results: leadCount } = await db.prepare(`
+      SELECT COUNT(*) as count FROM leads WHERE contact_id = ?
+    `).bind(contactId).all()
+
+    const numLeads = leadCount[0]?.count || 0
+
+    // Delete all leads associated with this contact
+    await db.prepare(`
+      DELETE FROM leads WHERE contact_id = ?
+    `).bind(contactId).run()
+
+    // Delete the contact
+    await db.prepare(`
+      DELETE FROM contacts WHERE id = ?
+    `).bind(contactId).run()
+
+    return c.json({
+      status: 'success',
+      message: 'Contact and associated leads deleted successfully',
+      deleted_contact: {
+        id: contactId,
+        name: `${contact.first_name} ${contact.last_name}`,
+        email: contact.email,
+        phone: contact.phone,
+        webhook_id: contact.webhook_id,
+        leads_deleted: numLeads
+      },
+      timestamp: new Date().toISOString()
+    })
+
+  } catch (error) {
+    console.error('Error deleting contact:', error)
+    return c.json({
+      error: 'Database error',
+      message: 'Failed to delete contact from database',
+      timestamp: new Date().toISOString()
+    }, 500)
+  }
+})
+
+// Delete a single lead
+leads.delete('/:leadId', async (c) => {
+  const leadId = parseInt(c.req.param('leadId'))
+
+  if (!(c.env as any).LEADS_DB) {
+    return c.json({
+      error: 'Database not configured',
+      message: 'D1 database is not configured for this environment'
+    }, 503)
+  }
+
+  if (isNaN(leadId)) {
+    return c.json({
+      error: 'Invalid lead ID',
+      message: 'Lead ID must be a valid number',
+      timestamp: new Date().toISOString()
+    }, 400)
+  }
+
+  try {
+    const db = (c.env as any).LEADS_DB
+
+    // First, check if the lead exists
+    const { results: existingLead } = await db.prepare(`
+      SELECT id, first_name, last_name, email, phone, webhook_id
+      FROM leads
+      WHERE id = ?
+    `).bind(leadId).all()
+
+    if (existingLead.length === 0) {
+      return c.json({
+        error: 'Lead not found',
+        message: `No lead found with ID ${leadId}`,
+        timestamp: new Date().toISOString()
+      }, 404)
+    }
+
+    const lead = existingLead[0]
+
+    // Delete the lead from the database
+    await db.prepare(`
+      DELETE FROM leads WHERE id = ?
+    `).bind(leadId).run()
+
+    return c.json({
+      status: 'success',
+      message: 'Lead deleted successfully',
+      deleted_lead: {
+        id: leadId,
+        name: `${lead.first_name} ${lead.last_name}`,
+        email: lead.email,
+        phone: lead.phone,
+        webhook_id: lead.webhook_id
+      },
+      timestamp: new Date().toISOString()
+    })
+
+  } catch (error) {
+    console.error('Error deleting lead:', error)
+    return c.json({
+      error: 'Database error',
+      message: 'Failed to delete lead from database',
       timestamp: new Date().toISOString()
     }, 500)
   }

@@ -1,5 +1,6 @@
 export interface Lead {
   id: string;
+  contact_id?: number;
   name: string;
   email: string;
   phone: string;
