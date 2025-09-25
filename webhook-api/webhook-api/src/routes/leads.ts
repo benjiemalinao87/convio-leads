@@ -274,6 +274,116 @@ leads.get('/:leadId', async (c) => {
   }
 })
 
+// Update a lead (PATCH - comprehensive update)
+leads.patch('/:leadId', async (c) => {
+  const leadId = parseInt(c.req.param('leadId'))
+
+  if (!(c.env as any).LEADS_DB) {
+    return c.json({
+      error: 'Database not configured',
+      message: 'D1 database is not configured for this environment'
+    }, 503)
+  }
+
+  try {
+    const updateData = await c.req.json()
+    const db = new LeadDatabase((c.env as any).LEADS_DB)
+
+    // First check if lead exists
+    const existingLead = await db.getLeadById(leadId)
+    if (!existingLead) {
+      return c.json({
+        error: 'Lead not found',
+        message: `No lead found with ID ${leadId}`,
+        timestamp: new Date().toISOString()
+      }, 404)
+    }
+
+    // Build dynamic update query
+    const updateFields: string[] = []
+    const updateValues: any[] = []
+
+    // Map frontend field names to database field names and validate
+    const fieldMappings = {
+      'status': 'status',
+      'assigned_to': 'assigned_to',
+      'revenue_potential': 'revenue_potential',
+      'notes': 'notes',
+      'priority': 'priority',
+      'source': 'source',
+      'assignedTo': 'assigned_to', // Accept both formats
+    }
+
+    // Valid statuses
+    const validStatuses = ['new', 'contacted', 'qualified', 'proposal_sent', 'negotiating', 'scheduled', 'converted', 'rejected', 'lost']
+
+    // Process each field in the update data
+    for (const [frontendField, value] of Object.entries(updateData)) {
+      const dbField = fieldMappings[frontendField as keyof typeof fieldMappings]
+
+      if (dbField && value !== undefined && value !== null) {
+        // Validate status field
+        if (dbField === 'status' && !validStatuses.includes(value as string)) {
+          return c.json({
+            error: 'Invalid status',
+            message: `Status must be one of: ${validStatuses.join(', ')}`,
+            timestamp: new Date().toISOString()
+          }, 400)
+        }
+
+        updateFields.push(`${dbField} = ?`)
+        updateValues.push(value)
+      }
+    }
+
+    if (updateFields.length === 0) {
+      return c.json({
+        error: 'No valid fields to update',
+        message: 'No updateable fields provided in request body',
+        timestamp: new Date().toISOString()
+      }, 400)
+    }
+
+    // Always update the updated_at timestamp
+    updateFields.push('updated_at = CURRENT_TIMESTAMP')
+
+    // Add leadId for WHERE clause
+    updateValues.push(leadId)
+
+    // Execute the update
+    const query = `UPDATE leads SET ${updateFields.join(', ')} WHERE id = ?`
+    await ((c.env as any).LEADS_DB as any).prepare(query).bind(...updateValues).run()
+
+    // If status was updated, handle status change logging
+    if (updateData.status && updateData.status !== existingLead.status) {
+      await db.updateLeadStatus(leadId, updateData.status, {
+        notes: updateData.notes,
+        changedBy: updateData.changedBy || 'system',
+        changedByName: updateData.changedByName || 'System User'
+      })
+    }
+
+    // Fetch and return the updated lead
+    const updatedLead = await db.getLeadById(leadId)
+
+    return c.json({
+      status: 'success',
+      message: 'Lead updated successfully',
+      lead: updatedLead,
+      updated_fields: Object.keys(updateData),
+      timestamp: new Date().toISOString()
+    })
+
+  } catch (error) {
+    console.error('Error updating lead:', error)
+    return c.json({
+      error: 'Database error',
+      message: 'Failed to update lead',
+      timestamp: new Date().toISOString()
+    }, 500)
+  }
+})
+
 // Update lead status (PATCH - backwards compatibility)
 leads.patch('/:leadId/status', async (c) => {
   const leadId = parseInt(c.req.param('leadId'))

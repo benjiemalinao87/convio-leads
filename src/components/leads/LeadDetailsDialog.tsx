@@ -88,7 +88,7 @@ export function LeadDetailsDialog({ lead, open, onOpenChange, onEdit, onViewLead
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [showActivityModal, setShowActivityModal] = useState(false);
 
-  const API_BASE = import.meta.env.DEV ? 'http://localhost:8890' : 'https://api.homeprojectpartners.com';
+  const API_BASE = 'https://api.homeprojectpartners.com'; // Always use production API
 
   // The lead ID from the frontend is already the API lead ID (converted to string in Leads.tsx)
   const getApiLeadId = (mockLead: Lead): number | null => {
@@ -118,9 +118,6 @@ export function LeadDetailsDialog({ lead, open, onOpenChange, onEdit, onViewLead
 
     setIsLoading(true);
     try {
-      console.log('Fetching data for API lead ID:', apiLeadId);
-      console.log('Lead contact_id:', lead.contact_id);
-      console.log('Is contact mode:', isContactMode);
 
       let requests = [
         fetch(`${API_BASE}/leads/${apiLeadId}`),
@@ -163,8 +160,6 @@ export function LeadDetailsDialog({ lead, open, onOpenChange, onEdit, onViewLead
       // Handle contact leads if in contact mode
       if (contactLeadsResponse && contactLeadsResponse.ok) {
         const contactLeadsData = await contactLeadsResponse.json();
-        console.log('Contact leads data received:', contactLeadsData);
-        console.log('Number of contact leads:', contactLeadsData.leads?.length || 0);
         setContactLeads(contactLeadsData.leads || []);
       } else if (contactLeadsResponse) {
         console.error('Contact leads response not OK:', await contactLeadsResponse.text());
@@ -342,23 +337,8 @@ export function LeadDetailsDialog({ lead, open, onOpenChange, onEdit, onViewLead
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main Information */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Debug Info - Remove after fixing */}
-            {isContactMode && (
-              <Card className="border-yellow-200 bg-yellow-50/30">
-                <CardContent className="p-4">
-                  <div className="text-sm">
-                    <strong>Debug Info:</strong><br/>
-                    Contact ID: {lead.contact_id || 'undefined'}<br/>
-                    Contact Leads Length: {contactLeads.length}<br/>
-                    Is Contact Mode: {isContactMode.toString()}<br/>
-                    API Base: {API_BASE}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
             {/* Contact Leads (when in contact mode) - Show at top */}
-            {isContactMode && contactLeads.length > 0 && (
+            {isContactMode && contactLeads.length > 1 && (
               <Card className="border-blue-200 bg-blue-50/30">
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center justify-between">
@@ -372,11 +352,14 @@ export function LeadDetailsDialog({ lead, open, onOpenChange, onEdit, onViewLead
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-3">
-                    {contactLeads.map((contactLead, index) => (
+                  {contactLeads.length > 0 ? (
+                    <div className="space-y-3">
+                      {contactLeads.map((contactLead, index) => (
                       <div key={contactLead.id} className={cn(
-                        "border rounded-lg p-3 space-y-2 transition-colors",
-                        contactLead.id.toString() === lead.id ? "border-blue-500 bg-blue-50" : "border-gray-200 bg-white"
+                        "border rounded-lg p-3 space-y-2 transition-colors shadow-sm",
+                        contactLead.id.toString() === lead.id 
+                          ? "border-blue-500 bg-blue-50 shadow-blue-100" 
+                          : "border-gray-300 bg-gray-50 hover:bg-gray-100"
                       )}>
                         <div className="flex items-center justify-between">
                           <div className="flex items-center space-x-2">
@@ -409,7 +392,7 @@ export function LeadDetailsDialog({ lead, open, onOpenChange, onEdit, onViewLead
                           </div>
                           <div>
                             <span className="text-muted-foreground">Webhook:</span> 
-                            <span className="ml-1 text-xs bg-gray-100 px-2 py-0.5 rounded">{contactLead.webhook_id}</span>
+                            <span className="ml-1 text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded font-medium">{contactLead.webhook_id}</span>
                           </div>
                           <div>
                             <span className="text-muted-foreground">Created:</span> {formatDateShort(contactLead.created_at)}
@@ -425,7 +408,37 @@ export function LeadDetailsDialog({ lead, open, onOpenChange, onEdit, onViewLead
                         )}
                       </div>
                     ))}
-                  </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="border rounded-lg p-3 text-center">
+                        {isLoading ? (
+                          <div className="flex items-center justify-center space-x-2">
+                            <RefreshCw className="h-4 w-4 animate-spin" />
+                            <span>Loading contact leads...</span>
+                          </div>
+                        ) : (
+                          <div>
+                            <p className="text-sm text-muted-foreground mb-2">
+                              Contact ID: {lead.contact_id}
+                            </p>
+                            <p className="text-sm">
+                              Unable to load additional leads for this contact.
+                            </p>
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={fetchLeadData}
+                              className="mt-2"
+                            >
+                              <RefreshCw className="h-3 w-3 mr-1" />
+                              Retry
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             )}
