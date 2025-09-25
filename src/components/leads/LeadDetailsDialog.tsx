@@ -339,12 +339,12 @@ export function LeadDetailsDialog({ lead, open, onOpenChange, onEdit, onViewLead
           <div className="lg:col-span-2 space-y-6">
             {/* Contact Leads (when in contact mode) - Show at top */}
             {isContactMode && contactLeads.length > 1 && (
-              <Card className="border-blue-200 bg-blue-50/30">
+              <Card className="border-border bg-card">
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center justify-between">
                     <div className="flex items-center">
-                      <FileText className="h-5 w-5 mr-2 text-blue-600" />
-                      <span>All Leads for this Contact</span>
+                      <FileText className="h-5 w-5 mr-2 text-blue-600 dark:text-blue-400" />
+                      <span className="text-foreground">All Leads for this Contact</span>
                       <Badge variant="secondary" className="ml-2">
                         {contactLeads.length} leads
                       </Badge>
@@ -356,29 +356,29 @@ export function LeadDetailsDialog({ lead, open, onOpenChange, onEdit, onViewLead
                     <div className="space-y-3">
                       {contactLeads.map((contactLead, index) => (
                       <div key={contactLead.id} className={cn(
-                        "border rounded-lg p-3 space-y-2 transition-colors shadow-sm",
-                        contactLead.id.toString() === lead.id 
-                          ? "border-blue-500 bg-blue-50 shadow-blue-100" 
-                          : "border-gray-300 bg-gray-50 hover:bg-gray-100"
+                        "border rounded-lg p-3 space-y-2 shadow-sm [&:hover]:bg-transparent [&:hover]:border-border",
+                        contactLead.id.toString() === lead.id
+                          ? "border-border bg-secondary/30 shadow-sm ring-1 ring-border/50"
+                          : "border-border bg-card"
                       )}>
                         <div className="flex items-center justify-between">
                           <div className="flex items-center space-x-2">
-                            <span className="font-medium text-blue-600">
+                            <span className="font-medium text-blue-600 dark:text-blue-400">
                               Lead #{contactLead.id}
                               {contactLead.id.toString() === lead.id && (
-                                <Badge variant="outline" className="ml-2 text-xs">Current</Badge>
+                                <Badge variant="outline" className="ml-2 text-xs border-blue-300 text-blue-700 dark:border-blue-600 dark:text-blue-300">Current</Badge>
                               )}
                             </span>
                             {getStatusBadge(contactLead.status as Lead['status'] || 'new')}
                           </div>
                           <div className="flex items-center space-x-2">
-                            <p className="font-semibold">{formatCurrency(contactLead.revenue_potential || 0)}</p>
+                            <p className="font-semibold text-foreground">{formatCurrency(contactLead.revenue_potential || 0)}</p>
                             {contactLead.id.toString() !== lead.id && (
-                              <Button 
-                                variant="outline" 
+                              <Button
+                                variant="outline"
                                 size="sm"
                                 onClick={() => handleSwitchToLead(contactLead)}
-                                className="text-xs"
+                                className="text-xs pointer-events-auto"
                               >
                                 <Eye className="h-3 w-3 mr-1" />
                                 View
@@ -388,17 +388,17 @@ export function LeadDetailsDialog({ lead, open, onOpenChange, onEdit, onViewLead
                         </div>
                         <div className="grid grid-cols-2 gap-2 text-sm">
                           <div>
-                            <span className="text-muted-foreground">Source:</span> {contactLead.source}
+                            <span className="text-muted-foreground">Source:</span> <span className="text-foreground">{contactLead.source}</span>
                           </div>
                           <div>
-                            <span className="text-muted-foreground">Webhook:</span> 
-                            <span className="ml-1 text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded font-medium">{contactLead.webhook_id}</span>
+                            <span className="text-muted-foreground">Webhook:</span>
+                            <span className="ml-1 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200 px-2 py-0.5 rounded font-medium">{contactLead.webhook_id}</span>
                           </div>
                           <div>
-                            <span className="text-muted-foreground">Created:</span> {formatDateShort(contactLead.created_at)}
+                            <span className="text-muted-foreground">Created:</span> <span className="text-foreground">{formatDateShort(contactLead.created_at)}</span>
                           </div>
                           <div>
-                            <span className="text-muted-foreground">Priority:</span> {contactLead.priority || 1}
+                            <span className="text-muted-foreground">Priority:</span> <span className="text-foreground">{contactLead.priority || 1}</span>
                           </div>
                         </div>
                         {contactLead.notes && (
@@ -519,7 +519,7 @@ export function LeadDetailsDialog({ lead, open, onOpenChange, onEdit, onViewLead
                       <Tag className="h-4 w-4 text-muted-foreground" />
                       <div>
                         <p className="text-sm text-muted-foreground">Webhook</p>
-                        <p className="font-medium text-blue-600">{lead.webhook}</p>
+                        <p className="font-medium text-blue-600 dark:text-blue-400">{lead.webhook}</p>
                       </div>
                     </div>
                   </div>
@@ -562,7 +562,7 @@ export function LeadDetailsDialog({ lead, open, onOpenChange, onEdit, onViewLead
                 <CardTitle className="text-lg">Quick Stats</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="text-center p-4 bg-secondary/20 rounded-lg">
+                <div className="text-center p-4 bg-primary/5 dark:bg-primary/10 rounded-lg border border-primary/10 dark:border-primary/20">
                   <p className="text-2xl font-bold text-primary">{formatCurrency(apiLead?.revenue_potential || lead.value)}</p>
                   <p className="text-sm text-muted-foreground">Deal Value</p>
                 </div>
@@ -608,7 +608,7 @@ export function LeadDetailsDialog({ lead, open, onOpenChange, onEdit, onViewLead
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sm text-muted-foreground">Webhook:</span>
-                    <span className="text-sm font-medium text-blue-600">{apiLead?.webhook_id || lead.webhook}</span>
+                    <span className="text-sm font-medium text-blue-600 dark:text-blue-400">{apiLead?.webhook_id || lead.webhook}</span>
                   </div>
                 </div>
               </CardContent>
