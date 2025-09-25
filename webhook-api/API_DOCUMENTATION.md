@@ -356,6 +356,30 @@ Delete a webhook configuration (Demo - requires deployment for actual deletion).
 }
 ```
 
+#### PATCH /webhook/:webhookId/status
+Enable or disable a webhook configuration.
+
+**Parameters**:
+- `webhookId` (string): Webhook identifier
+
+**Request Body**:
+```json
+{
+  "enabled": true
+}
+```
+
+**Response** (200):
+```json
+{
+  "status": "success",
+  "message": "Webhook status updated successfully",
+  "webhook_id": "ws_cal_solar_001",
+  "enabled": true,
+  "timestamp": "2024-09-24T21:00:00.000Z"
+}
+```
+
 ---
 
 ### Lead Endpoints
@@ -777,6 +801,115 @@ Get pipeline stages configuration.
 }
 ```
 
+#### DELETE /leads/:leadId
+Delete a single lead by ID.
+
+**Parameters**:
+- `leadId` (number): Lead identifier
+
+**Features**:
+- Automatically handles foreign key constraints by deleting related records first
+- Deletes associated `lead_events` before removing the lead
+- Permanent deletion from database
+
+**Response** (200):
+```json
+{
+  "status": "success",
+  "message": "Lead deleted successfully",
+  "deleted_lead": {
+    "id": 12,
+    "name": "John Doe",
+    "email": "john.doe@example.com",
+    "phone": "+15551234567",
+    "webhook_id": "ws_cal_solar_001"
+  },
+  "timestamp": "2025-09-25T11:45:00.000Z"
+}
+```
+
+**Error Responses**:
+
+Lead not found (404):
+```json
+{
+  "error": "Lead not found",
+  "message": "No lead found with ID 12",
+  "timestamp": "2025-09-25T11:45:00.000Z"
+}
+```
+
+Invalid lead ID (400):
+```json
+{
+  "error": "Invalid lead ID",
+  "message": "Lead ID must be a valid number",
+  "timestamp": "2025-09-25T11:45:00.000Z"
+}
+```
+
+#### DELETE /leads/contact/:contactId
+Delete a contact and all associated leads.
+
+**Parameters**:
+- `contactId` (number): Contact identifier
+
+**Features**:
+- Cascade deletion - removes contact and ALL associated leads
+- Handles foreign key constraints by deleting in correct order:
+  1. `lead_events` for all leads with this contact_id
+  2. `contact_events` for the contact
+  3. All `leads` with this contact_id
+  4. The `contact` record
+- Returns count of leads deleted along with contact
+- Permanent deletion from database
+
+**Response** (200):
+```json
+{
+  "status": "success",
+  "message": "Contact and associated leads deleted successfully",
+  "deleted_contact": {
+    "id": 1,
+    "name": "Jane Smith",
+    "email": "jane.smith@example.com",
+    "phone": "+15559998888",
+    "webhook_id": "click-ventures_ws_us_general_656",
+    "leads_deleted": 2
+  },
+  "timestamp": "2025-09-25T11:45:00.000Z"
+}
+```
+
+**Error Responses**:
+
+Contact not found (404):
+```json
+{
+  "error": "Contact not found",
+  "message": "No contact found with ID 1",
+  "timestamp": "2025-09-25T11:45:00.000Z"
+}
+```
+
+Invalid contact ID (400):
+```json
+{
+  "error": "Invalid contact ID",
+  "message": "Contact ID must be a valid number",
+  "timestamp": "2025-09-25T11:45:00.000Z"
+}
+```
+
+**Example Usage**:
+```bash
+# Delete individual lead
+curl -X DELETE "https://api.homeprojectpartners.com/leads/12"
+
+# Delete contact and all associated leads
+curl -X DELETE "https://api.homeprojectpartners.com/leads/contact/1"
+```
+
 ---
 
 ## Data Schemas
@@ -977,6 +1110,12 @@ curl -X PUT https://api.homeprojectpartners.com/leads/1/status \
     "notes": "Initial contact made",
     "changedBy": "user123"
   }'
+
+# Delete individual lead
+curl -X DELETE "https://api.homeprojectpartners.com/leads/1"
+
+# Delete contact and all associated leads
+curl -X DELETE "https://api.homeprojectpartners.com/leads/contact/1"
 ```
 
 ### Environment Variables
