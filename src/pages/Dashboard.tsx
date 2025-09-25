@@ -58,7 +58,7 @@ export default function Dashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const API_BASE = import.meta.env.DEV ? 'http://localhost:8890' : 'https://api.homeprojectpartners.com';
+  const API_BASE = 'https://api.homeprojectpartners.com';
 
   useEffect(() => {
     fetchDashboardData();

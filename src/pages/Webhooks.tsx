@@ -67,7 +67,7 @@ export default function Webhooks() {
   const [newWebhookName, setNewWebhookName] = useState('');
   const { toast } = useToast();
 
-  const API_BASE = import.meta.env.DEV ? 'http://localhost:8890' : 'https://api.homeprojectpartners.com';
+  const API_BASE = 'https://api.homeprojectpartners.com';
 
   useEffect(() => {
     fetchWebhooks();

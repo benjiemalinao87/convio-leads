@@ -39,7 +39,7 @@ export function LeadEditDialog({ lead, open, onOpenChange, onSave }: LeadEditDia
     source: ''
   });
 
-  const API_BASE = import.meta.env.DEV ? 'http://localhost:8890' : 'https://api.homeprojectpartners.com';
+  const API_BASE = 'https://api.homeprojectpartners.com';
 
   // Initialize form when lead changes
   useEffect(() => {
