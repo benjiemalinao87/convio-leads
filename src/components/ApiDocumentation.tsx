@@ -167,6 +167,47 @@ const ApiDocumentation = ({ open, onOpenChange }: ApiDocumentationProps) => {
     }
   ]
 }`
+    },
+    {
+      id: 'delete-lead',
+      method: 'DELETE',
+      path: '/leads/:leadId',
+      title: 'Delete Lead',
+      description: 'Delete a single lead by ID with automatic foreign key handling',
+      example: `curl -X DELETE "https://api.homeprojectpartners.com/leads/12"`,
+      response: `{
+  "status": "success",
+  "message": "Lead deleted successfully",
+  "deleted_lead": {
+    "id": 12,
+    "name": "John Doe",
+    "email": "john.doe@example.com",
+    "phone": "+15551234567",
+    "webhook_id": "ws_cal_solar_001"
+  },
+  "timestamp": "2025-09-25T11:45:00.000Z"
+}`
+    },
+    {
+      id: 'delete-contact',
+      method: 'DELETE',
+      path: '/leads/contact/:contactId',
+      title: 'Delete Contact',
+      description: 'Delete a contact and ALL associated leads with cascade deletion',
+      example: `curl -X DELETE "https://api.homeprojectpartners.com/leads/contact/1"`,
+      response: `{
+  "status": "success",
+  "message": "Contact and associated leads deleted successfully",
+  "deleted_contact": {
+    "id": 1,
+    "name": "Jane Smith",
+    "email": "jane.smith@example.com",
+    "phone": "+15559998888",
+    "webhook_id": "click-ventures_ws_us_general_656",
+    "leads_deleted": 2
+  },
+  "timestamp": "2025-09-25T11:45:00.000Z"
+}`
     }
   ];
 
@@ -356,7 +397,12 @@ const ApiDocumentation = ({ open, onOpenChange }: ApiDocumentationProps) => {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <Badge
-                            variant={endpoint.method === 'GET' ? 'default' : endpoint.method === 'POST' ? 'secondary' : 'outline'}
+                            variant={
+                              endpoint.method === 'GET' ? 'default' :
+                              endpoint.method === 'POST' ? 'secondary' :
+                              endpoint.method === 'DELETE' ? 'destructive' :
+                              'outline'
+                            }
                             className="font-mono text-xs"
                           >
                             {endpoint.method}
@@ -725,7 +771,12 @@ const ApiDocumentation = ({ open, onOpenChange }: ApiDocumentationProps) => {
                         <CardHeader>
                           <div className="flex items-center gap-3">
                             <Badge
-                              variant={endpoint.method === 'GET' ? 'default' : endpoint.method === 'POST' ? 'secondary' : 'outline'}
+                              variant={
+                                endpoint.method === 'GET' ? 'default' :
+                                endpoint.method === 'POST' ? 'secondary' :
+                                endpoint.method === 'DELETE' ? 'destructive' :
+                                'outline'
+                              }
                               className="font-mono text-xs"
                             >
                               {endpoint.method}
