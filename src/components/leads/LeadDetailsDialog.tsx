@@ -85,15 +85,15 @@ export function LeadDetailsDialog({ lead, open, onOpenChange, onEdit }: LeadDeta
 
   const API_BASE = import.meta.env.DEV ? 'http://localhost:8890' : 'https://api.homeprojectpartners.com';
 
-  // Map mock lead ID to API lead ID (you'll need to adjust this mapping)
+  // The lead ID from the frontend is already the API lead ID (converted to string in Leads.tsx)
   const getApiLeadId = (mockLead: Lead): number | null => {
-    // For now, just use a simple mapping - you might need to store this differently
-    const idMap: { [key: string]: number } = {
-      '1': 1, // Alice Johnson - Solar lead
-      '2': 2, // Bob Smith - HVAC lead #1
-      '3': 3, // Bob Smith - HVAC lead #2 (with status updates)
-    };
-    return idMap[mockLead.id] || null;
+    // Since the frontend already uses API IDs as strings, we can directly convert
+    const apiId = parseInt(mockLead.id);
+    if (isNaN(apiId)) {
+      console.error('Invalid lead ID:', mockLead.id);
+      return null;
+    }
+    return apiId;
   };
 
   useEffect(() => {
@@ -107,31 +107,42 @@ export function LeadDetailsDialog({ lead, open, onOpenChange, onEdit }: LeadDeta
 
     const apiLeadId = getApiLeadId(lead);
     if (!apiLeadId) {
-      console.log('No API lead ID mapped for', lead.id);
+      console.log('No API lead ID mapped for lead:', lead.id, 'Available IDs: 1, 2, 3');
       return;
     }
 
     setIsLoading(true);
     try {
+      console.log('Fetching data for API lead ID:', apiLeadId);
+
       const [leadResponse, activitiesResponse, historyResponse] = await Promise.all([
         fetch(`${API_BASE}/leads/${apiLeadId}`),
         fetch(`${API_BASE}/leads/${apiLeadId}/activities`),
         fetch(`${API_BASE}/leads/${apiLeadId}/history`)
       ]);
 
+      console.log('Lead response status:', leadResponse.status);
+
       if (leadResponse.ok) {
         const leadData = await leadResponse.json();
+        console.log('Lead data received:', leadData);
         setApiLead(leadData.lead);
+      } else {
+        console.error('Lead response not OK:', await leadResponse.text());
       }
 
       if (activitiesResponse.ok) {
         const activitiesData = await activitiesResponse.json();
         setActivities(activitiesData.activities || []);
+      } else {
+        console.error('Activities response not OK:', await activitiesResponse.text());
       }
 
       if (historyResponse.ok) {
         const historyData = await historyResponse.json();
         setStatusHistory(historyData.history || []);
+      } else {
+        console.error('History response not OK:', await historyResponse.text());
       }
     } catch (error) {
       console.error('Failed to fetch lead data:', error);
@@ -391,13 +402,28 @@ export function LeadDetailsDialog({ lead, open, onOpenChange, onEdit }: LeadDeta
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="text-center p-4 bg-secondary/20 rounded-lg">
-                  <p className="text-2xl font-bold text-primary">{formatCurrency(lead.value)}</p>
+                  <p className="text-2xl font-bold text-primary">{formatCurrency(apiLead?.revenue_potential || lead.value)}</p>
                   <p className="text-sm text-muted-foreground">Deal Value</p>
                 </div>
                 <div className="space-y-2">
                   <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Contact ID:</span>
+                    <span className="text-sm font-mono font-medium text-primary">
+                      {isLoading ? (
+                        <span className="flex items-center gap-1">
+                          <RefreshCw className="h-3 w-3 animate-spin" />
+                          Loading...
+                        </span>
+                      ) : apiLead?.id ? (
+                        `#${apiLead.id}`
+                      ) : (
+                        <span className="text-muted-foreground">#{getApiLeadId(lead) || 'N/A'}</span>
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
                     <span className="text-sm text-muted-foreground">Assigned to:</span>
-                    <span className="text-sm font-medium">{lead.assignedTo}</span>
+                    <span className="text-sm font-medium">{apiLead?.assigned_to || lead.assignedTo}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sm text-muted-foreground">Status:</span>
@@ -405,11 +431,11 @@ export function LeadDetailsDialog({ lead, open, onOpenChange, onEdit }: LeadDeta
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sm text-muted-foreground">Source:</span>
-                    <span className="text-sm font-medium">{lead.source}</span>
+                    <span className="text-sm font-medium">{apiLead?.source || lead.source}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sm text-muted-foreground">Webhook:</span>
-                    <span className="text-sm font-medium text-blue-600">{lead.webhook}</span>
+                    <span className="text-sm font-medium text-blue-600">{apiLead?.webhook_id || lead.webhook}</span>
                   </div>
                 </div>
               </CardContent>
