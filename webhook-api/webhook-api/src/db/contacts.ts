@@ -1,4 +1,5 @@
 import { D1Database } from '@cloudflare/workers-types'
+import { generateContactId, generateUniqueId } from '../utils/idGenerator'
 
 export interface ContactRecord {
   webhook_id: string
@@ -38,15 +39,19 @@ export class ContactDatabase {
 
   // Create new contact
   async createContact(contactData: ContactRecord): Promise<number> {
+    // Generate unique 6-digit contact ID
+    const contactId = await generateUniqueId(this.db, 'contacts', generateContactId)
+
     const result = await this.db
       .prepare(`
         INSERT INTO contacts (
-          webhook_id, phone, first_name, last_name, email,
+          id, webhook_id, phone, first_name, last_name, email,
           address, city, state, zip_code,
           created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       `)
       .bind(
+        contactId,
         contactData.webhook_id,
         contactData.phone,
         contactData.first_name,
@@ -59,18 +64,18 @@ export class ContactDatabase {
       )
       .run()
 
-    if (!result.success || !result.meta.last_row_id) {
+    if (!result.success) {
       throw new Error('Failed to create contact')
     }
 
     // Log contact creation event
-    await this.logContactEvent(result.meta.last_row_id, 'created', {
+    await this.logContactEvent(contactId, 'created', {
       webhook_id: contactData.webhook_id,
       phone: contactData.phone,
       email: contactData.email
     })
 
-    return result.meta.last_row_id
+    return contactId
   }
 
   // Update existing contact with new information

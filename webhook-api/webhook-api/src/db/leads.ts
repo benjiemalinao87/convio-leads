@@ -1,4 +1,5 @@
 import { D1Database } from '@cloudflare/workers-types';
+import { generateLeadId, generateUniqueId } from '../utils/idGenerator';
 
 export interface LeadRecord {
   contact_id?: number; // Link to contacts table
@@ -44,9 +45,12 @@ export class LeadDatabase {
   constructor(private db: D1Database) {}
 
   async saveLead(lead: LeadRecord): Promise<number> {
+    // Generate unique 10-digit lead ID
+    const leadId = await generateUniqueId(this.db, 'leads', generateLeadId)
+
     const stmt = await this.db.prepare(`
       INSERT INTO leads (
-        contact_id, webhook_id, lead_type, first_name, last_name, email, phone,
+        id, contact_id, webhook_id, lead_type, first_name, last_name, email, phone,
         address, city, state, zip_code, source, campaign_id,
         utm_source, utm_medium, utm_campaign,
         monthly_electric_bill, property_type, roof_condition, roof_age, shade_coverage,
@@ -54,12 +58,12 @@ export class LeadDatabase {
         policy_type, coverage_amount, current_premium, property_value, claims_history,
         raw_payload, ip_address, user_agent, status, conversion_score, revenue_potential
       ) VALUES (
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-        ?, ?, ?, ?, ?, ?
+        ?, ?, ?, ?, ?, ?, ?
       )
     `).bind(
-      lead.contact_id || null, lead.webhook_id, lead.lead_type, lead.first_name, lead.last_name, lead.email, lead.phone || null,
+      leadId, lead.contact_id || null, lead.webhook_id, lead.lead_type, lead.first_name, lead.last_name, lead.email, lead.phone || null,
       lead.address || null, lead.city || null, lead.state || null, lead.zip_code || null,
       lead.source, lead.campaign_id || null,
       lead.utm_source || null, lead.utm_medium || null, lead.utm_campaign || null,
@@ -79,11 +83,9 @@ export class LeadDatabase {
     await this.updateWebhookStats(lead.webhook_id);
 
     // Log the event
-    if (result.meta.last_row_id) {
-      await this.logLeadEvent(result.meta.last_row_id as number, 'created', { source: lead.source });
-    }
+    await this.logLeadEvent(leadId, 'created', { source: lead.source });
 
-    return result.meta.last_row_id as number;
+    return leadId;
   }
 
   async updateWebhookStats(webhookId: string): Promise<void> {

@@ -230,47 +230,26 @@ const Leads = () => {
 
   const handleDeleteLead = async (leadId: string) => {
     try {
-      // Find the contact this lead belongs to
-      const leadToDelete = apiLeads.find(lead => lead.id === leadId);
-      const contactId = leadToDelete?.contact_id;
+      // For now, always delete individual leads until API permissions are fixed
+      const response = await fetch(`${API_BASE}/leads/${leadId}`, {
+        method: 'DELETE',
+      });
 
-      if (!contactId) {
-        // If no contact_id, delete individual lead
-        const response = await fetch(`${API_BASE}/leads/${leadId}`, {
-          method: 'DELETE',
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to delete lead');
-        }
-
-        const result = await response.json();
-
-        // Remove the deleted lead from the local state
-        setApiLeads(prev => prev.filter(lead => lead.id !== leadId));
-
-        console.log('Lead deleted successfully:', result.deleted_lead);
-      } else {
-        // Delete entire contact and all associated leads
-        const response = await fetch(`${API_BASE}/leads/contact/${contactId}`, {
-          method: 'DELETE',
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to delete contact');
-        }
-
-        const result = await response.json();
-
-        // Remove all leads with this contact_id from the local state
-        setApiLeads(prev => prev.filter(lead => lead.contact_id !== contactId));
-
-        console.log('Contact deleted successfully:', result.deleted_contact);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`Failed to delete lead: ${errorData.message || response.statusText}`);
       }
 
+      const result = await response.json();
+
+      // Remove the deleted lead from the local state
+      setApiLeads(prev => prev.filter(lead => lead.id !== leadId));
+
+      console.log('Lead deleted successfully:', result.deleted_lead || result);
+
     } catch (error) {
-      console.error('Failed to delete:', error);
-      // Handle error (you can show an error toast here if needed)
+      console.error('Failed to delete lead:', error);
+      alert(`Error deleting lead: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 

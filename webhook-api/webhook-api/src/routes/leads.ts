@@ -661,6 +661,17 @@ leads.delete('/contact/:contactId', async (c) => {
 
     const numLeads = leadCount[0]?.count || 0
 
+    // Delete related records first to avoid foreign key constraints
+    // First delete all lead events for leads with this contact_id
+    await db.prepare(`
+      DELETE FROM lead_events WHERE lead_id IN (SELECT id FROM leads WHERE contact_id = ?)
+    `).bind(contactId).run()
+
+    // Delete contact events
+    await db.prepare(`
+      DELETE FROM contact_events WHERE contact_id = ?
+    `).bind(contactId).run()
+
     // Delete all leads associated with this contact
     await db.prepare(`
       DELETE FROM leads WHERE contact_id = ?
@@ -733,6 +744,11 @@ leads.delete('/:leadId', async (c) => {
     }
 
     const lead = existingLead[0]
+
+    // Delete related records first to avoid foreign key constraints
+    await db.prepare(`
+      DELETE FROM lead_events WHERE lead_id = ?
+    `).bind(leadId).run()
 
     // Delete the lead from the database
     await db.prepare(`
