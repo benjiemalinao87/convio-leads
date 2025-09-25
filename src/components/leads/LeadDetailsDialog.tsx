@@ -356,14 +356,14 @@ export function LeadDetailsDialog({ lead, open, onOpenChange, onEdit, onViewLead
                     <div className="space-y-3">
                       {contactLeads.map((contactLead, index) => (
                       <div key={contactLead.id} className={cn(
-                        "border rounded-lg p-3 space-y-2 transition-colors",
+                        "border rounded-lg p-3 space-y-2 transition-colors shadow-sm",
                         contactLead.id.toString() === lead.id 
-                          ? "border-blue-500 bg-blue-50/50 dark:bg-blue-950/20" 
-                          : "border-border bg-card hover:bg-accent/50"
+                          ? "border-blue-500 bg-blue-50 shadow-blue-100" 
+                          : "border-gray-300 bg-gray-50 hover:bg-gray-100"
                       )}>
                         <div className="flex items-center justify-between">
                           <div className="flex items-center space-x-2">
-                            <span className="font-medium text-blue-600 dark:text-blue-400">
+                            <span className="font-medium text-blue-600">
                               Lead #{contactLead.id}
                               {contactLead.id.toString() === lead.id && (
                                 <Badge variant="outline" className="ml-2 text-xs">Current</Badge>
@@ -388,29 +388,23 @@ export function LeadDetailsDialog({ lead, open, onOpenChange, onEdit, onViewLead
                         </div>
                         <div className="grid grid-cols-2 gap-2 text-sm">
                           <div>
-                            <span className="text-muted-foreground">Source:</span> 
-                            <div className="text-foreground">{contactLead.source}</div>
+                            <span className="text-muted-foreground">Source:</span> {contactLead.source}
                           </div>
                           <div>
                             <span className="text-muted-foreground">Webhook:</span> 
-                            <div className="mt-1">
-                              <span className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-2 py-0.5 rounded">{contactLead.webhook_id}</span>
-                            </div>
+                            <span className="ml-1 text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded font-medium">{contactLead.webhook_id}</span>
                           </div>
                           <div>
-                            <span className="text-muted-foreground">Created:</span> 
-                            <div className="text-foreground">{formatDateShort(contactLead.created_at)}</div>
+                            <span className="text-muted-foreground">Created:</span> {formatDateShort(contactLead.created_at)}
                           </div>
                           <div>
-                            <span className="text-muted-foreground">Priority:</span> 
-                            <div className="text-foreground">{contactLead.priority || 1}</div>
+                            <span className="text-muted-foreground">Priority:</span> {contactLead.priority || 1}
                           </div>
                         </div>
                         {contactLead.notes && (
-                          <div className="bg-secondary/20 p-2 rounded">
-                            <span className="text-muted-foreground text-sm">Notes:</span>
-                            <p className="text-sm text-foreground mt-1">{contactLead.notes}</p>
-                          </div>
+                          <p className="text-sm text-muted-foreground bg-secondary/20 p-2 rounded">
+                            {contactLead.notes}
+                          </p>
                         )}
                       </div>
                     ))}
