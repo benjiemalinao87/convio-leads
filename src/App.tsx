@@ -10,6 +10,7 @@ import Login from "./pages/Login";
 import Webhooks from "./pages/Webhooks";
 import Analytics from "./pages/Analytics";
 import Leads from "./pages/Leads";
+import ContactDetail from "./pages/ContactDetail";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
@@ -48,6 +49,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Leads />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/contact/:contactId"
+              element={
+                <ProtectedRoute>
+                  <ContactDetail />
                 </ProtectedRoute>
               }
             />

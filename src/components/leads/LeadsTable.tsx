@@ -26,7 +26,8 @@ import {
   Mail,
   ArrowUpDown,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  ExternalLink
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -35,13 +36,14 @@ interface LeadsTableProps {
   onViewLead?: (lead: Lead) => void;
   onEditLead?: (lead: Lead) => void;
   onDeleteLead?: (leadId: string) => void;
+  onViewContactDetail?: (contactId: string) => void;
   isContactMode?: boolean;
 }
 
 type SortField = 'name' | 'company' | 'status' | 'value' | 'createdAt';
 type SortDirection = 'asc' | 'desc';
 
-export function LeadsTable({ leads, onViewLead, onEditLead, onDeleteLead, isContactMode = false }: LeadsTableProps) {
+export function LeadsTable({ leads, onViewLead, onEditLead, onDeleteLead, onViewContactDetail, isContactMode = false }: LeadsTableProps) {
   const [sortField, setSortField] = useState<SortField>('createdAt');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
@@ -243,6 +245,12 @@ export function LeadsTable({ leads, onViewLead, onEditLead, onDeleteLead, isCont
                       <Eye className="mr-2 h-4 w-4" />
                       View Details
                     </DropdownMenuItem>
+                    {isContactMode && lead.contact_id && (
+                      <DropdownMenuItem onClick={() => onViewContactDetail?.(lead.contact_id.toString())}>
+                        <ExternalLink className="mr-2 h-4 w-4" />
+                        View Contact Detail
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem onClick={() => onEditLead?.(lead)}>
                       <Edit className="mr-2 h-4 w-4" />
                       Edit Lead

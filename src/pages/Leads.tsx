@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Layout } from '@/components/dashboard/Layout';
 import { LeadsTable } from '@/components/leads/LeadsTable';
 import { LeadsFiltersComponent, LeadsFilters } from '@/components/leads/LeadsFilters';
@@ -73,6 +74,7 @@ const convertAPILeadToLead = (apiLead: APILead): Lead => {
 };
 
 const Leads = () => {
+  const navigate = useNavigate();
   const [filters, setFilters] = useState<LeadsFilters>({
     search: '',
     status: '',
@@ -222,6 +224,10 @@ const Leads = () => {
   const handleViewLead = (lead: Lead) => {
     setSelectedLead(lead);
     setIsDetailsDialogOpen(true);
+  };
+
+  const handleViewContactDetail = (contactId: string) => {
+    navigate(`/contact/${contactId}`);
   };
 
   const handleEditLead = (lead: Lead) => {
@@ -404,6 +410,7 @@ const Leads = () => {
                 onViewLead={handleViewLead}
                 onEditLead={handleEditLead}
                 onDeleteLead={handleDeleteLead}
+                onViewContactDetail={handleViewContactDetail}
                 isContactMode={true}
               />
             )}
