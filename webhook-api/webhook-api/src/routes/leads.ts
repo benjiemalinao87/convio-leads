@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { LeadDatabase } from '../db/leads'
+import { normalizePhoneNumber } from '../utils/phone'
 
 const leads = new Hono()
 
@@ -494,6 +495,89 @@ leads.post('/:leadId/activities', async (c) => {
     return c.json({
       error: 'Database error',
       message: 'Failed to add activity',
+      timestamp: new Date().toISOString()
+    }, 500)
+  }
+})
+
+// Search contacts by phone number
+leads.get('/search/phone/:phoneNumber', async (c) => {
+  const rawPhone = c.req.param('phoneNumber')
+
+  if (!rawPhone) {
+    return c.json({
+      error: 'Bad request',
+      message: 'Phone number is required',
+      timestamp: new Date().toISOString()
+    }, 400)
+  }
+
+  // Normalize the search phone number
+  const normalizedPhone = normalizePhoneNumber(rawPhone)
+
+  if (!normalizedPhone) {
+    return c.json({
+      error: 'Invalid phone number',
+      message: 'Please provide a valid phone number format',
+      examples: ['5551234567', '555-123-4567', '(555) 123-4567', '+15551234567'],
+      timestamp: new Date().toISOString()
+    }, 400)
+  }
+
+  if (!(c.env as any).LEADS_DB) {
+    return c.json({
+      error: 'Database not configured',
+      message: 'D1 database is not configured for this environment'
+    }, 503)
+  }
+
+  try {
+    const db = (c.env as any).LEADS_DB
+
+    // Search for contacts with the normalized phone number
+    const { results } = await db.prepare(`
+      SELECT
+        id,
+        webhook_id,
+        lead_type,
+        first_name,
+        last_name,
+        email,
+        phone,
+        address,
+        city,
+        state,
+        zip_code,
+        source,
+        status,
+        created_at,
+        updated_at,
+        processed_at,
+        revenue_potential,
+        conversion_score,
+        priority,
+        assigned_to,
+        follow_up_date,
+        contact_attempts
+      FROM leads
+      WHERE phone = ?
+      ORDER BY created_at DESC
+    `).bind(normalizedPhone).all()
+
+    return c.json({
+      status: 'success',
+      search_phone: rawPhone,
+      normalized_phone: normalizedPhone,
+      count: results.length,
+      contacts: results,
+      timestamp: new Date().toISOString()
+    })
+
+  } catch (error) {
+    console.error('Error searching contacts by phone:', error)
+    return c.json({
+      error: 'Database error',
+      message: 'Failed to search contacts',
       timestamp: new Date().toISOString()
     }, 500)
   }

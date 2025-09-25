@@ -10,6 +10,7 @@ import {
   WebhookPayloadType
 } from '../types/leads'
 import { LeadDatabase, LeadRecord } from '../db/leads'
+import { normalizePhoneNumber } from '../utils/phone'
 
 const webhook = new Hono()
 
@@ -233,17 +234,17 @@ webhook.post('/:webhookId', async (c) => {
     if (((c.env as any) as any).LEADS_DB) {
       const db = new LeadDatabase(((c.env as any) as any).LEADS_DB)
 
-      // Get lead type from webhook config
-      const config = LeadProviderConfig[webhookId as LeadProviderId]
+      // Get static config for additional processing (optional, may be undefined for dynamic webhooks)
+      const staticConfig = LeadProviderConfig[webhookId as LeadProviderId]
 
       // Prepare lead record for database
       const leadRecord: LeadRecord = {
         webhook_id: webhookId,
-        lead_type: config.type,
+        lead_type: config.lead_type, // Use lead_type from database webhook config
         first_name: normalizedLead.firstName || normalizedLead.first_name || '',
         last_name: normalizedLead.lastName || normalizedLead.last_name || '',
         email: normalizedLead.email,
-        phone: normalizedLead.phone,
+        phone: normalizePhoneNumber(normalizedLead.phone) || undefined,
         address: normalizedLead.address,
         city: normalizedLead.city,
         state: normalizedLead.state,
