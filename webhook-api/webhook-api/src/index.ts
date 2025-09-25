@@ -24,7 +24,14 @@ app.use('*', logger())
 app.use('*', poweredBy())
 app.use('*', timing())
 app.use('*', cors({
-  origin: ['https://homeprojectpartners.com', 'https://api.homeprojectpartners.com', 'http://localhost:5173', 'http://localhost:3000', 'http://localhost:8080'],
+  origin: [
+    'https://homeprojectpartners.com',
+    'https://api.homeprojectpartners.com',
+    'https://dash.homeprojectpartners.com',
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://localhost:8080'
+  ],
   allowHeaders: ['Content-Type', 'Authorization', 'X-Webhook-Signature'],
   allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
 }))
