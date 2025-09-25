@@ -358,8 +358,8 @@ export function LeadDetailsDialog({ lead, open, onOpenChange, onEdit, onViewLead
                       <div key={contactLead.id} className={cn(
                         "border rounded-lg p-3 space-y-2 transition-colors shadow-sm",
                         contactLead.id.toString() === lead.id 
-                          ? "border-blue-500 bg-blue-50 shadow-blue-100" 
-                          : "border-gray-300 bg-gray-50 hover:bg-gray-100"
+                          ? "border-blue-500 bg-blue-100 shadow-blue-200" 
+                          : "border-gray-400 bg-white hover:bg-gray-50 shadow-gray-200"
                       )}>
                         <div className="flex items-center justify-between">
                           <div className="flex items-center space-x-2">
@@ -388,17 +388,20 @@ export function LeadDetailsDialog({ lead, open, onOpenChange, onEdit, onViewLead
                         </div>
                         <div className="grid grid-cols-2 gap-2 text-sm">
                           <div>
-                            <span className="text-muted-foreground">Source:</span> {contactLead.source}
+                            <span className="text-gray-600 font-medium">Source:</span> 
+                            <span className="ml-1 text-gray-900">{contactLead.source}</span>
                           </div>
                           <div>
-                            <span className="text-muted-foreground">Webhook:</span> 
-                            <span className="ml-1 text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded font-medium">{contactLead.webhook_id}</span>
+                            <span className="text-gray-600 font-medium">Webhook:</span> 
+                            <span className="ml-1 text-xs bg-blue-600 text-white px-2 py-0.5 rounded font-medium">{contactLead.webhook_id}</span>
                           </div>
                           <div>
-                            <span className="text-muted-foreground">Created:</span> {formatDateShort(contactLead.created_at)}
+                            <span className="text-gray-600 font-medium">Created:</span> 
+                            <span className="ml-1 text-gray-900">{formatDateShort(contactLead.created_at)}</span>
                           </div>
                           <div>
-                            <span className="text-muted-foreground">Priority:</span> {contactLead.priority || 1}
+                            <span className="text-gray-600 font-medium">Priority:</span> 
+                            <span className="ml-1 text-gray-900">{contactLead.priority || 1}</span>
                           </div>
                         </div>
                         {contactLead.notes && (
