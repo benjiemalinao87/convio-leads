@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { ChevronDown, Target, Code } from 'lucide-react';
+import { ChevronDown, Target, Code, Workflow } from 'lucide-react';
 
 const documentOptions = [
   {
@@ -16,6 +16,13 @@ const documentOptions = [
     file: '/webhook-api/API_DOCUMENTATION.md',
     icon: Code,
     description: 'Complete API reference including lead management and conversion tracking endpoints'
+  },
+  {
+    id: 'appointment-flow',
+    name: 'Appointment-as-a-Service Flow',
+    file: '/webhook-api/APPOINTMENT_AS_A_SERVICE_FLOW.md',
+    icon: Workflow,
+    description: 'End-to-end visualization of the appointment routing and delivery system'
   }
 ];
 
