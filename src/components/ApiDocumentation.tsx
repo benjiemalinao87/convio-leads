@@ -72,7 +72,7 @@ const ApiDocumentation = ({ open, onOpenChange }: ApiDocumentationProps) => {
       description: 'Submit lead data via webhook (requires provider authentication)',
       example: `curl -X POST https://api.homeprojectpartners.com/webhook/click-ventures_ws_us_general_656 \\
   -H "Content-Type: application/json" \\
-  -H "lead_source_provider_id: click_ventures_001" \\
+  -H "Authorization: click_ventures_001" \\
   -H "X-Webhook-Signature: sha256=abc123..." \\
   -d '{
     "firstname": "John",
@@ -111,10 +111,10 @@ const ApiDocumentation = ({ open, onOpenChange }: ApiDocumentationProps) => {
         {
           code: 401,
           title: "Missing Provider Authentication",
-          description: "When lead_source_provider_id header is missing",
+          description: "When Authorization header is missing",
           response: `{
   "error": "Missing provider authentication",
-  "message": "lead_source_provider_id header is required",
+  "message": "Authorization header is required",
   "timestamp": "2025-09-26T09:56:27.948Z"
 }`
         },
@@ -771,7 +771,7 @@ const ApiDocumentation = ({ open, onOpenChange }: ApiDocumentationProps) => {
                   </p>
                   <div className="bg-muted p-3 rounded-lg mb-3">
                     <code className="text-xs font-mono">
-                      lead_source_provider_id: &lt;provider_id&gt;
+                      Authorization: &lt;provider_id&gt;
                     </code>
                   </div>
                   <p className="text-sm text-muted-foreground mb-2">

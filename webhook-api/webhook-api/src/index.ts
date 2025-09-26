@@ -46,7 +46,7 @@ app.use('*', cors({
     'http://localhost:8889',
     'http://localhost:8890'
   ],
-  allowHeaders: ['Content-Type', 'Authorization', 'X-Webhook-Signature', 'lead_source_provider_id'],
+  allowHeaders: ['Content-Type', 'Authorization', 'X-Webhook-Signature'],
   allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
 }))
 
