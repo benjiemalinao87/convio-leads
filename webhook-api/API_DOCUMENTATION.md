@@ -17,6 +17,7 @@ The Home Project Partners Webhook API is a Cloudflare Workers-based service for 
    - [Webhook Management](#webhook-endpoints)
    - [Lead Management](#lead-endpoints)
    - [Conversion Tracking](#conversion-tracking-endpoints)
+   - [Appointment Routing](#appointment-routing-endpoints)
 4. [Data Schemas](#data-schemas)
 5. [Error Handling](#error-handling)
 6. [Webhook Configuration](#webhook-configuration)
@@ -24,7 +25,49 @@ The Home Project Partners Webhook API is a Cloudflare Workers-based service for 
 
 ## Authentication & Security
 
-### Webhook Signatures
+### Provider Authentication (Required)
+All webhook POST requests require provider authentication via the `lead_source_provider_id` header:
+
+```http
+lead_source_provider_id: click_ventures_001
+```
+
+**Provider Management:**
+- Third-party providers must be pre-registered in the system
+- Each provider receives a unique `provider_id` 
+- Providers can be restricted to specific webhook endpoints
+- Inactive providers are automatically rejected
+
+**Error Responses:**
+
+Missing provider header (401):
+```json
+{
+  "error": "Missing provider authentication",
+  "message": "lead_source_provider_id header is required",
+  "timestamp": "2025-09-25T06:00:00.000Z"
+}
+```
+
+Invalid provider (401):
+```json
+{
+  "error": "Invalid provider",
+  "message": "Provider click_ventures_001 is not authorized or is inactive",
+  "timestamp": "2025-09-25T06:00:00.000Z"
+}
+```
+
+Provider access denied (403):
+```json
+{
+  "error": "Provider access denied", 
+  "message": "Provider click_ventures_001 is not authorized to access webhook click-ventures_ws_us_general_656",
+  "timestamp": "2025-09-25T06:00:00.000Z"
+}
+```
+
+### Webhook Signatures (Optional)
 All webhook payloads can be optionally secured with HMAC-SHA256 signatures:
 
 ```http
@@ -48,14 +91,21 @@ X-XSS-Protection: 1; mode=block
 
 ### CORS Configuration
 
-Allowed origins:
-
+**Allowed Origins:**
 ```
 https://homeprojectpartners.com
 https://api.homeprojectpartners.com
 http://localhost:5173
 http://localhost:3000
 http://localhost:8080
+```
+
+**Allowed Headers:**
+```
+Content-Type
+Authorization  
+X-Webhook-Signature
+lead_source_provider_id
 ```
 
 ## Rate Limiting
@@ -251,6 +301,7 @@ Receive and process lead data via webhook.
 **Headers**:
 ```http
 Content-Type: application/json (required)
+lead_source_provider_id: <provider_id> (required for authentication)
 X-Webhook-Signature: sha256=<signature> (optional, required if WEBHOOK_SECRET is configured)
 ```
 
@@ -1256,6 +1307,207 @@ Workspaces provide multi-tenant isolation and tracking:
 
 ---
 
+## Appointment Routing Endpoints
+
+The Appointment Routing system enables automatic routing of appointments from third-party providers to appropriate client workspaces based on product type and zip code criteria.
+
+### POST /appointments/receive
+Receives appointments from third-party providers and automatically routes them to matching workspaces.
+
+**Request Body:**
+```json
+{
+  "customer_name": "John Doe",
+  "customer_phone": "555-123-4567",
+  "customer_email": "john@example.com",
+  "service_type": "Solar",
+  "customer_zip": "90210",
+  "appointment_date": "2024-10-01T14:00:00Z",
+  "estimated_value": 25000,
+  "appointment_notes": "Customer interested in rooftop solar installation",
+  "workspace_id": "optional_priority_workspace"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Appointment received and routed successfully",
+  "appointment_id": 123,
+  "contact_id": 456,
+  "lead_id": 789,
+  "matched_workspace_id": "default_workspace",
+  "routing_method": "auto",
+  "appointment_date": "2024-10-01T14:00:00Z",
+  "timestamp": "2024-01-15T10:30:00.000Z"
+}
+```
+
+### GET /appointments
+Retrieves appointments with filtering and pagination.
+
+**Query Parameters:**
+- `workspace_id` (optional): Filter by workspace
+- `status` (optional): Filter by appointment status
+- `limit` (optional): Number of results (default: 50, max: 500)
+- `offset` (optional): Pagination offset (default: 0)
+
+**Response:**
+```json
+{
+  "success": true,
+  "appointments": [
+    {
+      "id": 123,
+      "lead_id": 789,
+      "contact_id": 456,
+      "appointment_type": "consultation",
+      "scheduled_at": "2024-10-01T14:00:00Z",
+      "duration_minutes": 60,
+      "status": "scheduled",
+      "customer_name": "John Doe",
+      "customer_phone": "555-123-4567",
+      "customer_email": "john@example.com",
+      "service_type": "Solar",
+      "customer_zip": "90210",
+      "estimated_value": 25000,
+      "matched_workspace_id": "default_workspace",
+      "routing_method": "auto",
+      "workspace_name": "Default Workspace"
+    }
+  ],
+  "pagination": {
+    "total": 150,
+    "limit": 50,
+    "offset": 0,
+    "has_more": true
+  }
+}
+```
+
+### POST /appointments/:id/forward
+Manually forward an appointment to a client webhook.
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Appointment forwarded successfully",
+  "appointment_id": 123,
+  "workspace_id": "target_workspace",
+  "forward_status": "success",
+  "timestamp": "2024-01-15T10:30:00.000Z"
+}
+```
+
+---
+
+## Routing Rules Endpoints
+
+Manage routing criteria for automatic appointment assignment to workspaces.
+
+### POST /routing-rules
+Creates a new routing rule for a workspace.
+
+**Request Body:**
+```json
+{
+  "workspace_id": "default_workspace",
+  "product_types": ["Solar", "Kitchen"],
+  "zip_codes": ["90210", "90211", "90212"],
+  "priority": 1,
+  "is_active": true,
+  "notes": "Beverly Hills area routing rule"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Routing rule created successfully",
+  "rule": {
+    "id": 1,
+    "workspace_id": "default_workspace",
+    "workspace_name": "Default Workspace",
+    "product_types": ["Solar", "Kitchen"],
+    "zip_codes": ["90210", "90211", "90212"],
+    "priority": 1,
+    "is_active": true,
+    "notes": "Beverly Hills area routing rule",
+    "zip_count": 3,
+    "product_count": 2
+  }
+}
+```
+
+### POST /routing-rules/bulk
+Creates routing rules with CSV zip code support for bulk uploads.
+
+**Request Body:**
+```json
+{
+  "workspace_id": "demo_sales_team",
+  "product_types": ["Bath", "HVAC"],
+  "zip_codes_csv": "10001,10002,10003,10004,10005",
+  "priority": 2,
+  "is_active": true,
+  "notes": "NYC area bulk routing rule"
+}
+```
+
+**Alternative with Base64 CSV file:**
+```json
+{
+  "workspace_id": "demo_sales_team",
+  "product_types": ["Bath", "HVAC"],
+  "zip_codes_file": "base64_encoded_csv_content",
+  "priority": 2,
+  "notes": "NYC area bulk routing rule"
+}
+```
+
+### GET /routing-rules/:workspace_id
+Retrieves routing rules for a specific workspace.
+
+**Response:**
+```json
+{
+  "success": true,
+  "workspace_id": "default_workspace",
+  "rules": [
+    {
+      "id": 1,
+      "workspace_id": "default_workspace",
+      "product_types": ["Solar", "Kitchen"],
+      "zip_codes": ["90210", "90211", "90212"],
+      "priority": 1,
+      "is_active": true,
+      "workspace_name": "Default Workspace",
+      "zip_count": 3,
+      "product_count": 2
+    }
+  ],
+  "total_rules": 1,
+  "active_rules": 1
+}
+```
+
+### GET /routing-rules
+Retrieves all routing rules with optional filtering.
+
+**Query Parameters:**
+- `active_only=true` (optional): Only return active rules
+
+### PUT /routing-rules/:id
+Updates an existing routing rule.
+
+### DELETE /routing-rules/:id
+Deletes a routing rule.
+
+---
+
 ## Data Schemas
 
 ### Business Lead Schema (Primary)
@@ -1464,9 +1716,10 @@ A comprehensive test script is provided at `/webhook-api/test-webhook-api.sh`.
 # Test health endpoint
 curl -X GET https://api.homeprojectpartners.com/health
 
-# Test webhook endpoint with Business Schema
+# Test webhook endpoint with Business Schema (including required provider authentication)
 curl -X POST https://api.homeprojectpartners.com/webhook/click-ventures_ws_us_general_656 \
   -H "Content-Type: application/json" \
+  -H "lead_source_provider_id: click_ventures_001" \
   -d '{
     "firstname": "John",
     "lastname": "Doe",

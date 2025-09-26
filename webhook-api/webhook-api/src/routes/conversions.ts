@@ -698,4 +698,230 @@ conversionsRouter.post('/workspace/register', async (c) => {
   }
 })
 
+// DELETE /conversions/workspace/:workspaceId - Delete a workspace
+conversionsRouter.delete('/workspace/:workspaceId', async (c) => {
+  try {
+    const workspaceId = c.req.param('workspaceId')
+    const db = c.env.LEADS_DB
+
+    // Check if workspace exists
+    const workspace = await db.prepare(`
+      SELECT id, name FROM workspaces WHERE id = ?
+    `).bind(workspaceId).first()
+
+    if (!workspace) {
+      return c.json({
+        success: false,
+        error: 'Workspace not found',
+        workspace_id: workspaceId
+      }, 404)
+    }
+
+    // Check if workspace has any routing rules
+    const routingRules = await db.prepare(`
+      SELECT COUNT(*) as count FROM appointment_routing_rules WHERE workspace_id = ?
+    `).bind(workspaceId).first()
+
+    if (routingRules && (routingRules.count as number) > 0) {
+      return c.json({
+        success: false,
+        error: 'Cannot delete workspace with active routing rules',
+        message: 'Please delete all routing rules for this workspace first',
+        routing_rules_count: routingRules.count
+      }, 400)
+    }
+
+    // Check if workspace has any appointments
+    const appointments = await db.prepare(`
+      SELECT COUNT(*) as count FROM appointments WHERE matched_workspace_id = ?
+    `).bind(workspaceId).first()
+
+    if (appointments && (appointments.count as number) > 0) {
+      return c.json({
+        success: false,
+        error: 'Cannot delete workspace with appointments',
+        message: 'This workspace has appointments assigned to it. Consider deactivating instead of deleting.',
+        appointments_count: appointments.count
+      }, 400)
+    }
+
+    // Delete workspace tracking records first (foreign key cleanup)
+    try {
+      await db.prepare(`
+        DELETE FROM workspace_tracking WHERE workspace_id = ?
+      `).bind(workspaceId).run()
+    } catch (error) {
+      // Ignore if table doesn't exist
+      console.log('workspace_tracking table may not exist:', error)
+    }
+
+    // Delete conversion logs
+    try {
+      await db.prepare(`
+        DELETE FROM conversion_logs WHERE workspace_id = ?
+      `).bind(workspaceId).run()
+    } catch (error) {
+      // Ignore if table doesn't exist
+      console.log('conversion_logs table may not exist:', error)
+    }
+
+    // Delete the workspace
+    const deleteResult = await db.prepare(`
+      DELETE FROM workspaces WHERE id = ?
+    `).bind(workspaceId).run()
+
+    if (deleteResult.meta.changes === 0) {
+      return c.json({
+        success: false,
+        error: 'Failed to delete workspace',
+        message: 'No changes made to database'
+      }, 500)
+    }
+
+    return c.json({
+      success: true,
+      message: 'Workspace deleted successfully',
+      deleted_workspace: {
+        id: workspace.id,
+        name: workspace.name
+      },
+      timestamp: new Date().toISOString()
+    })
+
+  } catch (error) {
+    console.error('Error deleting workspace:', error)
+    return c.json({
+      success: false,
+      error: 'Failed to delete workspace',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, 500)
+  }
+})
+
+// GET /conversions/workspaces - List all workspaces
+conversionsRouter.get('/workspaces', async (c) => {
+  try {
+    const db = c.env.LEADS_DB
+
+    const workspaces = await db.prepare(`
+      SELECT
+        id,
+        name,
+        is_active,
+        outbound_webhook_url,
+        webhook_active,
+        created_at,
+        updated_at
+      FROM workspaces
+      ORDER BY name ASC
+    `).all()
+
+    return c.json({
+      success: true,
+      workspaces: workspaces.results || [],
+      total_workspaces: workspaces.results?.length || 0,
+      timestamp: new Date().toISOString()
+    })
+
+  } catch (error) {
+    console.error('Error fetching workspaces:', error)
+    return c.json({
+      success: false,
+      error: 'Failed to fetch workspaces',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, 500)
+  }
+})
+
+// PUT /conversions/workspace/:workspaceId/webhook - Update workspace webhook settings
+conversionsRouter.put('/workspace/:workspaceId/webhook', async (c) => {
+  try {
+    const workspaceId = c.req.param('workspaceId')
+    const db = c.env.LEADS_DB
+    const body = await c.req.json<{
+      outbound_webhook_url: string
+      webhook_active: boolean
+    }>()
+
+    // Check if workspace exists
+    const workspace = await db.prepare(`
+      SELECT id, name FROM workspaces WHERE id = ?
+    `).bind(workspaceId).first()
+
+    if (!workspace) {
+      return c.json({
+        success: false,
+        error: 'Workspace not found',
+        workspace_id: workspaceId
+      }, 404)
+    }
+
+    // Validate webhook URL if provided
+    if (body.outbound_webhook_url && body.outbound_webhook_url.trim()) {
+      try {
+        new URL(body.outbound_webhook_url)
+      } catch (error) {
+        return c.json({
+          success: false,
+          error: 'Invalid webhook URL',
+          message: 'Please provide a valid HTTP/HTTPS URL'
+        }, 400)
+      }
+    }
+
+    // Update workspace webhook settings
+    const updateResult = await db.prepare(`
+      UPDATE workspaces
+      SET
+        outbound_webhook_url = ?,
+        webhook_active = ?,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).bind(
+      body.outbound_webhook_url || null,
+      body.webhook_active ? 1 : 0,
+      workspaceId
+    ).run()
+
+    if (updateResult.meta.changes === 0) {
+      return c.json({
+        success: false,
+        error: 'Failed to update workspace',
+        message: 'No changes made to database'
+      }, 500)
+    }
+
+    // Get updated workspace
+    const updatedWorkspace = await db.prepare(`
+      SELECT
+        id,
+        name,
+        is_active,
+        outbound_webhook_url,
+        webhook_active,
+        updated_at
+      FROM workspaces
+      WHERE id = ?
+    `).bind(workspaceId).first()
+
+    return c.json({
+      success: true,
+      message: 'Workspace webhook settings updated successfully',
+      workspace: {
+        ...updatedWorkspace,
+        webhook_active: updatedWorkspace?.webhook_active === 1
+      },
+      timestamp: new Date().toISOString()
+    })
+
+  } catch (error) {
+    console.error('Error updating workspace webhook settings:', error)
+    return c.json({
+      success: false,
+      error: 'Failed to update workspace webhook settings',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, 500)
+  }
+})
+
 export default conversionsRouter

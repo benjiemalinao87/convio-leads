@@ -7,6 +7,9 @@ import { webhookRouter } from './routes/webhook'
 import { healthRouter } from './routes/health'
 import leadsRouter from './routes/leads'
 import conversionsRouter from './routes/conversions'
+import { appointmentsRouter } from './routes/appointments'
+import { routingRulesRouter } from './routes/routing-rules'
+import { providersRouter } from './routes/providers'
 import { requestValidation } from './middleware/validation'
 import { errorHandler } from './middleware/error-handler'
 import { D1Database } from '@cloudflare/workers-types'
@@ -43,7 +46,7 @@ app.use('*', cors({
     'http://localhost:8889',
     'http://localhost:8890'
   ],
-  allowHeaders: ['Content-Type', 'Authorization', 'X-Webhook-Signature'],
+  allowHeaders: ['Content-Type', 'Authorization', 'X-Webhook-Signature', 'lead_source_provider_id'],
   allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
 }))
 
@@ -58,6 +61,9 @@ app.route('/health', healthRouter)
 app.route('/webhook', webhookRouter)
 app.route('/leads', leadsRouter)
 app.route('/conversions', conversionsRouter)
+app.route('/appointments', appointmentsRouter)
+app.route('/routing-rules', routingRulesRouter)
+app.route('/providers', providersRouter)
 
 // Root endpoint
 app.get('/', (c) => {

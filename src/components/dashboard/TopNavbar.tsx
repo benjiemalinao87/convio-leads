@@ -11,7 +11,8 @@ import {
   ChevronDown,
   LogOut,
   User,
-  BookOpen
+  BookOpen,
+  Calendar
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -28,6 +29,7 @@ const navigation = [
   { name: 'Dashboard', href: '/', icon: BarChart3 },
   { name: 'Webhooks', href: '/webhooks', icon: FolderOpen },
   { name: 'Leads', href: '/leads', icon: Users },
+  { name: 'Appointments', href: '/appointments', icon: Calendar },
   { name: 'Analytics', href: '/analytics', icon: TrendingUp },
   { name: 'Documentation', href: '/docs', icon: BookOpen },
   { name: 'Settings', href: '/settings', icon: Settings },

@@ -69,9 +69,10 @@ const ApiDocumentation = ({ open, onOpenChange }: ApiDocumentationProps) => {
       method: 'POST',
       path: '/webhook/:webhookId',
       title: 'Receive Lead Data',
-      description: 'Submit lead data via webhook',
+      description: 'Submit lead data via webhook (requires provider authentication)',
       example: `curl -X POST https://api.homeprojectpartners.com/webhook/click-ventures_ws_us_general_656 \\
   -H "Content-Type: application/json" \\
+  -H "lead_source_provider_id: click_ventures_001" \\
   -H "X-Webhook-Signature: sha256=abc123..." \\
   -d '{
     "firstname": "John",
@@ -105,7 +106,29 @@ const ApiDocumentation = ({ open, onOpenChange }: ApiDocumentationProps) => {
     "Lead stored in database",
     "Lead processing pipeline triggered"
   ]
+}`,
+      errorResponses: [
+        {
+          code: 401,
+          title: "Missing Provider Authentication",
+          description: "When lead_source_provider_id header is missing",
+          response: `{
+  "error": "Missing provider authentication",
+  "message": "lead_source_provider_id header is required",
+  "timestamp": "2025-09-26T09:56:27.948Z"
 }`
+        },
+        {
+          code: 401,
+          title: "Invalid Provider",
+          description: "When provider ID is not authorized or inactive",
+          response: `{
+  "error": "Invalid provider",
+  "message": "Provider invalid_provider_999 is not authorized or is inactive",
+  "timestamp": "2025-09-26T09:56:33.857Z"
+}`
+        }
+      ]
     },
     {
       id: 'leads-list',
@@ -415,6 +438,165 @@ const ApiDocumentation = ({ open, onOpenChange }: ApiDocumentationProps) => {
     "conversion_rate": 15.0
   }
 }`
+    },
+    {
+      id: 'appointment-receive',
+      method: 'POST',
+      path: '/appointments/receive',
+      title: 'Receive Appointment',
+      description: 'Receive appointments from third-party providers with automatic routing',
+      example: `curl -X POST https://api.homeprojectpartners.com/appointments/receive \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "customer_name": "John Doe",
+    "customer_phone": "555-123-4567",
+    "customer_email": "john@example.com",
+    "service_type": "Solar",
+    "customer_zip": "90210",
+    "appointment_date": "2024-10-01T14:00:00Z",
+    "estimated_value": 25000,
+    "appointment_notes": "Customer interested in rooftop solar installation",
+    "workspace_id": "optional_priority_workspace"
+  }'`,
+      response: `{
+  "success": true,
+  "message": "Appointment received and routed successfully",
+  "appointment_id": 123,
+  "contact_id": 456,
+  "lead_id": 789,
+  "matched_workspace_id": "default_workspace",
+  "routing_method": "auto",
+  "appointment_date": "2024-10-01T14:00:00Z",
+  "timestamp": "2024-01-15T10:30:00.000Z"
+}`
+    },
+    {
+      id: 'appointments-list',
+      method: 'GET',
+      path: '/appointments',
+      title: 'List Appointments',
+      description: 'Retrieve appointments with filtering and pagination',
+      example: `curl -X GET "https://api.homeprojectpartners.com/appointments?workspace_id=default_workspace&limit=10"`,
+      response: `{
+  "success": true,
+  "appointments": [
+    {
+      "id": 123,
+      "lead_id": 789,
+      "contact_id": 456,
+      "appointment_type": "consultation",
+      "scheduled_at": "2024-10-01T14:00:00Z",
+      "duration_minutes": 60,
+      "status": "scheduled",
+      "customer_name": "John Doe",
+      "customer_phone": "555-123-4567",
+      "service_type": "Solar",
+      "customer_zip": "90210",
+      "estimated_value": 25000,
+      "matched_workspace_id": "default_workspace",
+      "workspace_name": "Default Workspace"
+    }
+  ],
+  "pagination": {
+    "total": 150,
+    "limit": 10,
+    "offset": 0,
+    "has_more": true
+  }
+}`
+    },
+    {
+      id: 'routing-rule-create',
+      method: 'POST',
+      path: '/routing-rules',
+      title: 'Create Routing Rule',
+      description: 'Create routing rules for automatic appointment assignment',
+      example: `curl -X POST https://api.homeprojectpartners.com/routing-rules \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "workspace_id": "default_workspace",
+    "product_types": ["Solar", "Kitchen"],
+    "zip_codes": ["90210", "90211", "90212"],
+    "priority": 1,
+    "is_active": true,
+    "notes": "Beverly Hills area routing rule"
+  }'`,
+      response: `{
+  "success": true,
+  "message": "Routing rule created successfully",
+  "rule": {
+    "id": 1,
+    "workspace_id": "default_workspace",
+    "workspace_name": "Default Workspace",
+    "product_types": ["Solar", "Kitchen"],
+    "zip_codes": ["90210", "90211", "90212"],
+    "priority": 1,
+    "is_active": true,
+    "notes": "Beverly Hills area routing rule",
+    "zip_count": 3,
+    "product_count": 2
+  }
+}`
+    },
+    {
+      id: 'routing-rule-bulk',
+      method: 'POST',
+      path: '/routing-rules/bulk',
+      title: 'Bulk Create Routing Rules',
+      description: 'Create routing rules with CSV zip code support for bulk uploads',
+      example: `curl -X POST https://api.homeprojectpartners.com/routing-rules/bulk \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "workspace_id": "demo_sales_team",
+    "product_types": ["Bath", "HVAC"],
+    "zip_codes_csv": "10001,10002,10003,10004,10005",
+    "priority": 2,
+    "is_active": true,
+    "notes": "NYC area bulk routing rule"
+  }'`,
+      response: `{
+  "success": true,
+  "message": "Bulk routing rule created successfully",
+  "rule": {
+    "id": 2,
+    "workspace_id": "demo_sales_team",
+    "workspace_name": "Demo Sales Team",
+    "product_types": ["Bath", "HVAC"],
+    "zip_count": 5,
+    "product_count": 2,
+    "priority": 2,
+    "is_active": true,
+    "notes": "NYC area bulk routing rule",
+    "sample_zips": ["10001", "10002", "10003", "10004", "10005"]
+  }
+}`
+    },
+    {
+      id: 'routing-rules-list',
+      method: 'GET',
+      path: '/routing-rules/:workspace_id',
+      title: 'Get Routing Rules',
+      description: 'Retrieve routing rules for a specific workspace',
+      example: `curl -X GET "https://api.homeprojectpartners.com/routing-rules/default_workspace"`,
+      response: `{
+  "success": true,
+  "workspace_id": "default_workspace",
+  "rules": [
+    {
+      "id": 1,
+      "workspace_id": "default_workspace",
+      "product_types": ["Solar", "Kitchen"],
+      "zip_codes": ["90210", "90211", "90212"],
+      "priority": 1,
+      "is_active": true,
+      "workspace_name": "Default Workspace",
+      "zip_count": 3,
+      "product_count": 2
+    }
+  ],
+  "total_rules": 1,
+  "active_rules": 1
+}`
     }
   ];
 
@@ -584,7 +766,15 @@ const ApiDocumentation = ({ open, onOpenChange }: ApiDocumentationProps) => {
                 <div>
                   <h4 className="font-medium mb-3">Authentication</h4>
                   <p className="text-sm text-muted-foreground mb-2">
-                    Optional webhook signature validation using HMAC-SHA256:
+                    <strong>Required:</strong> Provider authentication header for webhook POST requests:
+                  </p>
+                  <div className="bg-muted p-3 rounded-lg mb-3">
+                    <code className="text-xs font-mono">
+                      lead_source_provider_id: &lt;provider_id&gt;
+                    </code>
+                  </div>
+                  <p className="text-sm text-muted-foreground mb-2">
+                    <strong>Optional:</strong> Webhook signature validation using HMAC-SHA256:
                   </p>
                   <div className="bg-muted p-3 rounded-lg">
                     <code className="text-xs font-mono">
@@ -665,6 +855,30 @@ const ApiDocumentation = ({ open, onOpenChange }: ApiDocumentationProps) => {
                             </pre>
                           </div>
                         </div>
+
+                        {endpoint.errorResponses && endpoint.errorResponses.length > 0 && (
+                          <div className="mt-4">
+                            <h5 className="text-sm font-medium mb-2">Error Responses</h5>
+                            <div className="space-y-3">
+                              {endpoint.errorResponses.map((error, index) => (
+                                <div key={index} className="border border-destructive/20 rounded-lg p-3">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <Badge variant="destructive" className="text-xs">
+                                      {error.code}
+                                    </Badge>
+                                    <span className="text-sm font-medium">{error.title}</span>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground mb-2">{error.description}</p>
+                                  <div className="bg-muted p-2 rounded overflow-x-auto">
+                                    <pre className="text-xs font-mono whitespace-pre-wrap text-foreground min-w-0">
+                                      {error.response}
+                                    </pre>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </CardContent>
                     )}
                   </Card>

@@ -241,6 +241,40 @@ Webhook API endpoint `POST /webhook/click-ventures_ws_us_general_656` successful
 - `/webhook-api/webhook-api/src/db/leads.ts` (Interface and SQL fixes)
 - `/webhook-api/webhook-api/src/routes/webhook.ts` (Error handling fixes)
 
+## Provider Authentication Documentation Update (September 26, 2025)
+
+### Problem
+User requested to update API documentation to reflect the new provider authentication requirements for webhook endpoints.
+
+### Solution Applied
+1. **Updated Frontend API Documentation**: Modified `ApiDocumentation.tsx` to include:
+   - Required `lead_source_provider_id` header in webhook POST examples
+   - Clear distinction between required provider auth and optional signature validation
+   - Error response examples for missing/invalid provider authentication
+   - Updated endpoint description to mention provider authentication requirement
+
+2. **Enhanced Error Documentation**: Added comprehensive error response examples:
+   - 401 "Missing provider authentication" when header is missing
+   - 401 "Invalid provider" when provider ID is not authorized
+   - Visual error response display with status codes and descriptions
+
+3. **Maintained Backward Compatibility**: 
+   - Only POST webhook endpoints require provider authentication
+   - GET health checks remain unchanged
+   - Optional signature validation still works alongside provider auth
+
+### Key Lessons
+- ✅ **DO**: Update both API examples and error response documentation when adding authentication
+- ✅ **DO**: Clearly distinguish between required and optional authentication methods
+- ✅ **DO**: Provide specific error response examples for each authentication failure scenario
+- ✅ **DO**: Update endpoint descriptions to mention authentication requirements
+- ✅ **DO**: Test documentation examples to ensure they work with the actual API
+- ❌ **DON'T**: Forget to update frontend documentation when backend changes are made
+- ❌ **DON'T**: Leave authentication requirements unclear in API documentation
+
+**Files Modified**:
+- `/src/components/ApiDocumentation.tsx` (Added provider auth examples and error responses)
+
 ## Contact Lead Count Display Fix (September 25, 2025)
 
 ### Problem
@@ -272,3 +306,141 @@ Display logic in `LeadsTable.tsx` had condition `lead.leadCount > 1` which preve
 
 **Files Modified**:
 - `/src/components/leads/LeadsTable.tsx` (Display logic fix)
+
+## Database Schema Documentation Creation (September 26, 2025)
+
+### Problem
+User requested to study the remote D1 database and create mermaid diagrams for a new intern to understand the database connections and structure.
+
+### Solution Applied
+1. **Analyzed Complete Schema**: Examined all SQL migration files to understand the full database structure:
+   - `schema.sql` - Core leads, webhook_configs, lead_events, lead_analytics tables
+   - `contacts-table-migration.sql` - Contacts table with custom 6-digit IDs
+   - `appointments-schema.sql` - Appointments and appointment_events tables
+   - `appointment-routing-migration.sql` - Routing rules and workspace management
+   - `business-schema-migration.sql` - Additional business fields
+   - `conversion-tracking-migration.sql` - Conversions, workspace_tracking, workspaces tables
+   - `lead-source-providers-migration.sql` - Provider management system
+
+2. **Created Comprehensive Documentation**: Built two mermaid diagrams:
+   - **Complete Technical Diagram** (`database_diagram.md`): Full ER diagram with all tables, relationships, and technical details
+   - **Simplified Learning Diagram** (`database_diagram_simple.md`): High-level overview with key concepts for new interns
+
+3. **Documented All Table Relationships**: Mapped out 15+ tables including:
+   - Core entities: leads, contacts, webhook_configs, workspaces
+   - Business logic: appointments, conversions, workspace_tracking
+   - Event tracking: lead_events, appointment_events, conversion_events
+   - Analytics: lead_analytics, conversion_analytics_cache
+   - Provider management: lead_source_providers, provider_usage_log
+   - Routing: appointment_routing_rules
+
+4. **Provided Learning Context**: Created beginner-friendly explanations:
+   - Lead flow: Raw Lead → Leads Table → Appointments → Conversions
+   - Workspace system (multi-tenancy)
+   - Event tracking (audit trails)
+   - Provider management
+   - Analytics system
+   - Most important tables and common queries
+   - Data relationships and data flow
+
+### Key Lessons
+- ✅ **DO**: Create both technical and simplified documentation for different audiences
+- ✅ **DO**: Study all migration files to understand complete schema evolution
+- ✅ **DO**: Document table purposes, key fields, and relationships clearly
+- ✅ **DO**: Include practical examples and common queries for new team members
+- ✅ **DO**: Explain the business logic and data flow, not just table structure
+- ✅ **DO**: Use mermaid diagrams for visual understanding of complex relationships
+- ✅ **DO**: Document both the "what" (tables) and "why" (business purpose)
+- ❌ **DON'T**: Assume new team members understand database relationships without guidance
+- ❌ **DON'T**: Focus only on technical details without business context
+- ❌ **DON'T**: Skip documenting views, triggers, and derived data structures
+
+### Files Created
+- `/database_diagram.md` - Complete technical ER diagram with all tables and relationships
+- `/database_diagram_simple.md` - Simplified diagram with learning guide for new interns
+
+### Database Structure Overview
+**Total Tables**: 15+ core tables plus views and analytics
+**Key Features**:
+- Contact-centric design where contacts are primary entities
+- Multi-tenant workspace system
+- Complete audit trail with event tracking
+- Comprehensive conversion tracking
+- Appointment management and routing
+- Provider authentication and rate limiting
+- Pre-aggregated analytics with caching
+- Support for solar, HVAC, and insurance lead types
+- One contact can have multiple leads (different campaigns/products)
+
+### Critical Correction Made
+**Problem**: Initially created diagrams with incorrect relationship direction showing leads as primary entities.
+
+**Root Cause**: Misunderstood the business logic - assumed leads were the main entities rather than contacts.
+
+**Solution Applied**:
+1. **Corrected ER Diagram**: Changed `LEADS ||--o{ CONTACTS` to `CONTACTS ||--o{ LEADS`
+2. **Updated Data Flow**: Raw Lead → Contacts Table → Multiple Leads → Appointments → Conversions
+3. **Fixed Documentation**: Made it clear that contacts are primary entities with multiple campaign-specific leads
+4. **Updated Examples**: Changed common queries to reflect contact-centric approach
+
+**Business Logic Now Correct**:
+- **Contacts**: Primary customer entities (people) with normalized information
+- **Leads**: Campaign-specific records linked to contacts
+- **One contact can have multiple leads** (same person interested in different products/campaigns)
+- **Conversions**: Track when contacts become paying customers
+
+**Files Updated**:
+- `/database_diagram.md` - Corrected technical ER diagram, explanations, and added ASCII relationship diagrams
+- `/database_diagram_simple.md` - Updated simplified diagram, learning guide, and added ASCII relationship example
+
+### ASCII Diagram Enhancement (September 26, 2025)
+
+**Enhancement Made**: Added comprehensive ASCII diagrams to both technical and simplified documentation to make database relationships crystal clear for new interns.
+
+**Simple ASCII Flow Diagram** (Added to technical docs):
+```
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│   CONTACTS  │    │    LEADS    │    │APPOINTMENTS │
+│  (People)   │◄──►│(Campaigns)  │◄──►│(Meetings)   │
+│             │    │             │    │             │
+│ • John Doe  │    │ • Solar     │    │ • Solar     │
+│ • +15551234 │    │ • HVAC      │    │   Consult   │
+│ • 6-digit ID│    │ • Insurance │    │ • HVAC      │
+│             │    │             │    │   Estimate  │
+└─────────────┘    └─────────────┘    └─────────────┘
+       │                   │                   │
+       └───────────────────┼───────────────────┘
+                           │
+                    ┌─────────────┐
+                    │CONVERSIONS  │
+                    │   (Sales)   │
+                    │ • Solar $5K │
+                    │ • HVAC $3K  │
+                    └─────────────┘
+```
+
+**Detailed ASCII Relationship Diagram** (Added to technical docs):
+- Shows multi-tenant workspace structure
+- Illustrates 1:N relationships between contacts and leads
+- Demonstrates how leads can have multiple appointments
+- Shows conversion flow with analytics
+- Includes clear legend explaining relationships
+
+**ASCII Example for Interns** (Added to simplified docs):
+- Shows concrete example with John Doe contact
+- Illustrates multiple leads (Solar, HVAC, Insurance campaigns)
+- Shows appointment and conversion progression
+- Uses "1:N" and "N:1" notation for relationships
+
+**Key Benefits of ASCII Diagrams**:
+- ✅ **Universal Compatibility**: Works in any text editor, terminal, or documentation system
+- ✅ **Simple to Understand**: No need for diagram software or rendering
+- ✅ **Quick Reference**: Easy to scan and understand relationships at a glance
+- ✅ **Copy-Paste Friendly**: Can be easily shared in chat, email, or documentation
+- ✅ **Version Control Friendly**: ASCII text integrates perfectly with git
+
+**Business Value**:
+- New interns can quickly understand the contact-centric design
+- Clear visualization of how one contact can have multiple leads
+- Easy to explain the complete customer journey from contact to conversion
+- Provides both high-level overview and detailed relationship mapping

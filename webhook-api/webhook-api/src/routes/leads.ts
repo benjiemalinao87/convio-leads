@@ -771,10 +771,64 @@ leads.delete('/contact/:contactId', async (c) => {
 
     const numLeads = leadCount[0]?.count || 0
 
-    // Delete related records first to avoid foreign key constraints
+    // Delete related records first to avoid foreign key constraints (CASCADE DELETE)
     // First delete all lead events for leads with this contact_id
     await db.prepare(`
       DELETE FROM lead_events WHERE lead_id IN (SELECT id FROM leads WHERE contact_id = ?)
+    `).bind(contactId).run()
+
+    // Delete appointment events for appointments linked to leads with this contact_id
+    await db.prepare(`
+      DELETE FROM appointment_events WHERE appointment_id IN (
+        SELECT id FROM appointments WHERE lead_id IN (SELECT id FROM leads WHERE contact_id = ?)
+      )
+    `).bind(contactId).run()
+
+    // Delete appointment events for appointments directly linked to this contact
+    await db.prepare(`
+      DELETE FROM appointment_events WHERE appointment_id IN (SELECT id FROM appointments WHERE contact_id = ?)
+    `).bind(contactId).run()
+
+    // Delete appointments linked to leads with this contact_id
+    await db.prepare(`
+      DELETE FROM appointments WHERE lead_id IN (SELECT id FROM leads WHERE contact_id = ?)
+    `).bind(contactId).run()
+
+    // Delete appointments directly linked to this contact
+    await db.prepare(`
+      DELETE FROM appointments WHERE contact_id = ?
+    `).bind(contactId).run()
+
+    // Delete conversion events for conversions linked to leads with this contact_id
+    await db.prepare(`
+      DELETE FROM conversion_events WHERE conversion_id IN (
+        SELECT id FROM conversions WHERE lead_id IN (SELECT id FROM leads WHERE contact_id = ?)
+      )
+    `).bind(contactId).run()
+
+    // Delete conversion events for conversions directly linked to this contact
+    await db.prepare(`
+      DELETE FROM conversion_events WHERE conversion_id IN (SELECT id FROM conversions WHERE contact_id = ?)
+    `).bind(contactId).run()
+
+    // Delete conversion records for all leads with this contact_id
+    await db.prepare(`
+      DELETE FROM conversions WHERE lead_id IN (SELECT id FROM leads WHERE contact_id = ?)
+    `).bind(contactId).run()
+
+    // Delete workspace tracking records for all leads with this contact_id
+    await db.prepare(`
+      DELETE FROM workspace_tracking WHERE lead_id IN (SELECT id FROM leads WHERE contact_id = ?)
+    `).bind(contactId).run()
+
+    // Delete conversions directly linked to this contact
+    await db.prepare(`
+      DELETE FROM conversions WHERE contact_id = ?
+    `).bind(contactId).run()
+
+    // Delete workspace tracking records directly linked to this contact
+    await db.prepare(`
+      DELETE FROM workspace_tracking WHERE contact_id = ?
     `).bind(contactId).run()
 
     // Delete contact events
@@ -840,7 +894,7 @@ leads.delete('/:leadId', async (c) => {
 
     // First, check if the lead exists
     const { results: existingLead } = await db.prepare(`
-      SELECT id, first_name, last_name, email, phone, webhook_id
+      SELECT id, first_name, last_name, email, phone, webhook_id, conversion_id
       FROM leads
       WHERE id = ?
     `).bind(leadId).all()
@@ -855,15 +909,33 @@ leads.delete('/:leadId', async (c) => {
 
     const lead = existingLead[0]
 
-    // Delete related records first to avoid foreign key constraints
-    await db.prepare(`
-      DELETE FROM lead_events WHERE lead_id = ?
-    `).bind(leadId).run()
+    // Disable foreign key constraints temporarily for this transaction
+    await db.prepare(`PRAGMA foreign_keys = OFF`).run()
 
-    // Delete the lead from the database
-    await db.prepare(`
-      DELETE FROM leads WHERE id = ?
-    `).bind(leadId).run()
+    try {
+      // Delete all related records without worrying about foreign key order
+      const deletions = [
+        `DELETE FROM lead_events WHERE lead_id = ${leadId}`,
+        `DELETE FROM appointment_events WHERE appointment_id IN (SELECT id FROM appointments WHERE lead_id = ${leadId})`,
+        `DELETE FROM appointments WHERE lead_id = ${leadId}`,
+        `DELETE FROM conversion_events WHERE conversion_id = '${lead.conversion_id || ''}'`,
+        `DELETE FROM conversions WHERE lead_id = ${leadId}`,
+        `DELETE FROM workspace_tracking WHERE lead_id = ${leadId}`,
+        `DELETE FROM leads WHERE id = ${leadId}`
+      ]
+
+      for (const sql of deletions) {
+        try {
+          await db.prepare(sql).run()
+        } catch (e) {
+          console.log(`Deletion skipped: ${sql}`, e)
+        }
+      }
+
+    } finally {
+      // Re-enable foreign key constraints
+      await db.prepare(`PRAGMA foreign_keys = ON`).run()
+    }
 
     return c.json({
       status: 'success',

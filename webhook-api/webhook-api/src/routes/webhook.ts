@@ -141,6 +141,7 @@ webhook.post('/:webhookId', async (c) => {
   const webhookId = c.req.param('webhookId')
   const signature = c.req.header('X-Webhook-Signature')
   const contentType = c.req.header('Content-Type')
+  const leadSourceProviderId = c.req.header('lead_source_provider_id')
 
   try {
     // Validate webhook ID format
@@ -167,6 +168,56 @@ webhook.post('/:webhookId', async (c) => {
     }
 
     const config = results[0]
+
+    // Validate lead source provider authentication
+    if (!leadSourceProviderId) {
+      return c.json({
+        error: 'Missing provider authentication',
+        message: 'lead_source_provider_id header is required',
+        timestamp: new Date().toISOString()
+      }, 401)
+    }
+
+    // Check if provider exists and is active
+    const { results: providerResults } = await db.prepare(
+      'SELECT provider_id, provider_name, is_active, allowed_webhooks FROM lead_source_providers WHERE provider_id = ? AND is_active = 1'
+    ).bind(leadSourceProviderId).all()
+
+    if (providerResults.length === 0) {
+      return c.json({
+        error: 'Invalid provider',
+        message: `Provider ${leadSourceProviderId} is not authorized or is inactive`,
+        timestamp: new Date().toISOString()
+      }, 401)
+    }
+
+    const provider = providerResults[0]
+
+    // Check if provider has access to this specific webhook (if restrictions are set)
+    if (provider.allowed_webhooks) {
+      try {
+        const allowedWebhooks = JSON.parse(provider.allowed_webhooks)
+        if (Array.isArray(allowedWebhooks) && !allowedWebhooks.includes(webhookId)) {
+          return c.json({
+            error: 'Provider access denied',
+            message: `Provider ${leadSourceProviderId} is not authorized to access webhook ${webhookId}`,
+            timestamp: new Date().toISOString()
+          }, 403)
+        }
+      } catch (parseError) {
+        console.error('Error parsing allowed_webhooks for provider:', provider.provider_id, parseError)
+        // Continue processing if JSON parsing fails - treat as no restrictions
+      }
+    }
+
+    // Update provider's last used timestamp (fire and forget)
+    db.prepare(
+      'UPDATE lead_source_providers SET last_used_at = CURRENT_TIMESTAMP WHERE provider_id = ?'
+    ).bind(leadSourceProviderId).run().catch((err: any) => {
+      console.error('Failed to update provider last_used_at:', err)
+    })
+
+    console.log(`Provider authentication successful: ${provider.provider_name} (${leadSourceProviderId}) accessing ${webhookId}`)
 
     // Validate content type
     if (!contentType?.includes('application/json')) {
