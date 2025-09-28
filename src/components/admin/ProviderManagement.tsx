@@ -19,6 +19,8 @@ interface Provider {
   provider_name: string
   company_name?: string
   contact_email?: string
+  contact_name?: string
+  contact_phone?: string
   is_active: boolean
   allowed_webhooks?: string[] | null
   rate_limit: number
@@ -32,6 +34,8 @@ interface CreateProviderData {
   provider_name: string
   company_name?: string
   contact_email?: string
+  contact_name?: string
+  contact_phone?: string
   notes?: string
   allowed_webhooks?: string[]
   rate_limit?: number
@@ -55,6 +59,8 @@ export function ProviderManagement() {
     provider_name: '',
     company_name: '',
     contact_email: '',
+    contact_name: '',
+    contact_phone: '',
     notes: '',
     rate_limit: 1000
   })
@@ -152,6 +158,8 @@ export function ProviderManagement() {
         provider_name: '',
         company_name: '',
         contact_email: '',
+        contact_name: '',
+        contact_phone: '',
         notes: '',
         rate_limit: 1000
       })
@@ -293,6 +301,8 @@ export function ProviderManagement() {
       provider_name: provider.provider_name,
       company_name: provider.company_name || '',
       contact_email: provider.contact_email || '',
+      contact_name: provider.contact_name || '',
+      contact_phone: provider.contact_phone || '',
       notes: provider.notes || '',
       rate_limit: provider.rate_limit
     })
@@ -377,6 +387,28 @@ export function ProviderManagement() {
                   placeholder="e.g., api@clickventures.com"
                   value={formData.contact_email}
                   onChange={(e) => setFormData({ ...formData, contact_email: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="contact-name">Primary Contact Name (Optional)</Label>
+                <Input
+                  id="contact-name"
+                  type="text"
+                  placeholder="e.g., John Smith"
+                  value={formData.contact_name}
+                  onChange={(e) => setFormData({ ...formData, contact_name: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="contact-phone">Primary Contact Phone (Optional)</Label>
+                <Input
+                  id="contact-phone"
+                  type="tel"
+                  placeholder="e.g., +1-555-123-4567"
+                  value={formData.contact_phone}
+                  onChange={(e) => setFormData({ ...formData, contact_phone: e.target.value })}
                 />
               </div>
 
@@ -558,6 +590,28 @@ export function ProviderManagement() {
                 type="email"
                 value={formData.contact_email}
                 onChange={(e) => setFormData({ ...formData, contact_email: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-contact-name">Primary Contact Name (Optional)</Label>
+              <Input
+                id="edit-contact-name"
+                type="text"
+                placeholder="e.g., John Smith"
+                value={formData.contact_name}
+                onChange={(e) => setFormData({ ...formData, contact_name: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-contact-phone">Primary Contact Phone (Optional)</Label>
+              <Input
+                id="edit-contact-phone"
+                type="tel"
+                placeholder="e.g., +1-555-123-4567"
+                value={formData.contact_phone}
+                onChange={(e) => setFormData({ ...formData, contact_phone: e.target.value })}
               />
             </div>
 

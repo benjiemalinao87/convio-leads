@@ -30,12 +30,14 @@ providers.get('/', async (c) => {
   try {
     const db = (c.env as any).LEADS_DB
     const { results } = await db.prepare(`
-      SELECT 
+      SELECT
         id,
         provider_id,
         provider_name,
         company_name,
         contact_email,
+        contact_name,
+        contact_phone,
         is_active,
         allowed_webhooks,
         rate_limit,
@@ -78,10 +80,12 @@ providers.post('/', async (c) => {
 
   try {
     const body = await c.req.json()
-    const { 
-      provider_name, 
-      company_name, 
-      contact_email, 
+    const {
+      provider_name,
+      company_name,
+      contact_email,
+      contact_name,
+      contact_phone,
       notes,
       allowed_webhooks,
       rate_limit = 1000
@@ -133,22 +137,26 @@ providers.post('/', async (c) => {
     // Insert new provider
     await db.prepare(`
       INSERT INTO lead_source_providers (
-        provider_id, 
-        provider_name, 
-        company_name, 
-        contact_email, 
-        is_active, 
+        provider_id,
+        provider_name,
+        company_name,
+        contact_email,
+        contact_name,
+        contact_phone,
+        is_active,
         allowed_webhooks,
         rate_limit,
         notes,
-        created_at, 
+        created_at,
         updated_at
-      ) VALUES (?, ?, ?, ?, 1, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      ) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `).bind(
       providerId,
       provider_name,
       company_name || null,
       contact_email || null,
+      contact_name || null,
+      contact_phone || null,
       allowedWebhooksJson,
       rate_limit,
       notes || null
@@ -241,10 +249,12 @@ providers.patch('/:providerId', async (c) => {
 
   try {
     const body = await c.req.json()
-    const { 
-      provider_name, 
-      company_name, 
-      contact_email, 
+    const {
+      provider_name,
+      company_name,
+      contact_email,
+      contact_name,
+      contact_phone,
       is_active,
       allowed_webhooks,
       rate_limit,
@@ -281,6 +291,14 @@ providers.patch('/:providerId', async (c) => {
     if (contact_email !== undefined) {
       updateFields.push('contact_email = ?')
       updateValues.push(contact_email)
+    }
+    if (contact_name !== undefined) {
+      updateFields.push('contact_name = ?')
+      updateValues.push(contact_name)
+    }
+    if (contact_phone !== undefined) {
+      updateFields.push('contact_phone = ?')
+      updateValues.push(contact_phone)
     }
     if (is_active !== undefined) {
       updateFields.push('is_active = ?')
