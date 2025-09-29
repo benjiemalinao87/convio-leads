@@ -64,6 +64,12 @@ npm run test:watch
 # Run tests with coverage
 npm run test:coverage
 
+# Run a single test file
+npx vitest src/routes/appointments.test.ts
+
+# Run tests matching a pattern
+npx vitest -t "routing logic"
+
 # Validate build and tests together
 npm run validate
 
@@ -97,6 +103,13 @@ wrangler d1 execute convio-leads --remote --command "SELECT COUNT(*) FROM leads;
 
 # Execute SQL on local database
 wrangler d1 execute convio-leads --command "SELECT COUNT(*) FROM leads;"
+
+# Run migration files (example)
+wrangler d1 execute convio-leads --remote --file=schema.sql
+wrangler d1 execute convio-leads --remote --file=migrations/add-webhook-soft-deletion.sql
+
+# Check table structure
+wrangler d1 execute convio-leads --remote --command "SELECT sql FROM sqlite_master WHERE type='table' AND name='webhook_configs';"
 ```
 
 ## Architecture Details
@@ -166,7 +179,9 @@ Complex routing system for appointment distribution:
   - `/conversions` - Revenue tracking and analytics
   - `/routing-rules` - Appointment routing configuration
   - `/providers` - Lead source provider management
-- **Database**: Cloudflare D1 (SQLite) with 21 tables including:
+  - `/contacts` - Contact-specific operations and queries
+  - `/auth` - Authentication endpoints for login/logout
+- **Database**: Cloudflare D1 (SQLite) with 21+ tables including:
   - `contacts` - Unique contacts by phone+webhook
   - `leads` - Individual lead records linked to contacts
   - `appointments` - Appointment records with routing
@@ -174,6 +189,9 @@ Complex routing system for appointment distribution:
   - `workspaces` - Client workspace configuration
   - `appointment_routing_rules` - Routing logic by product/zip
   - `lead_source_providers` - Provider authentication and management
+  - `webhook_configs` - Webhook configuration with soft deletion support
+  - `webhook_scheduled_deletions` - Queue jobs for delayed deletion
+  - `webhook_deletion_events` - Audit trail for webhook lifecycle
   - `*_events` tables - Comprehensive audit trail
   - `*_analytics_cache` tables - Performance optimization
 
@@ -195,9 +213,11 @@ Complex routing system for appointment distribution:
 - `src/routes/conversions.ts` - Revenue tracking and conversion analytics
 - `src/routes/providers.ts` - Provider authentication and management
 - `src/routes/routing-rules.ts` - Appointment routing configuration
-- `src/routes/webhook.ts` - Webhook ingestion and processing
+- `src/routes/webhook.ts` - Webhook ingestion and processing (with soft deletion)
+- `src/routes/auth.ts` - User authentication endpoints
 - `src/db/leads.ts` - Database operations for leads
 - `src/db/contacts.ts` - Database operations for contacts with deduplication logic
+- `src/queue/webhook-deletion.ts` - Cloudflare Queue handler for delayed deletion
 
 ### Foreign Key Constraints
 The database has foreign key relationships that require careful deletion ordering:
@@ -211,7 +231,8 @@ The DELETE endpoints in `src/routes/leads.ts` handle this automatically.
 ### API Documentation
 - **Markdown**: `webhook-api/API_DOCUMENTATION.md` - Comprehensive API documentation
 - **Interactive**: Frontend includes embedded API documentation component
-- **Endpoints**: 22 total endpoints including health, webhook, and lead management
+- **Endpoints**: 30+ total endpoints including health, webhook, lead management, conversions, and appointments
+- **Testing**: Use the `/webhooks` page in frontend for interactive webhook testing
 
 ## Environment Configuration
 
@@ -276,6 +297,15 @@ Critical constraints for system reliability:
 3. **Workspace Validation**: All appointments must route to valid workspace
 4. **Provider Authentication**: All webhook calls must include valid API key
 5. **Audit Trail**: Every action logged in corresponding `*_events` table
+
+### Webhook Soft Deletion System
+24-hour delayed deletion with restoration capability:
+
+1. **Soft Delete**: Marks webhook as deleted, schedules permanent deletion after 24 hours
+2. **Queue Integration**: Uses Cloudflare Queues for scheduled deletion processing
+3. **Restoration**: Webhooks can be restored within 24-hour grace period
+4. **Audit Trail**: All deletion/restoration events logged in `webhook_deletion_events`
+5. **Fallback Cron**: Hourly cron job ensures deletions process even if queue fails
 
 ## Important Notes
 
