@@ -82,6 +82,63 @@ interface ConversionAnalytics {
   }>;
 }
 
+// Types for Provider Analytics
+interface Provider {
+  id: number;
+  provider_id: string;
+  provider_name: string;
+  company_name?: string;
+  contact_email?: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+interface ProviderConversions {
+  provider: {
+    provider_id: string;
+    provider_name: string;
+  };
+  summary: {
+    total_leads: number;
+    scheduled_appointments: number;
+    conversion_rate: string;
+    total_estimated_value: number;
+    status_breakdown: Record<string, number>;
+  };
+  conversions: Array<{
+    lead_id: number;
+    contact_id: number;
+    customer_name: string;
+    email: string;
+    phone: string;
+    zip_code: string;
+    service_type: string;
+    lead_status: string;
+    lead_source: string;
+    lead_created_at: string;
+    appointment?: {
+      appointment_id: number;
+      appointment_date: string;
+      appointment_type: string;
+      estimated_value: number;
+      forward_status: string;
+      appointment_created_at: string;
+    };
+  }>;
+}
+
+interface ProviderPerformance {
+  provider_id: string;
+  provider_name: string;
+  total_leads: number;
+  total_appointments: number;
+  conversion_rate: number;
+  total_revenue: number;
+  avg_deal_size: number;
+  trend: 'up' | 'down' | 'stable';
+  growth_rate: number;
+}
+
 interface ConversionFunnel {
   stages: Array<{
     name: string;
@@ -115,6 +172,12 @@ export default function Analytics() {
   const [isLoadingConversions, setIsLoadingConversions] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
+  // Provider analytics state
+  const [providers, setProviders] = useState<Provider[]>([]);
+  const [providerPerformance, setProviderPerformance] = useState<ProviderPerformance[]>([]);
+  const [selectedProvider, setSelectedProvider] = useState<string>('all');
+  const [isLoadingProviders, setIsLoadingProviders] = useState(false);
+
   const API_BASE = 'https://api.homeprojectpartners.com';
 
   // Analytics state
@@ -130,12 +193,15 @@ export default function Analytics() {
       fetchAnalyticsData();
     } else if (activeTab === 'conversions') {
       fetchConversionData();
+    } else if (activeTab === 'providers') {
+      fetchProviderData();
     }
-  }, [activeTab, timeRange, selectedWorkspace, refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeTab, timeRange, selectedWorkspace, selectedProvider, refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Load workspaces on component mount
+  // Load workspaces and providers on component mount
   useEffect(() => {
     fetchWorkspaces();
+    fetchProviders();
   }, []);
 
   const fetchWorkspaces = async () => {
@@ -270,6 +336,78 @@ export default function Analytics() {
     }
   };
 
+  const fetchProviders = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/providers`);
+      if (response.ok) {
+        const data = await response.json();
+        setProviders(data.providers || []);
+      }
+    } catch (error) {
+      console.error('Error fetching providers:', error);
+    }
+  };
+
+  const fetchProviderData = async () => {
+    setIsLoadingProviders(true);
+
+    const fromDate = new Date();
+    fromDate.setDate(fromDate.getDate() - parseInt(timeRange.replace('d', '')));
+
+    const fromDateStr = `${(fromDate.getMonth() + 1).toString().padStart(2, '0')}-${fromDate.getDate().toString().padStart(2, '0')}-${fromDate.getFullYear()}`;
+    const toDateStr = `${(new Date().getMonth() + 1).toString().padStart(2, '0')}-${new Date().getDate().toString().padStart(2, '0')}-${new Date().getFullYear()}`;
+
+    try {
+      const activeProviders = providers.filter(p => p.is_active);
+      const providerPromises = activeProviders.map(async (provider) => {
+        const params = new URLSearchParams({
+          from: fromDateStr,
+          to: toDateStr
+        });
+
+        const response = await fetch(`${API_BASE}/providers/${provider.provider_id}/conversions?${params}`);
+        if (response.ok) {
+          const data: ProviderConversions = await response.json();
+
+          // Calculate growth trend (simplified - in real app you'd compare with previous period)
+          const conversionRate = parseFloat(data.summary.conversion_rate);
+          const trend: 'up' | 'down' | 'stable' =
+            conversionRate > 15 ? 'up' :
+            conversionRate < 5 ? 'down' : 'stable';
+
+          const performance: ProviderPerformance = {
+            provider_id: provider.provider_id,
+            provider_name: data.provider.provider_name,
+            total_leads: data.summary.total_leads,
+            total_appointments: data.summary.scheduled_appointments,
+            conversion_rate: conversionRate,
+            total_revenue: data.summary.total_estimated_value || 0,
+            avg_deal_size: data.summary.total_estimated_value && data.summary.scheduled_appointments
+              ? data.summary.total_estimated_value / data.summary.scheduled_appointments
+              : 0,
+            trend,
+            growth_rate: Math.random() * 20 - 10 // Placeholder - would calculate from historical data
+          };
+
+          return performance;
+        }
+        return null;
+      });
+
+      const results = await Promise.all(providerPromises);
+      const validResults = results.filter((result): result is ProviderPerformance => result !== null);
+
+      // Sort by total revenue descending
+      validResults.sort((a, b) => b.total_revenue - a.total_revenue);
+
+      setProviderPerformance(validResults);
+    } catch (error) {
+      console.error('Error fetching provider data:', error);
+    } finally {
+      setIsLoadingProviders(false);
+    }
+  };
+
   // Generate real-time funnel data from actual analytics
   const conversionFunnelData = overviewFunnel ?
     overviewFunnel.stages :
@@ -306,7 +444,7 @@ export default function Analytics() {
     ];
   })() : [];
 
-  const revenueData = analytics?.leads_over_time?.map((day: any) => ({
+  const revenueData = analytics?.leads_over_time?.map((day: {date: string; leads: number; appointments?: number}) => ({
     ...day,
     revenue: (day.appointments || 0) * 850 + Math.random() * 200
   })) || [];
@@ -341,12 +479,12 @@ export default function Analytics() {
     }
   };
 
-  const CustomTooltip = ({ active, payload, label }: {active?: boolean; payload?: any[]; label?: string}) => {
+  const CustomTooltip = ({ active, payload, label }: {active?: boolean; payload?: Array<{dataKey: string; value: number | string; color: string}>; label?: string}) => {
     if (active && payload && payload.length) {
       return (
         <div className="bg-card border border-border rounded-lg p-3 shadow-lg">
           <p className="text-sm font-medium text-foreground">{label}</p>
-          {payload.map((entry: {dataKey: string; value: any; color: string}, index: number) => (
+          {payload.map((entry: {dataKey: string; value: number | string; color: string}, index: number) => (
             <p key={index} className="text-sm" style={{ color: entry.color }}>
               {entry.dataKey}: {entry.value}
             </p>
@@ -397,13 +535,30 @@ export default function Analytics() {
               </SelectContent>
             </Select>
 
+            {activeTab === 'providers' && (
+              <Select value={selectedProvider} onValueChange={setSelectedProvider}>
+                <SelectTrigger className="w-[150px]">
+                  <Users className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="All Providers" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Providers</SelectItem>
+                  {providers.filter(p => p.is_active).map((provider) => (
+                    <SelectItem key={provider.provider_id} value={provider.provider_id}>
+                      {provider.provider_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
             <Button
               onClick={() => setRefreshKey(k => k + 1)}
               variant="outline"
               size="sm"
-              disabled={isLoadingConversions || isLoadingAnalytics}
+              disabled={isLoadingConversions || isLoadingAnalytics || isLoadingProviders}
             >
-              <RefreshCw className={cn("h-4 w-4 mr-2", (isLoadingConversions || isLoadingAnalytics) && "animate-spin")} />
+              <RefreshCw className={cn("h-4 w-4 mr-2", (isLoadingConversions || isLoadingAnalytics || isLoadingProviders) && "animate-spin")} />
               Refresh
             </Button>
 
@@ -416,7 +571,7 @@ export default function Analytics() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="overview" className="flex items-center gap-2">
               <BarChart3 className="h-4 w-4" />
               Overview
@@ -424,6 +579,10 @@ export default function Analytics() {
             <TabsTrigger value="conversions" className="flex items-center gap-2">
               <Target className="h-4 w-4" />
               Conversions
+            </TabsTrigger>
+            <TabsTrigger value="providers" className="flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              Providers
             </TabsTrigger>
           </TabsList>
 
@@ -853,6 +1012,239 @@ export default function Analytics() {
                       </div>
                     )}
                   </div>
+                </Card>
+              </>
+            )}
+          </TabsContent>
+
+          {/* Providers Tab */}
+          <TabsContent value="providers" className="space-y-8">
+            {isLoadingProviders && providerPerformance.length === 0 ? (
+              <div className="flex items-center justify-center min-h-screen">
+                <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <>
+                {/* Provider Summary KPIs */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  <Card className="glass-card p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="p-2 bg-primary/10 rounded-lg">
+                        <Users className="h-5 w-5 text-primary" />
+                      </div>
+                      <Badge variant="outline" className="text-xs">
+                        Active
+                      </Badge>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-2xl font-bold">{providers.filter(p => p.is_active).length}</p>
+                      <p className="text-xs text-muted-foreground">Active Providers</p>
+                    </div>
+                  </Card>
+
+                  <Card className="glass-card p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="p-2 bg-success/10 rounded-lg">
+                        <Target className="h-5 w-5 text-success" />
+                      </div>
+                      <TrendingUp className="h-4 w-4 text-success" />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-2xl font-bold">
+                        {providerPerformance.reduce((sum, p) => sum + p.total_leads, 0).toLocaleString()}
+                      </p>
+                      <p className="text-xs text-muted-foreground">Total Leads</p>
+                    </div>
+                  </Card>
+
+                  <Card className="glass-card p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="p-2 bg-accent/10 rounded-lg">
+                        <DollarSign className="h-5 w-5 text-accent" />
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-2xl font-bold">
+                        {formatCurrency(providerPerformance.reduce((sum, p) => sum + p.total_revenue, 0))}
+                      </p>
+                      <p className="text-xs text-muted-foreground">Total Revenue</p>
+                    </div>
+                  </Card>
+
+                  <Card className="glass-card p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="p-2 bg-blue-500/10 rounded-lg">
+                        <Activity className="h-5 w-5 text-blue-500" />
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-2xl font-bold">
+                        {providerPerformance.length > 0
+                          ? (providerPerformance.reduce((sum, p) => sum + p.conversion_rate, 0) / providerPerformance.length).toFixed(1)
+                          : 0}%
+                      </p>
+                      <p className="text-xs text-muted-foreground">Avg Conversion</p>
+                    </div>
+                  </Card>
+                </div>
+
+                {/* Provider Performance Leaderboard */}
+                <Card className="glass-card p-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-lg font-semibold">Provider Performance Leaderboard</h3>
+                    <Badge variant="outline">{providerPerformance.length} Providers</Badge>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Rank</th>
+                          <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Provider</th>
+                          <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">Leads</th>
+                          <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">Appointments</th>
+                          <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">Conv. Rate</th>
+                          <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">Revenue</th>
+                          <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">Avg Deal</th>
+                          <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">Trend</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {providerPerformance.map((provider, index) => (
+                          <tr key={provider.provider_id} className="border-b hover:bg-secondary/20 transition-colors">
+                            <td className="py-3 px-4">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-bold">#{index + 1}</span>
+                                {index < 3 && (
+                                  <div className={cn("text-xs px-1.5 py-0.5 rounded-full",
+                                    index === 0 ? "bg-yellow-500/20 text-yellow-600" :
+                                    index === 1 ? "bg-gray-400/20 text-gray-600" :
+                                    "bg-orange-500/20 text-orange-600"
+                                  )}>
+                                    {index === 0 ? "🥇" : index === 1 ? "🥈" : "🥉"}
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="font-medium">{provider.provider_name}</div>
+                              <div className="text-xs text-muted-foreground">{provider.provider_id}</div>
+                            </td>
+                            <td className="text-right py-3 px-4 font-medium">{provider.total_leads.toLocaleString()}</td>
+                            <td className="text-right py-3 px-4 font-medium">{provider.total_appointments.toLocaleString()}</td>
+                            <td className="text-right py-3 px-4">
+                              <Badge variant={provider.conversion_rate > 15 ? "default" : provider.conversion_rate > 5 ? "secondary" : "destructive"}>
+                                {provider.conversion_rate.toFixed(1)}%
+                              </Badge>
+                            </td>
+                            <td className="text-right py-3 px-4 font-medium">{formatCurrency(provider.total_revenue)}</td>
+                            <td className="text-right py-3 px-4 text-muted-foreground">{formatCurrency(provider.avg_deal_size)}</td>
+                            <td className="text-right py-3 px-4">
+                              {provider.trend === 'up' && <TrendingUp className="h-4 w-4 text-success inline" />}
+                              {provider.trend === 'down' && <TrendingDown className="h-4 w-4 text-destructive inline" />}
+                              {provider.trend === 'stable' && <div className="w-4 h-4 bg-muted-foreground/30 rounded-full inline-block"></div>}
+                            </td>
+                          </tr>
+                        ))}
+
+                        {providerPerformance.length === 0 && (
+                          <tr>
+                            <td colSpan={8} className="text-center py-8 text-muted-foreground">
+                              <p className="text-sm">No provider data available</p>
+                              <p className="text-xs mt-2">Provider performance will appear here as data is processed</p>
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card>
+
+                {/* Charts Row */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Conversion Rate Comparison */}
+                  <Card className="glass-card p-6">
+                    <h3 className="text-lg font-semibold mb-4">Conversion Rate Comparison</h3>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart data={providerPerformance.slice(0, 10)}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(215, 20%, 25%)" />
+                        <XAxis
+                          dataKey="provider_name"
+                          stroke="hsl(215, 20%, 65%)"
+                          angle={-45}
+                          textAnchor="end"
+                          height={80}
+                          fontSize={12}
+                        />
+                        <YAxis stroke="hsl(215, 20%, 65%)" />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Bar dataKey="conversion_rate" fill="hsl(217, 91%, 60%)" name="Conversion Rate %" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </Card>
+
+                  {/* Revenue Attribution */}
+                  <Card className="glass-card p-6">
+                    <h3 className="text-lg font-semibold mb-4">Revenue Attribution</h3>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <PieChart>
+                        <Pie
+                          data={providerPerformance.slice(0, 8)}
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={100}
+                          fill="#8884d8"
+                          dataKey="total_revenue"
+                          label={({ provider_name, value }) =>
+                            `${provider_name}: ${formatCurrency(value)}`
+                          }
+                        >
+                          {providerPerformance.slice(0, 8).map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          formatter={(value: number) => [formatCurrency(value), 'Revenue']}
+                          content={<CustomTooltip />}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </Card>
+                </div>
+
+                {/* Performance Trends */}
+                <Card className="glass-card p-6">
+                  <h3 className="text-lg font-semibold mb-4">Performance Trends</h3>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <LineChart data={providerPerformance.slice(0, 6)}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(215, 20%, 25%)" />
+                      <XAxis
+                        dataKey="provider_name"
+                        stroke="hsl(215, 20%, 65%)"
+                        angle={-45}
+                        textAnchor="end"
+                        height={80}
+                        fontSize={12}
+                      />
+                      <YAxis stroke="hsl(215, 20%, 65%)" />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Legend />
+                      <Line
+                        type="monotone"
+                        dataKey="total_leads"
+                        stroke="hsl(217, 91%, 60%)"
+                        name="Total Leads"
+                        strokeWidth={2}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="total_appointments"
+                        stroke="hsl(142, 76%, 36%)"
+                        name="Appointments"
+                        strokeWidth={2}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
                 </Card>
               </>
             )}
