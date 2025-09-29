@@ -73,7 +73,7 @@ export default function Webhooks() {
   const [newWebhookName, setNewWebhookName] = useState('');
   const { toast } = useToast();
 
-  const API_BASE = 'https://convio-leads-webhook-api.curly-king-877d.workers.dev';
+  const API_BASE = 'https://api.homeprojectpartners.com';
 
   useEffect(() => {
     fetchWebhooks();
