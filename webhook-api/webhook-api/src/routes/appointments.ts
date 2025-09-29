@@ -438,8 +438,67 @@ appointmentsRouter.post('/receive', async (c) => {
       'appointment-routing-system'
     ).run()
 
-    // Forward to client webhook (async - don't wait for response)
-    forwardAppointmentToClient(db, appointmentId as number, matchedWorkspaceId)
+    // Forward to client webhook with proper status tracking
+    try {
+      const forwardResult = await forwardAppointmentToClient(db, appointmentId as number, matchedWorkspaceId)
+
+      // Update appointment with forward status
+      await db.prepare(`
+        UPDATE appointments
+        SET forward_status = ?, forward_attempts = forward_attempts + 1,
+            forwarded_at = CURRENT_TIMESTAMP, forward_response = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).bind(
+        forwardResult.success ? 'success' : 'failed',
+        forwardResult.response || forwardResult.error || 'No response',
+        appointmentId
+      ).run()
+
+      // Log forwarding event
+      await db.prepare(`
+        INSERT INTO appointment_events (
+          appointment_id, event_type, event_data, created_by, created_at
+        ) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+      `).bind(
+        appointmentId,
+        forwardResult.success ? 'appointment_forwarded_success' : 'appointment_forwarded_failed',
+        JSON.stringify({
+          workspace_id: matchedWorkspaceId,
+          success: forwardResult.success,
+          response: forwardResult.response || forwardResult.error
+        }),
+        'appointment-routing-system'
+      ).run()
+
+    } catch (error) {
+      console.error('Error forwarding appointment:', error)
+
+      // Log forwarding failure
+      await db.prepare(`
+        UPDATE appointments
+        SET forward_status = 'failed', forward_attempts = forward_attempts + 1,
+            forward_response = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).bind(
+        `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        appointmentId
+      ).run()
+
+      // Log error event
+      await db.prepare(`
+        INSERT INTO appointment_events (
+          appointment_id, event_type, event_data, created_by, created_at
+        ) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+      `).bind(
+        appointmentId,
+        'appointment_forwarding_error',
+        JSON.stringify({
+          workspace_id: matchedWorkspaceId,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        }),
+        'appointment-routing-system'
+      ).run()
+    }
 
     return c.json({
       success: true,
