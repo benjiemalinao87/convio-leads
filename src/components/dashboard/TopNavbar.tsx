@@ -40,10 +40,11 @@ export function TopNavbar() {
   const location = useLocation();
   const { user, logout } = useAuth();
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
     setIsMobileMenuOpen(false);
-    window.location.href = '/login';
+    await logout();
+    // The logout function will handle clearing the auth state,
+    // and the ProtectedRoute component will automatically redirect to login
   };
 
   return (

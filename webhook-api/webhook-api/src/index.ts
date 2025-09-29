@@ -11,6 +11,7 @@ import conversionsRouter from './routes/conversions'
 import { appointmentsRouter } from './routes/appointments'
 import { routingRulesRouter } from './routes/routing-rules'
 import { providersRouter } from './routes/providers'
+import authRouter from './routes/auth'
 import { requestValidation } from './middleware/validation'
 import { errorHandler } from './middleware/error-handler'
 import { webhookDeletionConsumer, processPendingDeletions } from './queue/webhook-deletion'
@@ -22,6 +23,8 @@ type Bindings = {
   WEBHOOK_DELETION_QUEUE?: Queue
   // KV: KVNamespace
   WEBHOOK_SECRET?: string
+  LOGIN_USERNAME?: string
+  LOGIN_PASSWORD?: string
 }
 
 const app = new Hono<{ Bindings: Bindings }>()
@@ -68,6 +71,7 @@ app.route('/conversions', conversionsRouter)
 app.route('/appointments', appointmentsRouter)
 app.route('/routing-rules', routingRulesRouter)
 app.route('/providers', providersRouter)
+app.route('/auth', authRouter)
 
 // Root endpoint
 app.get('/', (c) => {
