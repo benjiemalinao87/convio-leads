@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
@@ -14,6 +14,7 @@ import ContactDetail from "./pages/ContactDetail";
 import Settings from "./pages/Settings";
 import Documentation from "./pages/Documentation";
 import Appointments from "./pages/Appointments";
+import MermaidTest from "./pages/MermaidTest";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -47,12 +48,16 @@ const App = () => (
               }
             />
             <Route
-              path="/leads"
+              path="/contacts"
               element={
                 <ProtectedRoute>
                   <Leads />
                 </ProtectedRoute>
               }
+            />
+            <Route
+              path="/leads"
+              element={<Navigate to="/contacts" replace />}
             />
             <Route
               path="/contact/:contactId"
@@ -91,6 +96,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Documentation />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/mermaid-test"
+              element={
+                <ProtectedRoute>
+                  <MermaidTest />
                 </ProtectedRoute>
               }
             />

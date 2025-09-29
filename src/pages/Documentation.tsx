@@ -1,8 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { ChevronDown, Target, Code, Workflow } from 'lucide-react';
+import { ChevronDown, Target, Code, Workflow, Database } from 'lucide-react';
+import MermaidDiagram from '@/components/MermaidDiagram';
 
 const documentOptions = [
+  {
+    id: 'database-schema',
+    name: 'Database Schema Documentation',
+    file: '/database_diagram.md',
+    icon: Database,
+    description: 'Comprehensive database architecture guide with relationships, business logic, and developer guidelines'
+  },
   {
     id: 'conversion-tracking',
     name: 'Conversion Tracking Plan',
@@ -15,7 +23,7 @@ const documentOptions = [
     name: 'Home Project Partners Webhook API Documentation',
     file: '/webhook-api/API_DOCUMENTATION.md',
     icon: Code,
-    description: 'Complete API reference including lead management and conversion tracking endpoints'
+    description: 'Complete API reference including enhanced contact search, lead management, and conversion tracking endpoints'
   },
   {
     id: 'appointment-flow',
@@ -23,6 +31,13 @@ const documentOptions = [
     file: '/webhook-api/APPOINTMENT_AS_A_SERVICE_FLOW.md',
     icon: Workflow,
     description: 'End-to-end visualization of the appointment routing and delivery system'
+  },
+  {
+    id: 'appointment-routing',
+    name: 'Appointment Routing & Forwarding Guide',
+    file: '/webhook-api/APPOINTMENT_ROUTING_GUIDE.md',
+    icon: Target,
+    description: 'Comprehensive guide to appointment routing algorithms, rules management, and workspace forwarding'
   }
 ];
 
@@ -31,6 +46,39 @@ const Documentation = () => {
   const [markdown, setMarkdown] = useState('');
   const [loading, setLoading] = useState(true);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+
+  // Extract mermaid diagrams from markdown
+  const { processedMarkdown, mermaidDiagrams } = useMemo(() => {
+    // Pattern to catch mermaid blocks
+    const mermaidRegex = /```mermaid\s*\n([\s\S]*?)\n```/g;
+
+    let processedMd = markdown;
+    let firstDiagram: { id: string; content: string; title: string } | null = null;
+
+    // Find only the first mermaid diagram
+    const match = mermaidRegex.exec(markdown);
+    if (match) {
+      const content = match[1].trim();
+      if (content && content.includes('erDiagram')) {
+        firstDiagram = {
+          id: 'interactive-database-schema',
+          content: content,
+          title: "Interactive Database Schema"
+        };
+      }
+    }
+
+    // Remove all mermaid code blocks from markdown completely
+    processedMd = processedMd.replace(/```mermaid\s*\n[\s\S]*?\n```/g, '');
+
+    // Also remove any remaining mermaid text patterns
+    processedMd = processedMd.replace(/erDiagram[\s\S]*?(?=##|$)/g, '');
+
+    return {
+      processedMarkdown: processedMd,
+      mermaidDiagrams: firstDiagram ? [firstDiagram] : []
+    };
+  }, [markdown]);
 
   useEffect(() => {
     const loadDocument = async () => {
@@ -111,6 +159,16 @@ const Documentation = () => {
           </div>
         ) : (
           <div className="prose prose-invert max-w-none">
+            {/* Render any mermaid diagrams first */}
+            {mermaidDiagrams.map((diagram, index) => (
+              <MermaidDiagram
+                key={diagram.id}
+                diagram={diagram.content}
+                title={index === 0 ? "Interactive Database Schema" : diagram.title}
+                className="mb-8"
+              />
+            ))}
+
             <ReactMarkdown
               components={{
                 h1: ({ children }) => <h1 className="text-3xl font-bold text-white mb-4 mt-6 first:mt-0">{children}</h1>,
@@ -157,7 +215,7 @@ const Documentation = () => {
                 td: ({ children }) => <td className="px-4 py-2 text-gray-300">{children}</td>,
               }}
             >
-              {markdown}
+              {processedMarkdown}
             </ReactMarkdown>
           </div>
         )}

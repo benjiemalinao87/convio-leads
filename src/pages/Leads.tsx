@@ -100,22 +100,59 @@ const Leads = () => {
       setIsLoading(true);
       setError(null);
 
-      const response = await fetch(`${API_BASE}/leads?limit=1000`);
+      // Fetch all contacts with their associated leads
+      const response = await fetch(`${API_BASE}/contacts?include=leads&limit=1000`);
 
       if (!response.ok) {
-        throw new Error('Failed to fetch leads');
+        throw new Error('Failed to fetch contacts');
       }
 
       const data = await response.json();
-      const leads = data.leads || [];
+      const contacts = data.contacts || [];
 
-      // Convert API leads to our Lead format
-      const convertedLeads = leads.map((apiLead: APILead) => convertAPILeadToLead(apiLead));
-      setApiLeads(convertedLeads);
+      // Convert all leads from all contacts to our Lead format
+      const allLeads: Lead[] = [];
+      contacts.forEach((contact: any) => {
+        if (contact.leads && contact.leads.length > 0) {
+          // Convert each lead to our format, but use contact's phone
+          contact.leads.forEach((apiLead: APILead) => {
+            const convertedLead = convertAPILeadToLead(apiLead);
+            // Override with contact's phone number (contacts are the primary entity)
+            convertedLead.phone = contact.phone || convertedLead.phone;
+            // Also use contact's name if lead doesn't have one
+            if (!apiLead.first_name && !apiLead.last_name) {
+              convertedLead.name = `${contact.first_name || ''} ${contact.last_name || ''}`.trim() || 'Unknown Contact';
+            }
+            allLeads.push(convertedLead);
+          });
+        } else {
+          // Create a "lead" entry for contacts without leads so they show up in the UI
+          const contactAsLead: Lead = {
+            id: `contact_${contact.id}`,
+            contact_id: contact.id,
+            name: `${contact.first_name || ''} ${contact.last_name || ''}`.trim() || 'Unknown Contact',
+            company: 'Contact Entry',
+            email: contact.email || '',
+            phone: contact.phone || '',
+            position: 'Contact',
+            source: 'Direct Contact',
+            status: 'new' as Lead['status'],
+            value: 0,
+            assignedTo: 'Unassigned',
+            webhook: contact.webhook_id || 'Unknown',
+            createdAt: contact.created_at || new Date().toISOString(),
+            lastActivity: contact.updated_at || contact.created_at || new Date().toISOString(),
+            notes: '',
+          };
+          allLeads.push(contactAsLead);
+        }
+      });
+
+      setApiLeads(allLeads);
 
     } catch (err) {
-      console.error('Failed to fetch leads:', err);
-      setError(err instanceof Error ? err.message : 'Failed to fetch leads');
+      console.error('Failed to fetch contacts:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch contacts');
     } finally {
       setIsLoading(false);
     }

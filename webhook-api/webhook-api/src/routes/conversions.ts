@@ -807,6 +807,7 @@ conversionsRouter.get('/workspaces', async (c) => {
       SELECT
         id,
         name,
+        api_key,
         is_active,
         outbound_webhook_url,
         webhook_active,

@@ -461,7 +461,7 @@ webhook.get('/', async (c) => {
   try {
     const db = ((c.env as any) as any).LEADS_DB
     
-    // Fetch webhook configurations with statistics from D1 database
+    // Fetch webhook configurations with statistics from D1 database (exclude soft-deleted)
     const { results } = await db.prepare(`
       SELECT
         w.webhook_id,
@@ -647,7 +647,7 @@ webhook.delete('/:webhookId', async (c) => {
     await db.prepare(
       'DELETE FROM webhook_configs WHERE webhook_id = ?'
     ).bind(webhookId).run()
-    
+
     return c.json({
       status: 'success',
       message: 'Webhook configuration deleted successfully',
@@ -666,6 +666,7 @@ webhook.delete('/:webhookId', async (c) => {
     }, 500)
   }
 })
+
 
 // Enable/disable a webhook
 webhook.patch('/:webhookId/status', async (c) => {

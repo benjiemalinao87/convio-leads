@@ -61,11 +61,28 @@ npm run test
 # Run tests with watch mode
 npm run test:watch
 
+# Run tests with coverage
+npm run test:coverage
+
+# Validate build and tests together
+npm run validate
+
 # View logs from production
 npm run logs
 
+# View logs from production environment
+npm run logs:production
+
 # Generate TypeScript types for Cloudflare Workers
 npm run cf-typegen
+
+# Deploy to specific environments
+npm run deploy:production
+npm run deploy:staging
+
+# Manage secrets
+npm run secret:set WEBHOOK_SECRET
+npm run secret:list
 ```
 
 ### Database Operations (D1)
@@ -92,16 +109,52 @@ The system uses a **contact-lead relationship model** to prevent duplicate conta
 3. **Phone Number Normalization**: All phone numbers are normalized to `+1XXXXXXXXXX` format
 4. **Deduplication Logic**: Same phone number from same webhook = same contact, new lead added
 
+### Core Business Models
+
+#### Appointment-as-a-Service (AaaS)
+The system operates on an **appointment-as-a-service model** where qualified appointments are sold to client workspaces:
+
+1. **Appointment Routing**: Incoming appointments are automatically routed to client workspaces based on:
+   - Product type matching (solar, roofing, HVAC, etc.)
+   - Zip code coverage areas
+   - Workspace priority and capacity
+2. **Revenue Tracking**: Each routed appointment generates tracked revenue
+3. **Webhook Forwarding**: Successful appointments are forwarded to client webhook endpoints
+4. **History Tracking**: Complete audit trail of routing decisions and webhook delivery
+
+#### Provider Authentication System
+Multi-layered authentication for lead source providers:
+
+1. **API Key Authentication**: Each provider gets unique API key
+2. **Authorization Header**: Standard `Authorization: Bearer <api_key>` format
+3. **Rate Limiting**: Configurable per-provider rate limits
+4. **Webhook Allowlisting**: Optional webhook endpoint restrictions
+5. **Usage Tracking**: Complete provider activity logs
+
+#### Workspace Routing Logic
+Complex routing system for appointment distribution:
+
+1. **Product Matching**: JSON-based product type configuration
+2. **Zip Code Ranges**: CSV upload support for bulk zip code management
+3. **Priority System**: Workspace priority ordering with overflow
+4. **Capacity Management**: Workspace-specific capacity limits
+5. **Fallback Rules**: Default workspace for unmatched appointments
+
 ### Frontend Architecture
 - **State Management**: useState + Context API for auth
 - **API Integration**: Direct fetch calls to `https://api.homeprojectpartners.com`
 - **Contact Grouping**: Frontend groups leads by `contact_id` to display as "contacts"
+- **Diagram Support**: Mermaid.js integration for flowcharts and diagrams
 - **Route Structure**:
   - `/` - Dashboard overview
   - `/leads` - Leads/Contacts management (main working area)
-  - `/analytics` - Analytics and reporting
-  - `/webhooks` - Webhook configuration
-  - `/settings` - User settings
+  - `/contact/:id` - Detailed contact view with lead history
+  - `/appointments` - Appointment management and routing configuration
+  - `/conversions` - Revenue tracking and conversion analytics
+  - `/analytics` - Lead analytics and reporting
+  - `/webhooks` - Webhook configuration and testing
+  - `/docs` - Embedded API documentation with mermaid diagrams
+  - `/settings` - User settings and workspace management
 
 ### Backend Architecture
 - **Entry Point**: `src/index.ts` - Hono app with middleware setup
@@ -109,22 +162,39 @@ The system uses a **contact-lead relationship model** to prevent duplicate conta
   - `/health` - Health check endpoints
   - `/webhook` - Webhook management and data ingestion
   - `/leads` - Lead/contact CRUD operations
-- **Database**: Cloudflare D1 (SQLite) with tables:
+  - `/appointments` - Appointment-as-a-Service routing system
+  - `/conversions` - Revenue tracking and analytics
+  - `/routing-rules` - Appointment routing configuration
+  - `/providers` - Lead source provider management
+- **Database**: Cloudflare D1 (SQLite) with 21 tables including:
   - `contacts` - Unique contacts by phone+webhook
   - `leads` - Individual lead records linked to contacts
-  - `lead_events`, `contact_events` - Audit trail
-  - `webhook_configs` - Webhook configuration
+  - `appointments` - Appointment records with routing
+  - `conversions` - Revenue and conversion tracking
+  - `workspaces` - Client workspace configuration
+  - `appointment_routing_rules` - Routing logic by product/zip
+  - `lead_source_providers` - Provider authentication and management
+  - `*_events` tables - Comprehensive audit trail
+  - `*_analytics_cache` tables - Performance optimization
 
 ### Key Files and Their Purpose
 
 **Frontend:**
 - `src/pages/Leads.tsx` - Main leads management interface with contact grouping logic
+- `src/pages/Appointments.tsx` - Appointment management and routing configuration
+- `src/pages/ConversionDashboard.tsx` - Revenue tracking and conversion analytics
+- `src/pages/ContactDetail.tsx` - Detailed contact view with lead history
+- `src/pages/Documentation.tsx` - Embedded API documentation with mermaid diagrams
 - `src/components/leads/LeadsTable.tsx` - Table component for displaying contacts/leads
-- `src/components/ApiDocumentation.tsx` - Embedded API documentation
+- `src/components/ApiDocumentation.tsx` - Interactive API documentation component
 - `src/data/leadsData.ts` - Lead type definitions and interfaces
 
 **Backend:**
+- `src/routes/appointments.ts` - Appointment-as-a-Service routing system (600+ lines)
 - `src/routes/leads.ts` - Lead/contact CRUD operations including delete endpoints
+- `src/routes/conversions.ts` - Revenue tracking and conversion analytics
+- `src/routes/providers.ts` - Provider authentication and management
+- `src/routes/routing-rules.ts` - Appointment routing configuration
 - `src/routes/webhook.ts` - Webhook ingestion and processing
 - `src/db/leads.ts` - Database operations for leads
 - `src/db/contacts.ts` - Database operations for contacts with deduplication logic
@@ -170,6 +240,43 @@ The DELETE endpoints in `src/routes/leads.ts` handle this automatically.
 - Comprehensive error handling and validation
 - Phone number normalization testing
 
+## Important Business Logic
+
+### Appointment Routing Algorithm
+The core routing function `findMatchingWorkspace()` in `src/routes/appointments.ts:200+` implements:
+
+1. **Phone Normalization**: Always normalize to `+1XXXXXXXXXX` format for deduplication
+2. **Product Type Matching**: JSON array matching against workspace product types
+3. **Zip Code Validation**: Priority-based matching with workspace coverage areas
+4. **Workspace Priority**: Ordered routing with capacity-aware overflow
+5. **Fallback Logic**: Default workspace assignment for unmatched criteria
+
+### Provider Authentication Flow
+Standard authentication using `Authorization` header (changed from `lead_source_provider_id`):
+
+1. **Header Format**: `Authorization: Bearer <provider_api_key>`
+2. **Validation**: Provider lookup in `lead_source_providers` table
+3. **Rate Limiting**: Per-provider configurable limits (default: 1000/hour)
+4. **Webhook Restrictions**: Optional allowlisted webhook endpoints
+5. **Activity Logging**: All provider actions logged in `provider_usage_log`
+
+### Revenue Tracking System
+Conversion tracking across the appointment pipeline:
+
+1. **Lead Value**: Tracked from initial lead capture
+2. **Appointment Value**: Revenue generated when appointment is routed
+3. **Conversion Rates**: Analytics by provider, workspace, and time period
+4. **Cache Optimization**: Pre-computed analytics in `*_analytics_cache` tables
+
+### Data Integrity Rules
+Critical constraints for system reliability:
+
+1. **Foreign Key Cascade**: Delete events → contacts → leads → appointments (proper order)
+2. **Phone Deduplication**: Same phone + webhook = same contact, new lead appended
+3. **Workspace Validation**: All appointments must route to valid workspace
+4. **Provider Authentication**: All webhook calls must include valid API key
+5. **Audit Trail**: Every action logged in corresponding `*_events` table
+
 ## Important Notes
 
 - **Delete Functionality**: Implements both individual lead deletion (`DELETE /leads/:leadId`) and contact deletion with cascade (`DELETE /leads/contact/:contactId`)
@@ -177,3 +284,5 @@ The DELETE endpoints in `src/routes/leads.ts` handle this automatically.
 - **Contact vs Lead**: Frontend displays "contacts" but these are actually grouped leads - be mindful when implementing new features
 - **Database Schema**: Follows contact-lead relationship model, not just individual leads
 - **API Documentation**: Must be updated in both `API_DOCUMENTATION.md` AND `ApiDocumentation.tsx` component
+- **Appointment Routing**: Core business value - routing logic must maintain workspace capacity and priority rules
+- **Provider Management**: All webhook authentication migrated to standard `Authorization` header format

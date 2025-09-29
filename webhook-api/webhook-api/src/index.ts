@@ -6,6 +6,7 @@ import { timing } from 'hono/timing'
 import { webhookRouter } from './routes/webhook'
 import { healthRouter } from './routes/health'
 import leadsRouter from './routes/leads'
+import { contactsRouter } from './routes/contacts'
 import conversionsRouter from './routes/conversions'
 import { appointmentsRouter } from './routes/appointments'
 import { routingRulesRouter } from './routes/routing-rules'
@@ -60,6 +61,7 @@ app.onError(errorHandler)
 app.route('/health', healthRouter)
 app.route('/webhook', webhookRouter)
 app.route('/leads', leadsRouter)
+app.route('/contacts', contactsRouter)
 app.route('/conversions', conversionsRouter)
 app.route('/appointments', appointmentsRouter)
 app.route('/routing-rules', routingRulesRouter)

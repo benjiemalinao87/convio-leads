@@ -52,7 +52,9 @@ import {
   Info,
   MoreHorizontal,
   Trash2,
-  Plus
+  Plus,
+  Copy,
+  Key
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -62,6 +64,7 @@ interface Workspace {
   name: string;
   outbound_webhook_url?: string;
   webhook_active: boolean;
+  api_key?: string;
 }
 
 interface AppointmentRoutingManagerProps {
@@ -258,6 +261,22 @@ export function AppointmentRoutingManager({ onRefresh }: AppointmentRoutingManag
     }
   };
 
+  const copyApiKey = async (apiKey: string, workspaceName: string) => {
+    try {
+      await navigator.clipboard.writeText(apiKey);
+      toast({
+        title: "API Key Copied",
+        description: `${workspaceName} API key copied to clipboard`,
+      });
+    } catch (error) {
+      toast({
+        title: "Copy Failed",
+        description: "Failed to copy API key to clipboard",
+        variant: "destructive",
+      });
+    }
+  };
+
   const getStatusBadge = (workspace: Workspace) => {
     if (!workspace.outbound_webhook_url) {
       return (
@@ -401,6 +420,32 @@ export function AppointmentRoutingManager({ onRefresh }: AppointmentRoutingManag
             </CardHeader>
 
             <CardContent className="space-y-4">
+              {/* API Key Section */}
+              {workspace.api_key && (
+                <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg border">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <Key className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <Label className="text-sm font-medium">API Key</Label>
+                      </div>
+                      <code className="text-xs font-mono text-muted-foreground truncate block max-w-md">
+                        {workspace.api_key}
+                      </code>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => copyApiKey(workspace.api_key!, workspace.name)}
+                    className="h-8 px-3 flex-shrink-0"
+                  >
+                    <Copy className="h-3 w-3 mr-1" />
+                    Copy
+                  </Button>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="md:col-span-2 space-y-2">
                   <Label htmlFor={`webhook-url-${workspace.id}`}>

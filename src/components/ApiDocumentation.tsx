@@ -179,8 +179,8 @@ const ApiDocumentation = ({ open, onOpenChange }: ApiDocumentationProps) => {
       id: 'phone-search',
       method: 'GET',
       path: '/leads/search/phone/:phoneNumber',
-      title: 'Search by Phone',
-      description: 'Search for contacts by phone number with automatic normalization',
+      title: 'Search by Phone (DEPRECATED)',
+      description: '⚠️ DEPRECATED - Use /contacts/search/phone/:phoneNumber instead. Search for contacts by phone number with automatic normalization',
       example: `curl -X GET "https://api.homeprojectpartners.com/leads/search/phone/555-987-6543"`,
       response: `{
   "status": "success",
@@ -200,6 +200,70 @@ const ApiDocumentation = ({ open, onOpenChange }: ApiDocumentationProps) => {
       "created_at": "2025-09-25 05:59:47"
     }
   ]
+}`
+    },
+    {
+      id: 'contact-search-phone',
+      method: 'GET',
+      path: '/contacts/search/phone/:phoneNumber',
+      title: 'Enhanced Contact Search',
+      description: 'Search contacts by phone with full relationship data including leads, appointments, and conversions. Use ?include= query parameter to control data returned',
+      example: `# Basic search (contact + leads)
+curl -X GET "https://api.homeprojectpartners.com/contacts/search/phone/+15559990000"
+
+# Include all data
+curl -X GET "https://api.homeprojectpartners.com/contacts/search/phone/+15559990000?include=all"
+
+# Include specific data types
+curl -X GET "https://api.homeprojectpartners.com/contacts/search/phone/+15559990000?include=leads,appointments,conversions"`,
+      response: `{
+  "status": "success",
+  "search_phone": "+15559990000",
+  "normalized_phone": "+15559990000",
+  "includes": ["all"],
+  "contact": {
+    "id": 650963,
+    "phone": "+15559990000",
+    "first_name": "NewUser",
+    "last_name": "Complete",
+    "email": "newuser.complete@example.com",
+    "lifetime_value": 280000,
+    "conversion_count": 8,
+    "leads": [
+      {
+        "id": 1234567890,
+        "lead_type": "solar",
+        "status": "converted",
+        "revenue_potential": 5000,
+        "workspace_id": "demo_sales_team",
+        "workspace_name": "Demo Sales Team"
+      }
+    ],
+    "appointments": [
+      {
+        "id": 456,
+        "service_type": "solar",
+        "scheduled_at": "2025-09-30T10:00:00Z",
+        "matched_workspace_id": "demo_sales_team",
+        "workspace_name": "Demo Sales Team"
+      }
+    ],
+    "conversions": [
+      {
+        "id": "985d0ad2-72a9-4c7b",
+        "conversion_type": "appointment",
+        "conversion_value": 5000,
+        "workspace_name": "Demo Sales Team"
+      }
+    ],
+    "summary": {
+      "total_leads": 1,
+      "total_appointments": 1,
+      "total_conversions": 1,
+      "lifetime_value": 280000,
+      "primary_workspace": "demo_sales_team"
+    }
+  }
 }`
     },
     {
@@ -223,12 +287,100 @@ const ApiDocumentation = ({ open, onOpenChange }: ApiDocumentationProps) => {
 }`
     },
     {
+      id: 'contacts-list',
+      method: 'GET',
+      path: '/contacts',
+      title: 'List All Contacts',
+      description: 'Get all contacts with optional filtering and includes. Use ?include= parameter to include associated data (leads, appointments, conversions)',
+      example: `# Basic contacts (without leads)
+curl -X GET "https://api.homeprojectpartners.com/contacts?limit=100"
+
+# Include leads for each contact
+curl -X GET "https://api.homeprojectpartners.com/contacts?include=leads&limit=100"
+
+# Filter by webhook
+curl -X GET "https://api.homeprojectpartners.com/contacts?webhook_id=ws_cal_solar_001&include=leads"`,
+      response: `{
+  "status": "success",
+  "count": 24,
+  "filters": {
+    "webhook_id": null,
+    "limit": 100,
+    "includes": ["leads"]
+  },
+  "contacts": [
+    {
+      "id": 650963,
+      "webhook_id": "click-ventures_ws_us_general_656",
+      "phone": "+15559990000",
+      "first_name": "NewUser",
+      "last_name": "Complete",
+      "email": "newuser.complete@example.com",
+      "address": "123 Main Street",
+      "city": "Los Angeles",
+      "state": "CA",
+      "zip_code": "90210",
+      "created_at": "2025-09-25T05:59:47.000Z",
+      "updated_at": "2025-09-25T11:45:00.000Z",
+      "lifetime_value": 280000,
+      "conversion_count": 8,
+      "leads": [
+        {
+          "id": 1234567890,
+          "contact_id": 650963,
+          "lead_type": "solar",
+          "status": "converted",
+          "revenue_potential": 5000,
+          "workspace_id": "demo_sales_team",
+          "workspace_name": "Demo Sales Team",
+          "created_at": "2025-09-25T05:59:47.000Z"
+        }
+      ]
+    }
+  ],
+  "timestamp": "2025-09-25T11:45:00.000Z"
+}`
+    },
+    {
+      id: 'contact-leads',
+      method: 'GET',
+      path: '/contacts/:contactId/leads',
+      title: 'Get Contact Leads',
+      description: 'Get all leads for a specific contact',
+      example: `curl -X GET "https://api.homeprojectpartners.com/contacts/650963/leads?limit=50"`,
+      response: `{
+  "status": "success",
+  "contact_id": 650963,
+  "count": 1,
+  "leads": [
+    {
+      "id": 1234567890,
+      "contact_id": 650963,
+      "webhook_id": "click-ventures_ws_us_general_656",
+      "lead_type": "solar",
+      "first_name": "NewUser",
+      "last_name": "Complete",
+      "email": "newuser.complete@example.com",
+      "phone": "+15559990000",
+      "source": "Google Ads",
+      "status": "converted",
+      "revenue_potential": 5000,
+      "workspace_id": "demo_sales_team",
+      "workspace_name": "Demo Sales Team",
+      "created_at": "2025-09-25T05:59:47.000Z",
+      "updated_at": "2025-09-25T11:45:00.000Z"
+    }
+  ],
+  "timestamp": "2025-09-25T11:45:00.000Z"
+}`
+    },
+    {
       id: 'delete-contact',
       method: 'DELETE',
-      path: '/leads/contact/:contactId',
+      path: '/contacts/:contactId',
       title: 'Delete Contact',
       description: 'Delete a contact and ALL associated leads with cascade deletion',
-      example: `curl -X DELETE "https://api.homeprojectpartners.com/leads/contact/1"`,
+      example: `curl -X DELETE "https://api.homeprojectpartners.com/contacts/1"`,
       response: `{
   "status": "success",
   "message": "Contact and associated leads deleted successfully",
@@ -444,16 +596,19 @@ const ApiDocumentation = ({ open, onOpenChange }: ApiDocumentationProps) => {
       method: 'POST',
       path: '/appointments/receive',
       title: 'Receive Appointment',
-      description: 'Receive appointments from third-party providers with automatic routing',
+      description: 'Receive appointments from third-party providers with automatic routing. Use lead_id to link to existing leads and prevent duplicate contacts.',
       example: `curl -X POST https://api.homeprojectpartners.com/appointments/receive \\
   -H "Content-Type: application/json" \\
   -d '{
+    "lead_id": 7725656196,
     "customer_name": "John Doe",
     "customer_phone": "555-123-4567",
     "customer_email": "john@example.com",
     "service_type": "Solar",
     "customer_zip": "90210",
-    "appointment_date": "2024-10-01T14:00:00Z",
+    "appointment_date": "2025-10-01T14:00:00Z",
+    "appointment_duration": 60,
+    "appointment_type": "consultation",
     "estimated_value": 25000,
     "appointment_notes": "Customer interested in rooftop solar installation",
     "workspace_id": "optional_priority_workspace"
@@ -461,13 +616,13 @@ const ApiDocumentation = ({ open, onOpenChange }: ApiDocumentationProps) => {
       response: `{
   "success": true,
   "message": "Appointment received and routed successfully",
-  "appointment_id": 123,
-  "contact_id": 456,
-  "lead_id": 789,
-  "matched_workspace_id": "default_workspace",
+  "appointment_id": 15,
+  "contact_id": 868042,
+  "lead_id": 7725656196,
+  "matched_workspace_id": "chau_main_workspace",
   "routing_method": "auto",
-  "appointment_date": "2024-10-01T14:00:00Z",
-  "timestamp": "2024-01-15T10:30:00.000Z"
+  "appointment_date": "2025-10-01T14:00:00Z",
+  "timestamp": "2025-09-29T00:29:05.637Z"
 }`
     },
     {
@@ -596,6 +751,72 @@ const ApiDocumentation = ({ open, onOpenChange }: ApiDocumentationProps) => {
   ],
   "total_rules": 1,
   "active_rules": 1
+}`
+    },
+    {
+      id: 'routing-rule-update',
+      method: 'PUT',
+      path: '/routing-rules/:id',
+      title: 'Update Routing Rule',
+      description: 'Update an existing routing rule with partial data (workspace_id cannot be changed)',
+      example: `curl -X PUT https://api.homeprojectpartners.com/routing-rules/12 \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "product_types": ["Solar", "Battery Storage", "HVAC"],
+    "zip_codes": ["90210", "90211", "90212", "90213"],
+    "priority": 2,
+    "is_active": false,
+    "notes": "Updated coverage area"
+  }'`,
+      response: `{
+  "success": true,
+  "message": "Routing rule updated successfully",
+  "rule": {
+    "id": 12,
+    "workspace_id": "chau_main_workspace",
+    "workspace_name": "CHAU Main Workspace",
+    "product_types": ["Solar", "Battery Storage", "HVAC"],
+    "zip_codes": ["90210", "90211", "90212", "90213"],
+    "priority": 2,
+    "is_active": false,
+    "notes": "Updated coverage area"
+  }
+}`
+    },
+    {
+      id: 'routing-rule-delete',
+      method: 'DELETE',
+      path: '/routing-rules/:id',
+      title: 'Delete Routing Rule',
+      description: 'Delete a routing rule by ID',
+      example: `curl -X DELETE https://api.homeprojectpartners.com/routing-rules/12`,
+      response: `{
+  "success": true,
+  "message": "Routing rule deleted successfully",
+  "deleted_rule_id": 12,
+  "workspace_id": "chau_main_workspace"
+}`
+    },
+    {
+      id: 'appointment-forward',
+      method: 'POST',
+      path: '/appointments/:id/forward',
+      title: 'Forward Appointment',
+      description: 'Manually forward an appointment to a specific workspace',
+      example: `curl -X POST https://api.homeprojectpartners.com/appointments/15/forward \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "workspace_id": "target_workspace_id"
+  }'`,
+      response: `{
+  "success": true,
+  "message": "Appointment forwarded successfully",
+  "appointment_id": 15,
+  "workspace_id": "target_workspace_id",
+  "forward_result": {
+    "success": true,
+    "response": "Appointment received successfully"
+  }
 }`
     }
   ];

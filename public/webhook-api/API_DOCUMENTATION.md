@@ -15,7 +15,10 @@ The Home Project Partners Webhook API is a Cloudflare Workers-based service for 
 3. [API Endpoints](#api-endpoints)
    - [Health Check](#health-check-endpoints)
    - [Webhook Management](#webhook-endpoints)
+   - [Contact Management](#contact-endpoints)
    - [Lead Management](#lead-endpoints)
+   - [Appointment Management](#appointment-management-endpoints)
+   - [Routing Rules](#routing-rules-endpoints)
    - [Conversion Tracking](#conversion-tracking-endpoints)
 4. [Data Schemas](#data-schemas)
 5. [Error Handling](#error-handling)
@@ -383,6 +386,221 @@ Enable or disable a webhook configuration.
 
 ---
 
+### Contact Endpoints
+
+#### GET /contacts
+Get all contacts with optional filtering and includes.
+
+**Query Parameters**:
+- `webhook_id` (string): Filter by webhook ID
+- `limit` (number): Maximum results (default: 100)
+- `include` (string): Comma-separated list of data to include: `leads`, `appointments`, `conversions`, `all`
+
+**Examples**:
+```bash
+# Basic contacts (without leads)
+curl "https://api.homeprojectpartners.com/contacts?limit=100"
+
+# Include leads for each contact
+curl "https://api.homeprojectpartners.com/contacts?include=leads&limit=100"
+
+# Filter by webhook
+curl "https://api.homeprojectpartners.com/contacts?webhook_id=ws_cal_solar_001&include=leads"
+```
+
+**Response** (200):
+```json
+{
+  "status": "success",
+  "count": 24,
+  "filters": {
+    "webhook_id": null,
+    "limit": 100,
+    "includes": ["leads"]
+  },
+  "contacts": [
+    {
+      "id": 650963,
+      "webhook_id": "click-ventures_ws_us_general_656",
+      "phone": "+15559990000",
+      "first_name": "NewUser",
+      "last_name": "Complete",
+      "email": "newuser.complete@example.com",
+      "address": "123 Main Street",
+      "city": "Los Angeles",
+      "state": "CA",
+      "zip_code": "90210",
+      "created_at": "2025-09-25T05:59:47.000Z",
+      "updated_at": "2025-09-25T11:45:00.000Z",
+      "lifetime_value": 280000,
+      "conversion_count": 8,
+      "leads": [
+        {
+          "id": 1234567890,
+          "contact_id": 650963,
+          "lead_type": "solar",
+          "status": "converted",
+          "revenue_potential": 5000,
+          "workspace_id": "demo_sales_team",
+          "workspace_name": "Demo Sales Team",
+          "created_at": "2025-09-25T05:59:47.000Z"
+        }
+      ]
+    }
+  ],
+  "timestamp": "2025-09-25T11:45:00.000Z"
+}
+```
+
+#### GET /contacts/:contactId/leads
+Get all leads for a specific contact.
+
+**Parameters**:
+- `contactId` (number): Contact ID
+
+**Query Parameters**:
+- `limit` (number): Maximum results (default: 100)
+
+**Example**:
+```bash
+curl "https://api.homeprojectpartners.com/contacts/650963/leads?limit=50"
+```
+
+**Response** (200):
+```json
+{
+  "status": "success",
+  "contact_id": 650963,
+  "count": 1,
+  "leads": [
+    {
+      "id": 1234567890,
+      "contact_id": 650963,
+      "webhook_id": "click-ventures_ws_us_general_656",
+      "lead_type": "solar",
+      "first_name": "NewUser",
+      "last_name": "Complete",
+      "email": "newuser.complete@example.com",
+      "phone": "+15559990000",
+      "source": "Google Ads",
+      "status": "converted",
+      "revenue_potential": 5000,
+      "workspace_id": "demo_sales_team",
+      "workspace_name": "Demo Sales Team",
+      "created_at": "2025-09-25T05:59:47.000Z",
+      "updated_at": "2025-09-25T11:45:00.000Z"
+    }
+  ],
+  "timestamp": "2025-09-25T11:45:00.000Z"
+}
+```
+
+#### GET /contacts/search/phone/:phoneNumber
+Search contacts by phone number with enhanced data and relationships.
+
+**Parameters**:
+- `phoneNumber` (string): Phone number in any format (will be normalized)
+
+**Query Parameters**:
+- `include` (string): Comma-separated list: `leads`, `appointments`, `conversions`, `all` (default: `leads`)
+
+**Examples**:
+```bash
+# Basic search (contact + leads)
+curl "https://api.homeprojectpartners.com/contacts/search/phone/+15559990000"
+
+# Include all data
+curl "https://api.homeprojectpartners.com/contacts/search/phone/+15559990000?include=all"
+
+# Include specific data types
+curl "https://api.homeprojectpartners.com/contacts/search/phone/+15559990000?include=leads,appointments,conversions"
+```
+
+**Response** (200):
+```json
+{
+  "status": "success",
+  "search_phone": "+15559990000",
+  "normalized_phone": "+15559990000",
+  "includes": ["all"],
+  "contact": {
+    "id": 650963,
+    "phone": "+15559990000",
+    "first_name": "NewUser",
+    "last_name": "Complete",
+    "email": "newuser.complete@example.com",
+    "lifetime_value": 280000,
+    "conversion_count": 8,
+    "leads": [
+      {
+        "id": 1234567890,
+        "lead_type": "solar",
+        "status": "converted",
+        "revenue_potential": 5000,
+        "workspace_id": "demo_sales_team",
+        "workspace_name": "Demo Sales Team"
+      }
+    ],
+    "appointments": [
+      {
+        "id": 456,
+        "appointment_type": "solar_consultation",
+        "scheduled_at": "2025-09-26T14:00:00.000Z",
+        "status": "scheduled",
+        "estimated_value": 25000
+      }
+    ],
+    "conversions": [
+      {
+        "id": "985d0ad2-72a9-4c7b-8b3f-5839fbf6a95c",
+        "conversion_type": "appointment_scheduled",
+        "conversion_value": 25000,
+        "converted_by": "demo_sales_team",
+        "converted_at": "2025-09-25T11:45:00.000Z"
+      }
+    ],
+    "summary": {
+      "total_leads": 1,
+      "total_appointments": 1,
+      "total_conversions": 8,
+      "lifetime_value": 280000,
+      "primary_workspace": "demo_sales_team"
+    }
+  },
+  "timestamp": "2025-09-25T11:45:00.000Z"
+}
+```
+
+#### DELETE /contacts/:contactId
+Delete a contact and ALL associated leads with cascade deletion.
+
+**Parameters**:
+- `contactId` (number): Contact ID to delete
+
+**Example**:
+```bash
+curl -X DELETE "https://api.homeprojectpartners.com/contacts/1"
+```
+
+**Response** (200):
+```json
+{
+  "status": "success",
+  "message": "Contact and associated leads deleted successfully",
+  "deleted_contact": {
+    "id": 1,
+    "name": "Jane Smith",
+    "email": "jane.smith@example.com",
+    "phone": "+15559998888",
+    "webhook_id": "click-ventures_ws_us_general_656",
+    "leads_deleted": 2
+  },
+  "timestamp": "2025-09-25T11:45:00.000Z"
+}
+```
+
+---
+
 ### Lead Endpoints
 
 #### GET /leads
@@ -553,7 +771,9 @@ Get a single lead by ID.
 }
 ```
 
-#### GET /leads/search/phone/:phoneNumber
+#### GET /leads/search/phone/:phoneNumber (DEPRECATED)
+⚠️ **DEPRECATED**: Use `/contacts/search/phone/:phoneNumber` instead for better contact-lead relationship data.
+
 Search for contacts by phone number with automatic normalization.
 
 **Parameters**:
@@ -621,6 +841,7 @@ curl "https://api.homeprojectpartners.com/leads/search/phone/5559876543"
 curl "https://api.homeprojectpartners.com/leads/search/phone/(555) 987-6543"
 curl "https://api.homeprojectpartners.com/leads/search/phone/+15559876543"
 ```
+
 
 #### PATCH /leads/:leadId/status
 Update lead status (backwards compatibility).
@@ -910,6 +1131,504 @@ curl -X DELETE "https://api.homeprojectpartners.com/leads/12"
 # Delete contact and all associated leads
 curl -X DELETE "https://api.homeprojectpartners.com/leads/contact/1"
 ```
+
+---
+
+### Appointment Management Endpoints
+
+The Appointment Management API handles appointment scheduling, routing, and forwarding. It automatically routes appointments to workspaces based on service type and zip code, then forwards appointment data to client webhook endpoints.
+
+#### POST /appointments/receive
+Receive appointments from third-party providers with automatic routing to workspaces.
+
+**Request Body**:
+```json
+{
+  "lead_id": 7725656196,
+  "customer_name": "John Doe",
+  "customer_phone": "5551234567",
+  "customer_email": "john.doe@example.com",
+  "service_type": "Solar",
+  "customer_zip": "90210",
+  "appointment_date": "2025-10-01T14:00:00Z",
+  "appointment_duration": 60,
+  "appointment_type": "consultation",
+  "estimated_value": 25000,
+  "appointment_notes": "Customer interested in rooftop solar installation",
+  "workspace_id": "preferred_workspace_id"
+}
+```
+
+**Field Descriptions**:
+- `lead_id` (optional): Link appointment to existing lead to prevent duplicate contacts
+- `customer_name` (required): Full customer name
+- `customer_phone` (required): Customer phone number (auto-normalized)
+- `customer_email` (optional): Customer email address
+- `service_type` (required): Service type for routing (Solar, HVAC, etc.)
+- `customer_zip` (required): Customer zip code for routing
+- `appointment_date` (required): Scheduled appointment date/time (ISO format)
+- `appointment_duration` (optional): Duration in minutes (default: 60)
+- `appointment_type` (optional): Type of appointment (default: "consultation")
+- `estimated_value` (optional): Estimated appointment value
+- `appointment_notes` (optional): Additional notes
+- `workspace_id` (optional): Override automatic routing to specific workspace
+
+**Response** (201):
+```json
+{
+  "success": true,
+  "message": "Appointment received and routed successfully",
+  "appointment_id": 15,
+  "contact_id": 868042,
+  "lead_id": 7725656196,
+  "matched_workspace_id": "chau_main_workspace",
+  "routing_method": "auto",
+  "appointment_date": "2025-10-01T14:00:00Z",
+  "timestamp": "2025-09-29T00:29:05.637Z"
+}
+```
+
+**Routing Logic**:
+1. **Priority 1**: If `workspace_id` provided and valid, use it
+2. **Priority 2**: Find matching routing rule by `service_type` and `customer_zip`
+3. **Contact Resolution**: If `lead_id` provided, find contact that owns the lead; otherwise find/create contact by phone
+4. **Automatic Forwarding**: Appointment data is automatically forwarded to workspace webhook
+
+**Error Response** (400 - Invalid lead_id):
+```json
+{
+  "success": false,
+  "error": "Invalid lead_id: Lead not found",
+  "provided_lead_id": 7725656196,
+  "timestamp": "2025-09-29T00:29:05.637Z"
+}
+```
+
+**Error Response** (404 - No workspace found):
+```json
+{
+  "success": false,
+  "error": "No matching workspace found",
+  "criteria": {
+    "service_type": "Solar",
+    "customer_zip": "90210",
+    "provided_workspace_id": null
+  },
+  "timestamp": "2025-09-29T00:29:05.637Z"
+}
+```
+
+#### GET /appointments
+Retrieve appointments with filtering and pagination.
+
+**Query Parameters**:
+- `workspace_id` (string): Filter by workspace
+- `status` (string): Filter by appointment status
+- `from_date` (string): Filter from date (ISO format)
+- `to_date` (string): Filter to date (ISO format)
+- `service_type` (string): Filter by service type
+- `limit` (number): Maximum results (default: 50)
+- `offset` (number): Results offset (default: 0)
+
+**Example**:
+```bash
+curl "https://api.homeprojectpartners.com/appointments?workspace_id=chau_main_workspace&limit=10"
+```
+
+**Response** (200):
+```json
+{
+  "success": true,
+  "appointments": [
+    {
+      "id": 15,
+      "contact_id": 868042,
+      "lead_id": 7725656196,
+      "appointment_type": "consultation",
+      "scheduled_at": "2025-10-01T14:00:00Z",
+      "duration_minutes": 60,
+      "status": "scheduled",
+      "customer_name": "John Doe",
+      "customer_phone": "5551234567",
+      "customer_email": "john.doe@example.com",
+      "service_type": "Solar",
+      "customer_zip": "90210",
+      "estimated_value": 25000,
+      "matched_workspace_id": "chau_main_workspace",
+      "routing_method": "auto",
+      "forward_status": "success",
+      "created_at": "2025-09-29T00:29:05.000Z",
+      "contact_first_name": "John",
+      "contact_last_name": "Doe",
+      "lead_source": "Google Ads",
+      "workspace_name": "CHAU Main Workspace"
+    }
+  ],
+  "pagination": {
+    "total": 1,
+    "limit": 10,
+    "offset": 0,
+    "has_more": false
+  },
+  "filters": {
+    "workspace_id": "chau_main_workspace",
+    "status": null,
+    "service_type": null,
+    "from_date": null,
+    "to_date": null
+  },
+  "timestamp": "2025-09-29T00:29:05.637Z"
+}
+```
+
+#### POST /appointments/:id/forward
+Manually forward an appointment to a specific workspace.
+
+**Parameters**:
+- `id` (number): Appointment ID
+
+**Request Body**:
+```json
+{
+  "workspace_id": "target_workspace_id"
+}
+```
+
+**Response** (200):
+```json
+{
+  "success": true,
+  "message": "Appointment forwarded successfully",
+  "appointment_id": 15,
+  "workspace_id": "target_workspace_id",
+  "forward_result": {
+    "success": true,
+    "response": "Appointment received successfully"
+  },
+  "timestamp": "2025-09-29T00:29:05.637Z"
+}
+```
+
+#### GET /appointments/history
+Get appointment routing and forwarding history.
+
+**Query Parameters**:
+- `limit` (number): Maximum results (default: 50)
+- `offset` (number): Results offset (default: 0)
+
+**Response** (200):
+```json
+{
+  "success": true,
+  "appointments": [
+    {
+      "id": 15,
+      "customer_name": "John Doe",
+      "service_type": "Solar",
+      "customer_zip": "90210",
+      "matched_workspace_id": "chau_main_workspace",
+      "routing_method": "auto",
+      "forwarded_at": "2025-09-29T00:29:05.000Z",
+      "forward_status": "success",
+      "forward_attempts": 1,
+      "created_at": "2025-09-29T00:29:05.000Z",
+      "workspace_name": "CHAU Main Workspace",
+      "webhook_url_masked": "https://client-webhook.com/..."
+    }
+  ],
+  "total": 1,
+  "limit": 50,
+  "offset": 0
+}
+```
+
+---
+
+### Routing Rules Endpoints
+
+The Routing Rules API manages automatic appointment routing based on service type and zip code matching.
+
+#### POST /routing-rules
+Create a new routing rule for automatic appointment assignment.
+
+**Request Body**:
+```json
+{
+  "workspace_id": "chau_main_workspace",
+  "product_types": ["Solar", "Battery Storage"],
+  "zip_codes": ["90210", "90211", "90212"],
+  "priority": 1,
+  "is_active": true,
+  "notes": "Premium solar markets in Beverly Hills area"
+}
+```
+
+**Response** (200):
+```json
+{
+  "success": true,
+  "message": "Routing rule created successfully",
+  "rule": {
+    "id": 12,
+    "workspace_id": "chau_main_workspace",
+    "workspace_name": "CHAU Main Workspace",
+    "product_types": ["Solar", "Battery Storage"],
+    "zip_codes": ["90210", "90211", "90212"],
+    "priority": 1,
+    "is_active": true,
+    "notes": "Premium solar markets in Beverly Hills area",
+    "zip_count": 3,
+    "product_count": 2
+  },
+  "timestamp": "2025-09-29T00:29:05.637Z"
+}
+```
+
+#### POST /routing-rules/bulk
+Create routing rule with CSV zip codes for large coverage areas.
+
+**Request Body**:
+```json
+{
+  "workspace_id": "chau_main_workspace",
+  "product_types": ["Solar"],
+  "zip_codes_csv": "90210,90211,90212,90213,90214,90215",
+  "priority": 2,
+  "is_active": true,
+  "notes": "Bulk solar coverage for LA area"
+}
+```
+
+**Alternative with base64 CSV file**:
+```json
+{
+  "workspace_id": "chau_main_workspace",
+  "product_types": ["Solar"],
+  "zip_codes_file": "base64_encoded_csv_content",
+  "priority": 2,
+  "is_active": true
+}
+```
+
+**Response** (200):
+```json
+{
+  "success": true,
+  "message": "Bulk routing rule created successfully",
+  "rule": {
+    "id": 13,
+    "workspace_id": "chau_main_workspace",
+    "workspace_name": "CHAU Main Workspace",
+    "product_types": ["Solar"],
+    "zip_count": 150,
+    "product_count": 1,
+    "priority": 2,
+    "is_active": true,
+    "notes": "Bulk solar coverage for LA area",
+    "sample_zips": ["90210", "90211", "90212", "90213", "90214", "90215", "90216", "90217", "90218", "90219"]
+  },
+  "timestamp": "2025-09-29T00:29:05.637Z"
+}
+```
+
+#### GET /routing-rules/:workspace_id
+Get routing rules for a specific workspace.
+
+**Parameters**:
+- `workspace_id` (string): Workspace identifier
+
+**Response** (200):
+```json
+{
+  "success": true,
+  "workspace_id": "chau_main_workspace",
+  "rules": [
+    {
+      "id": 12,
+      "workspace_id": "chau_main_workspace",
+      "workspace_name": "CHAU Main Workspace",
+      "product_types": ["Solar", "Battery Storage"],
+      "zip_codes": ["90210", "90211", "90212"],
+      "priority": 1,
+      "is_active": true,
+      "notes": "Premium markets",
+      "zip_count": 3,
+      "product_count": 2,
+      "created_at": "2025-09-29T00:29:05.000Z",
+      "updated_at": "2025-09-29T00:29:05.000Z"
+    }
+  ],
+  "total_rules": 1,
+  "active_rules": 1,
+  "timestamp": "2025-09-29T00:29:05.637Z"
+}
+```
+
+#### GET /routing-rules
+Get all routing rules with optional filtering.
+
+**Query Parameters**:
+- `active_only` (boolean): Return only active rules (default: false)
+
+**Response** (200):
+```json
+{
+  "success": true,
+  "rules": [
+    {
+      "id": 12,
+      "workspace_id": "chau_main_workspace",
+      "workspace_name": "CHAU Main Workspace",
+      "product_types": ["Solar"],
+      "zip_codes": ["90210", "90211"],
+      "priority": 1,
+      "is_active": true,
+      "zip_count": 2,
+      "product_count": 1
+    }
+  ],
+  "total_rules": 1,
+  "active_rules": 1,
+  "filters": {
+    "active_only": false
+  },
+  "timestamp": "2025-09-29T00:29:05.637Z"
+}
+```
+
+#### PUT /routing-rules/:id
+Update an existing routing rule.
+
+**Parameters**:
+- `id` (number): Routing rule ID
+
+**Request Body** (partial updates supported):
+```json
+{
+  "product_types": ["Solar", "Battery Storage", "HVAC"],
+  "zip_codes": ["90210", "90211", "90212", "90213"],
+  "priority": 2,
+  "is_active": false,
+  "notes": "Updated coverage area"
+}
+```
+
+**Response** (200):
+```json
+{
+  "success": true,
+  "message": "Routing rule updated successfully",
+  "rule": {
+    "id": 12,
+    "workspace_id": "chau_main_workspace",
+    "workspace_name": "CHAU Main Workspace",
+    "product_types": ["Solar", "Battery Storage", "HVAC"],
+    "zip_codes": ["90210", "90211", "90212", "90213"],
+    "priority": 2,
+    "is_active": false,
+    "notes": "Updated coverage area"
+  },
+  "timestamp": "2025-09-29T00:29:05.637Z"
+}
+```
+
+#### DELETE /routing-rules/:id
+Delete a routing rule.
+
+**Parameters**:
+- `id` (number): Routing rule ID
+
+**Response** (200):
+```json
+{
+  "success": true,
+  "message": "Routing rule deleted successfully",
+  "deleted_rule_id": 12,
+  "workspace_id": "chau_main_workspace",
+  "timestamp": "2025-09-29T00:29:05.637Z"
+}
+```
+
+#### Routing Algorithm
+
+The appointment routing system follows this priority order:
+
+1. **Explicit Workspace**: If `workspace_id` is provided and valid, use it
+2. **Routing Rules**: Search active routing rules ordered by priority (ascending)
+3. **Match Criteria**: Both service type (case-insensitive) AND zip code (exact) must match
+4. **First Match Wins**: Return the first matching workspace found
+
+**Example Routing Flow**:
+```
+Appointment: service_type="Solar", customer_zip="90210"
+
+Routing Rules (by priority):
+1. Priority 1: workspace_A, products=["HVAC"], zips=["90210"] ❌ (service type mismatch)
+2. Priority 2: workspace_B, products=["Solar"], zips=["90211"] ❌ (zip code mismatch)
+3. Priority 3: workspace_C, products=["Solar"], zips=["90210"] ✅ (both match)
+
+Result: Route to workspace_C
+```
+
+#### Webhook Forwarding
+
+When an appointment is routed to a workspace, the system automatically forwards the appointment data to the workspace's configured webhook URL.
+
+**Forwarding Requirements**:
+- Workspace must have `outbound_webhook_url` configured
+- Workspace must have `webhook_active = true`
+- Workspace must be active (`is_active = true`)
+
+**Forwarded Payload Structure**:
+```json
+{
+  "appointment_id": 15,
+  "appointment_date": "2025-10-01T14:00:00Z",
+  "appointment_time": null,
+  "appointment_type": "consultation",
+  "appointment_status": "scheduled",
+  "appointment_notes": "Customer interested in rooftop solar installation",
+  "estimated_value": 25000,
+  "customer": {
+    "name": "John Doe",
+    "phone": "5551234567",
+    "email": "john.doe@example.com",
+    "zip": "90210"
+  },
+  "service": {
+    "type": "Solar"
+  },
+  "contact": {
+    "id": 868042,
+    "first_name": "John",
+    "last_name": "Doe",
+    "email": "john.doe@example.com",
+    "phone": "+15551234567"
+  },
+  "lead": {
+    "id": 7725656196,
+    "source": "Google Ads"
+  },
+  "workspace": {
+    "id": "chau_main_workspace",
+    "name": "CHAU Main Workspace"
+  },
+  "forwarded_at": "2025-09-29T00:29:05.637Z"
+}
+```
+
+**Forwarding Headers**:
+```http
+Content-Type: application/json
+X-Source: appointment-routing-system
+X-Appointment-ID: 15
+```
+
+**Forwarding Status Tracking**:
+- `forward_status`: "pending", "success", "failed"
+- `forward_attempts`: Number of forwarding attempts
+- `forward_response`: Response from client webhook (truncated to 1000 chars)
+- `forwarded_at`: Timestamp of successful forwarding
 
 ---
 
@@ -1443,6 +2162,46 @@ curl -X POST https://api.homeprojectpartners.com/conversions/workspace/register 
     "workspace_id": "demo_sales_team",
     "name": "Demo Sales Team",
     "permissions": ["read", "write", "convert"]
+  }'
+
+# Create an appointment with automatic routing
+curl -X POST https://api.homeprojectpartners.com/appointments/receive \
+  -H "Content-Type: application/json" \
+  -d '{
+    "lead_id": 7725656196,
+    "customer_name": "John Doe",
+    "customer_phone": "5551234567",
+    "customer_email": "john.doe@example.com",
+    "service_type": "Solar",
+    "customer_zip": "90210",
+    "appointment_date": "2025-10-01T14:00:00Z",
+    "estimated_value": 25000,
+    "appointment_notes": "Customer interested in rooftop solar installation"
+  }'
+
+# Get appointments with filtering
+curl "https://api.homeprojectpartners.com/appointments?workspace_id=chau_main_workspace&limit=10"
+
+# Create routing rule for automatic appointment assignment
+curl -X POST https://api.homeprojectpartners.com/routing-rules \
+  -H "Content-Type: application/json" \
+  -d '{
+    "workspace_id": "chau_main_workspace",
+    "product_types": ["Solar", "Battery Storage"],
+    "zip_codes": ["90210", "90211", "90212"],
+    "priority": 1,
+    "is_active": true,
+    "notes": "Premium solar markets"
+  }'
+
+# Get routing rules for workspace
+curl "https://api.homeprojectpartners.com/routing-rules/chau_main_workspace"
+
+# Manually forward appointment to workspace
+curl -X POST https://api.homeprojectpartners.com/appointments/15/forward \
+  -H "Content-Type: application/json" \
+  -d '{
+    "workspace_id": "target_workspace_id"
   }'
 
 # Log a conversion with custom data

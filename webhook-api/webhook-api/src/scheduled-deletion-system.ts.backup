@@ -1,0 +1,537 @@
+// Scheduled Deletion System for Cloudflare Workers
+// This module provides multiple approaches for handling 24-hour delayed webhook deletion
+
+import { Hono } from 'hono'
+
+// ============================================
+// APPROACH 1: Cron Trigger (Recommended)
+// ============================================
+
+/**
+ * Cron trigger approach - runs every hour to check for expired webhooks
+ * Add this to wrangler.toml:
+ *
+ * [triggers]
+ * crons = ["0 * * * *"]  # Run every hour
+ */
+export async function scheduledDeletionCronHandler(env: any, ctx: ExecutionContext) {
+  console.log('Starting scheduled deletion cron job at:', new Date().toISOString())
+
+  try {
+    const db = env.LEADS_DB
+
+    // Find all webhooks that are past their scheduled deletion time
+    const { results: expiredWebhooks } = await db.prepare(`
+      SELECT
+        w.webhook_id,
+        w.name,
+        w.deletion_job_id,
+        sd.id as job_id,
+        sd.attempts,
+        sd.max_attempts,
+        sd.scheduled_at
+      FROM webhook_configs w
+      JOIN scheduled_deletions sd ON w.deletion_job_id = sd.id
+      WHERE w.deleted_at IS NOT NULL
+        AND sd.status = 'pending'
+        AND sd.scheduled_at <= datetime('now')
+        AND sd.attempts < sd.max_attempts
+    `).all()
+
+    console.log(`Found ${expiredWebhooks.length} webhooks ready for permanent deletion`)
+
+    let successCount = 0
+    let failureCount = 0
+
+    for (const webhook of expiredWebhooks) {
+      try {
+        // Start a transaction for atomic deletion
+        await db.batch([
+          // Update the scheduled deletion status
+          db.prepare(`
+            UPDATE scheduled_deletions
+            SET
+              status = 'in_progress',
+              attempts = attempts + 1,
+              last_attempt_at = CURRENT_TIMESTAMP,
+              updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+          `).bind(webhook.job_id),
+
+          // Log the permanent deletion event
+          db.prepare(`
+            INSERT INTO webhook_deletion_events (webhook_id, event_type, event_data, created_by)
+            VALUES (?, 'permanent_delete', ?, 'scheduled_deletion_system')
+          `).bind(
+            webhook.webhook_id,
+            JSON.stringify({
+              deletion_job_id: webhook.deletion_job_id,
+              scheduled_at: webhook.scheduled_at,
+              attempts: webhook.attempts + 1,
+              automated: true
+            })
+          ),
+
+          // Permanently delete the webhook configuration
+          db.prepare('DELETE FROM webhook_configs WHERE webhook_id = ?').bind(webhook.webhook_id),
+
+          // Mark the scheduled deletion as completed
+          db.prepare(`
+            UPDATE scheduled_deletions
+            SET
+              status = 'completed',
+              updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+          `).bind(webhook.job_id)
+        ])
+
+        console.log(`Successfully deleted webhook: ${webhook.webhook_id}`)
+        successCount++
+
+      } catch (error) {
+        console.error(`Failed to delete webhook ${webhook.webhook_id}:`, error)
+        failureCount++
+
+        // Update the scheduled deletion with error details
+        await db.prepare(`
+          UPDATE scheduled_deletions
+          SET
+            status = 'failed',
+            error_message = ?,
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `).bind(
+          error instanceof Error ? error.message : 'Unknown error',
+          webhook.job_id
+        ).run().catch(console.error)
+      }
+    }
+
+    console.log(`Scheduled deletion cron completed:`, {
+      total: expiredWebhooks.length,
+      succeeded: successCount,
+      failed: failureCount,
+      timestamp: new Date().toISOString()
+    })
+
+    return {
+      success: true,
+      processed: expiredWebhooks.length,
+      succeeded: successCount,
+      failed: failureCount
+    }
+
+  } catch (error) {
+    console.error('Scheduled deletion cron error:', error)
+    throw error
+  }
+}
+
+// ============================================
+// APPROACH 2: Cloudflare Queues (Alternative)
+// ============================================
+
+/**
+ * Queue-based approach for more precise timing
+ * Add this to wrangler.toml:
+ *
+ * [[queues.consumers]]
+ * queue = "webhook-deletion-queue"
+ * max_batch_size = 1
+ * max_wait_time_ms = 5000
+ */
+export async function queueDeletionHandler(batch: MessageBatch<any>, env: any) {
+  console.log(`Processing ${batch.messages.length} deletion queue messages`)
+
+  for (const message of batch.messages) {
+    try {
+      const { webhook_id, deletion_job_id, scheduled_at } = message.body
+
+      console.log(`Processing queued deletion for webhook: ${webhook_id}`)
+
+      const db = env.LEADS_DB
+
+      // Verify the webhook is still scheduled for deletion
+      const { results } = await db.prepare(`
+        SELECT
+          w.webhook_id,
+          w.name,
+          sd.status,
+          sd.scheduled_at
+        FROM webhook_configs w
+        JOIN scheduled_deletions sd ON w.deletion_job_id = sd.id
+        WHERE w.webhook_id = ? AND sd.id = ? AND sd.status = 'pending'
+      `).bind(webhook_id, deletion_job_id).all()
+
+      if (results.length === 0) {
+        console.log(`Webhook ${webhook_id} not found or already processed, acking message`)
+        message.ack()
+        continue
+      }
+
+      // Check if it's time for deletion
+      const scheduledTime = new Date(scheduled_at)
+      const now = new Date()
+
+      if (scheduledTime > now) {
+        console.log(`Webhook ${webhook_id} not yet ready for deletion, retrying later`)
+        message.retry()
+        continue
+      }
+
+      // Perform the deletion
+      await db.batch([
+        db.prepare(`
+          UPDATE scheduled_deletions
+          SET status = 'completed', updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `).bind(deletion_job_id),
+
+        db.prepare(`
+          INSERT INTO webhook_deletion_events (webhook_id, event_type, event_data, created_by)
+          VALUES (?, 'permanent_delete', ?, 'queue_deletion_system')
+        `).bind(
+          webhook_id,
+          JSON.stringify({
+            deletion_job_id,
+            scheduled_at,
+            queue_processed: true
+          })
+        ),
+
+        db.prepare('DELETE FROM webhook_configs WHERE webhook_id = ?').bind(webhook_id)
+      ])
+
+      console.log(`Successfully deleted webhook via queue: ${webhook_id}`)
+      message.ack()
+
+    } catch (error) {
+      console.error('Queue deletion error:', error)
+      message.retry()
+    }
+  }
+}
+
+// Function to enqueue a deletion job
+export async function enqueueDeletion(env: any, webhook_id: string, deletion_job_id: string, scheduled_at: string) {
+  const delay = new Date(scheduled_at).getTime() - Date.now()
+
+  if (delay <= 0) {
+    throw new Error('Scheduled time must be in the future')
+  }
+
+  // Send message to the queue with delay
+  await env.WEBHOOK_DELETION_QUEUE.send({
+    webhook_id,
+    deletion_job_id,
+    scheduled_at
+  }, {
+    delaySeconds: Math.floor(delay / 1000)
+  })
+
+  console.log(`Enqueued deletion for webhook ${webhook_id} with delay ${delay}ms`)
+}
+
+// ============================================
+// APPROACH 3: Durable Objects (Most Precise)
+// ============================================
+
+/**
+ * Durable Objects approach for precise per-webhook scheduling
+ * This provides the most precise timing but is more complex
+ */
+export class WebhookDeletionScheduler {
+  private state: DurableObjectState
+  private env: any
+
+  constructor(state: DurableObjectState, env: any) {
+    this.state = state
+    this.env = env
+  }
+
+  async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url)
+    const action = url.pathname.split('/').pop()
+
+    switch (action) {
+      case 'schedule':
+        return this.handleSchedule(request)
+      case 'cancel':
+        return this.handleCancel(request)
+      case 'status':
+        return this.handleStatus(request)
+      default:
+        return new Response('Not found', { status: 404 })
+    }
+  }
+
+  private async handleSchedule(request: Request): Promise<Response> {
+    try {
+      const { webhook_id, deletion_job_id, scheduled_at } = await request.json()
+
+      const delay = new Date(scheduled_at).getTime() - Date.now()
+
+      if (delay <= 0) {
+        return Response.json({ error: 'Scheduled time must be in the future' }, { status: 400 })
+      }
+
+      // Store the deletion job info
+      await this.state.storage.put(`deletion:${webhook_id}`, {
+        webhook_id,
+        deletion_job_id,
+        scheduled_at,
+        status: 'scheduled'
+      })
+
+      // Set alarm for the scheduled time
+      await this.state.storage.setAlarm(new Date(scheduled_at))
+
+      console.log(`Scheduled deletion alarm for webhook ${webhook_id} at ${scheduled_at}`)
+
+      return Response.json({
+        success: true,
+        webhook_id,
+        scheduled_at,
+        delay_ms: delay
+      })
+
+    } catch (error) {
+      console.error('Schedule deletion error:', error)
+      return Response.json({ error: 'Failed to schedule deletion' }, { status: 500 })
+    }
+  }
+
+  private async handleCancel(request: Request): Promise<Response> {
+    try {
+      const { webhook_id } = await request.json()
+
+      // Remove the deletion job
+      await this.state.storage.delete(`deletion:${webhook_id}`)
+
+      // Cancel the alarm (note: this cancels ALL alarms for this DO)
+      await this.state.storage.deleteAlarm()
+
+      console.log(`Cancelled deletion for webhook ${webhook_id}`)
+
+      return Response.json({
+        success: true,
+        webhook_id,
+        cancelled_at: new Date().toISOString()
+      })
+
+    } catch (error) {
+      console.error('Cancel deletion error:', error)
+      return Response.json({ error: 'Failed to cancel deletion' }, { status: 500 })
+    }
+  }
+
+  private async handleStatus(request: Request): Promise<Response> {
+    try {
+      const url = new URL(request.url)
+      const webhook_id = url.searchParams.get('webhook_id')
+
+      if (!webhook_id) {
+        return Response.json({ error: 'webhook_id parameter required' }, { status: 400 })
+      }
+
+      const deletion = await this.state.storage.get(`deletion:${webhook_id}`)
+
+      return Response.json({
+        webhook_id,
+        deletion_scheduled: !!deletion,
+        deletion_info: deletion || null
+      })
+
+    } catch (error) {
+      console.error('Status check error:', error)
+      return Response.json({ error: 'Failed to check status' }, { status: 500 })
+    }
+  }
+
+  // Alarm handler - called when the scheduled time arrives
+  async alarm(): Promise<void> {
+    console.log('Deletion alarm triggered at:', new Date().toISOString())
+
+    try {
+      // Get all scheduled deletions
+      const deletions = await this.state.storage.list({ prefix: 'deletion:' })
+
+      for (const [key, deletion] of deletions) {
+        const { webhook_id, deletion_job_id } = deletion as any
+
+        try {
+          // Perform the deletion
+          const db = this.env.LEADS_DB
+
+          await db.batch([
+            db.prepare(`
+              UPDATE scheduled_deletions
+              SET status = 'completed', updated_at = CURRENT_TIMESTAMP
+              WHERE id = ?
+            `).bind(deletion_job_id),
+
+            db.prepare(`
+              INSERT INTO webhook_deletion_events (webhook_id, event_type, event_data, created_by)
+              VALUES (?, 'permanent_delete', ?, 'durable_object_scheduler')
+            `).bind(
+              webhook_id,
+              JSON.stringify({
+                deletion_job_id,
+                durable_object_processed: true,
+                alarm_triggered_at: new Date().toISOString()
+              })
+            ),
+
+            db.prepare('DELETE FROM webhook_configs WHERE webhook_id = ?').bind(webhook_id)
+          ])
+
+          // Remove from storage
+          await this.state.storage.delete(key)
+
+          console.log(`Successfully deleted webhook via Durable Object: ${webhook_id}`)
+
+        } catch (error) {
+          console.error(`Failed to delete webhook ${webhook_id}:`, error)
+
+          // Update the deletion status with error
+          await this.env.LEADS_DB.prepare(`
+            UPDATE scheduled_deletions
+            SET
+              status = 'failed',
+              error_message = ?,
+              attempts = attempts + 1,
+              updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+          `).bind(
+            error instanceof Error ? error.message : 'Unknown error',
+            deletion_job_id
+          ).run().catch(console.error)
+        }
+      }
+
+    } catch (error) {
+      console.error('Alarm handler error:', error)
+    }
+  }
+}
+
+// ============================================
+// APPROACH 4: Database-Driven Cleanup (Fallback)
+// ============================================
+
+/**
+ * Simple database-driven approach as a fallback
+ * Can be called from any endpoint or scheduled task
+ */
+export async function performDatabaseCleanup(db: any): Promise<{ deleted: number, failed: number }> {
+  console.log('Starting database-driven cleanup')
+
+  try {
+    // Find expired webhooks
+    const { results: expiredWebhooks } = await db.prepare(`
+      SELECT webhook_id, deletion_job_id
+      FROM webhook_configs w
+      JOIN scheduled_deletions sd ON w.deletion_job_id = sd.id
+      WHERE w.deleted_at IS NOT NULL
+        AND sd.status = 'pending'
+        AND w.scheduled_deletion_at <= datetime('now')
+    `).all()
+
+    let deleted = 0
+    let failed = 0
+
+    for (const webhook of expiredWebhooks) {
+      try {
+        await db.batch([
+          db.prepare('DELETE FROM webhook_configs WHERE webhook_id = ?').bind(webhook.webhook_id),
+          db.prepare(`
+            UPDATE scheduled_deletions
+            SET status = 'completed', updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+          `).bind(webhook.deletion_job_id)
+        ])
+        deleted++
+      } catch (error) {
+        console.error(`Failed to delete ${webhook.webhook_id}:`, error)
+        failed++
+      }
+    }
+
+    console.log(`Database cleanup completed: ${deleted} deleted, ${failed} failed`)
+    return { deleted, failed }
+
+  } catch (error) {
+    console.error('Database cleanup error:', error)
+    throw error
+  }
+}
+
+// ============================================
+// API Endpoint for Manual Cleanup
+// ============================================
+
+const scheduledDeletion = new Hono()
+
+// Manual trigger for cleanup (admin endpoint)
+scheduledDeletion.post('/cleanup', async (c) => {
+  try {
+    const db = ((c.env as any) as any).LEADS_DB
+    const result = await performDatabaseCleanup(db)
+
+    return c.json({
+      status: 'success',
+      message: 'Manual cleanup completed',
+      deleted_webhooks: result.deleted,
+      failed_deletions: result.failed,
+      timestamp: new Date().toISOString()
+    })
+  } catch (error) {
+    console.error('Manual cleanup error:', error)
+    return c.json({
+      error: 'Cleanup failed',
+      message: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString()
+    }, 500)
+  }
+})
+
+// Get scheduled deletion statistics
+scheduledDeletion.get('/stats', async (c) => {
+  try {
+    const db = ((c.env as any) as any).LEADS_DB
+
+    const { results } = await db.prepare(`
+      SELECT
+        COUNT(*) as total_scheduled,
+        COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending,
+        COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed,
+        COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed,
+        COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as cancelled,
+        COUNT(CASE WHEN scheduled_at <= datetime('now') AND status = 'pending' THEN 1 END) as overdue
+      FROM scheduled_deletions
+    `).all()
+
+    const stats = results[0] || {}
+
+    return c.json({
+      scheduled_deletion_stats: {
+        total_jobs: stats.total_scheduled || 0,
+        pending: stats.pending || 0,
+        completed: stats.completed || 0,
+        failed: stats.failed || 0,
+        cancelled: stats.cancelled || 0,
+        overdue: stats.overdue || 0
+      },
+      timestamp: new Date().toISOString()
+    })
+  } catch (error) {
+    console.error('Stats error:', error)
+    return c.json({
+      error: 'Failed to fetch stats',
+      message: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString()
+    }, 500)
+  }
+})
+
+export { scheduledDeletion as scheduledDeletionRouter }

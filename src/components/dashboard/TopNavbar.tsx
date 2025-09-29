@@ -28,7 +28,7 @@ import { useAuth } from '@/hooks/useAuth';
 const navigation = [
   { name: 'Dashboard', href: '/', icon: BarChart3 },
   { name: 'Webhooks', href: '/webhooks', icon: FolderOpen },
-  { name: 'Leads', href: '/leads', icon: Users },
+  { name: 'Contacts', href: '/contacts', icon: Users },
   { name: 'Appointments', href: '/appointments', icon: Calendar },
   { name: 'Analytics', href: '/analytics', icon: TrendingUp },
   { name: 'Documentation', href: '/docs', icon: BookOpen },

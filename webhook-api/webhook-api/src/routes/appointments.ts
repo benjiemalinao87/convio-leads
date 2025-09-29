@@ -15,6 +15,9 @@ interface AppointmentRequest {
   // If workspace_id provided, auto-route to that workspace
   workspace_id?: string
 
+  // Optional: Link to existing lead instead of creating new one
+  lead_id?: number
+
   // Customer information
   customer_name: string
   customer_phone: string
@@ -291,65 +294,99 @@ appointmentsRouter.post('/receive', async (c) => {
       }, 404)
     }
 
-    // Find or create contact (using the matched workspace as webhook_id)
+    // Determine contact: if lead_id provided, find contact that owns the lead; otherwise find by phone
     let contactId: number
-    const existingContact = await db.prepare(`
-      SELECT id FROM contacts
-      WHERE webhook_id = ? AND phone = ?
-    `).bind(matchedWorkspaceId, normalizedPhone).first()
+    if (body.lead_id) {
+      // Find contact that owns the specified lead
+      const leadOwner = await db.prepare(`
+        SELECT contact_id FROM leads WHERE id = ?
+      `).bind(body.lead_id).first()
 
-    if (existingContact) {
-      contactId = existingContact.id as number
+      if (!leadOwner) {
+        return c.json({
+          success: false,
+          error: 'Invalid lead_id: Lead not found',
+          provided_lead_id: body.lead_id,
+          timestamp: new Date().toISOString()
+        }, 400)
+      }
+
+      contactId = leadOwner.contact_id as number
     } else {
-      // Create new contact
-      const newContactId = await generateContactId()
+      // Find existing contact by phone number (across all webhooks) or create new one
+      const existingContact = await db.prepare(`
+        SELECT id, webhook_id, first_name, last_name
+        FROM contacts
+        WHERE phone = ?
+        ORDER BY created_at DESC
+        LIMIT 1
+      `).bind(normalizedPhone).first()
+
+      if (existingContact) {
+        contactId = existingContact.id as number
+      } else {
+        // Create new contact
+        const newContactId = await generateContactId()
+        const [firstName, ...lastNameParts] = body.customer_name.split(' ')
+        const lastName = lastNameParts.join(' ') || ''
+
+        await db.prepare(`
+          INSERT INTO contacts (
+            id, webhook_id, phone, first_name, last_name, email,
+            zip_code, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `).bind(
+          newContactId,
+          matchedWorkspaceId,
+          normalizedPhone,
+          firstName,
+          lastName,
+          body.customer_email || null,
+          body.customer_zip
+        ).run()
+
+        contactId = newContactId
+      }
+    }
+
+    // Use existing lead if provided, otherwise create new lead for this appointment
+    let leadId: number
+    if (body.lead_id) {
+      leadId = body.lead_id
+      // Update existing lead status to 'scheduled'
+      await db.prepare(`
+        UPDATE leads
+        SET status = 'scheduled', updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).bind(leadId).run()
+    } else {
+      // Create new lead for this appointment
+      leadId = await generateLeadId()
       const [firstName, ...lastNameParts] = body.customer_name.split(' ')
       const lastName = lastNameParts.join(' ') || ''
 
       await db.prepare(`
-        INSERT INTO contacts (
-          id, webhook_id, phone, first_name, last_name, email,
-          zip_code, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        INSERT INTO leads (
+          id, contact_id, webhook_id, lead_type,
+          first_name, last_name, email, phone,
+          zip_code, source, productid,
+          created_at, updated_at, status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)
       `).bind(
-        newContactId,
+        leadId,
+        contactId,
         matchedWorkspaceId,
-        normalizedPhone,
+        'appointment',
         firstName,
         lastName,
         body.customer_email || null,
-        body.customer_zip
+        normalizedPhone,
+        body.customer_zip,
+        'appointment-service',
+        body.service_type,
+        'scheduled'
       ).run()
-
-      contactId = newContactId
     }
-
-    // Create lead for this appointment
-    const leadId = await generateLeadId()
-    const [firstName, ...lastNameParts] = body.customer_name.split(' ')
-    const lastName = lastNameParts.join(' ') || ''
-
-    await db.prepare(`
-      INSERT INTO leads (
-        id, contact_id, webhook_id, lead_type,
-        first_name, last_name, email, phone,
-        zip_code, source, productid,
-        created_at, updated_at, status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)
-    `).bind(
-      leadId,
-      contactId,
-      matchedWorkspaceId,
-      'appointment',
-      firstName,
-      lastName,
-      body.customer_email || null,
-      normalizedPhone,
-      body.customer_zip,
-      'appointment-service',
-      body.service_type,
-      'new'
-    ).run()
 
     // Create appointment using existing table structure
     const appointmentResult = await db.prepare(`
@@ -382,13 +419,6 @@ appointmentsRouter.post('/receive', async (c) => {
     ).run()
 
     const appointmentId = appointmentResult.meta.last_row_id
-
-    // Update lead status to 'scheduled'
-    await db.prepare(`
-      UPDATE leads
-      SET status = 'scheduled', updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `).bind(leadId).run()
 
     // Log appointment creation event
     await db.prepare(`

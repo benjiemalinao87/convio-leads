@@ -18,7 +18,8 @@ import {
   RefreshCw,
   Trash2,
   FileText,
-  RotateCcw
+  RotateCcw,
+  Clock
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -61,16 +62,16 @@ interface WebhookWithStats {
   status: 'active' | 'new' | 'disabled';
 }
 
-export default function Webhooks() {
+export default function WebhooksWithSoftDelete() {
   const [webhooks, setWebhooks] = useState<WebhookWithStats[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isApiDocOpen, setIsApiDocOpen] = useState(false);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [isDeletedWebhooksPanelOpen, setIsDeletedWebhooksPanelOpen] = useState(false);
-  const [selectedWebhookForDeletion, setSelectedWebhookForDeletion] = useState<WebhookWithStats | null>(null);
+  const [isDeletedPanelOpen, setIsDeletedPanelOpen] = useState(false);
+  const [deleteDialogWebhook, setDeleteDialogWebhook] = useState<{id: string, name: string} | null>(null);
   const [newWebhookName, setNewWebhookName] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
 
   const API_BASE = 'https://api.homeprojectpartners.com';
@@ -128,7 +129,7 @@ export default function Webhooks() {
 
     try {
       setIsLoading(true);
-      
+
       const response = await fetch(`${API_BASE}/webhook`, {
         method: 'POST',
         headers: {
@@ -148,7 +149,7 @@ export default function Webhooks() {
       }
 
       const result = await response.json();
-      
+
       toast({
         title: "Webhook Created",
         description: `${newWebhookName} has been configured successfully with ID: ${result.webhook?.id}`,
@@ -156,10 +157,10 @@ export default function Webhooks() {
 
       setNewWebhookName('');
       setIsCreateDialogOpen(false);
-      
+
       // Refresh the webhooks list
       await fetchWebhooks();
-      
+
     } catch (error) {
       console.error('Failed to create webhook:', error);
       toast({
@@ -172,22 +173,20 @@ export default function Webhooks() {
     }
   };
 
-  const handleDeleteWebhook = (webhook: WebhookWithStats) => {
-    setSelectedWebhookForDeletion(webhook);
-    setIsDeleteDialogOpen(true);
-  };
-
-  const handleDeleteConfirm = async (webhookId: string, reason: string, forceDelete: boolean) => {
+  const handleSoftDeleteWebhook = async (webhookId: string, reason: string, forceDelete: boolean) => {
     try {
-      const params = new URLSearchParams();
-      if (forceDelete) params.append('force', 'true');
-      if (reason) params.append('reason', reason);
+      setIsDeleting(true);
 
-      const response = await fetch(`${API_BASE}/webhook/${webhookId}?${params}`, {
+      const response = await fetch(`${API_BASE}/webhook/${webhookId}`, {
         method: 'DELETE',
         headers: {
-          'X-User-ID': 'admin-user' // This should come from auth context
-        }
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer admin-user' // This should come from auth context
+        },
+        body: JSON.stringify({
+          deletion_reason: reason,
+          force_delete: forceDelete
+        }),
       });
 
       if (!response.ok) {
@@ -197,15 +196,39 @@ export default function Webhooks() {
 
       const result = await response.json();
 
-      toast({
-        title: forceDelete ? "Webhook Deleted Permanently" : "Webhook Scheduled for Deletion",
-        description: forceDelete
-          ? `${selectedWebhookForDeletion?.name} has been deleted permanently.`
-          : `${selectedWebhookForDeletion?.name} will be deleted in 24 hours. You can restore it until then.`,
-      });
+      const webhook = webhooks.find(w => w.id === webhookId);
 
-      setIsDeleteDialogOpen(false);
-      setSelectedWebhookForDeletion(null);
+      if (forceDelete) {
+        toast({
+          title: "Webhook Permanently Deleted",
+          description: `${webhook?.name} has been permanently deleted.`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Webhook Soft Deleted",
+          description: (
+            <div className="space-y-2">
+              <p>{webhook?.name} has been soft deleted.</p>
+              <div className="flex items-center gap-2 text-sm">
+                <Clock className="h-4 w-4" />
+                <span>Can be restored within 24 hours</span>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setIsDeletedPanelOpen(true)}
+                className="mt-2"
+              >
+                <RotateCcw className="h-4 w-4 mr-2" />
+                View Deleted Webhooks
+              </Button>
+            </div>
+          ),
+        });
+      }
+
+      setDeleteDialogWebhook(null);
 
       // Refresh the webhooks list
       await fetchWebhooks();
@@ -217,6 +240,8 @@ export default function Webhooks() {
         description: error instanceof Error ? error.message : 'Failed to delete webhook',
         variant: "destructive",
       });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -276,15 +301,15 @@ export default function Webhooks() {
               Manage your webhook endpoints for automated lead collection
             </p>
           </div>
-          
+
           <div className="flex gap-2">
             <Button
-              onClick={() => setIsDeletedWebhooksPanelOpen(true)}
+              onClick={() => setIsDeletedPanelOpen(true)}
               variant="outline"
               className="flex items-center gap-2"
             >
-              <RotateCcw className="h-4 w-4" />
-              View Deleted
+              <Trash2 className="h-4 w-4" />
+              Deleted Webhooks
             </Button>
             <Button
               onClick={() => setIsApiDocOpen(true)}
@@ -353,7 +378,7 @@ export default function Webhooks() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => handleDeleteWebhook(webhook)}
+                      onClick={() => setDeleteDialogWebhook({ id: webhook.id, name: webhook.name })}
                       className="h-8 w-8 p-0 text-destructive hover:text-destructive-foreground hover:bg-destructive"
                       title="Delete webhook"
                     >
@@ -435,7 +460,7 @@ export default function Webhooks() {
             <p className="text-muted-foreground mb-6">
               Create your first webhook endpoint to start collecting leads automatically.
             </p>
-            <Button 
+            <Button
               onClick={() => setIsCreateDialogOpen(true)}
               className="bg-gradient-primary hover:bg-primary/90"
             >
@@ -494,32 +519,29 @@ export default function Webhooks() {
           </DialogContent>
         </Dialog>
 
+        {/* Soft Delete Dialog */}
+        {deleteDialogWebhook && (
+          <SoftDeleteDialog
+            isOpen={!!deleteDialogWebhook}
+            onClose={() => setDeleteDialogWebhook(null)}
+            webhookId={deleteDialogWebhook.id}
+            webhookName={deleteDialogWebhook.name}
+            onDeleteConfirm={handleSoftDeleteWebhook}
+            isDeleting={isDeleting}
+          />
+        )}
+
+        {/* Deleted Webhooks Panel */}
+        <SoftDeletedWebhooksPanel
+          isOpen={isDeletedPanelOpen}
+          onClose={() => setIsDeletedPanelOpen(false)}
+          onWebhookRestored={fetchWebhooks}
+        />
+
         {/* API Documentation Dialog */}
         <ApiDocumentation
           open={isApiDocOpen}
           onOpenChange={setIsApiDocOpen}
-        />
-
-        {/* Soft Delete Dialog */}
-        {selectedWebhookForDeletion && (
-          <SoftDeleteDialog
-            isOpen={isDeleteDialogOpen}
-            onClose={() => {
-              setIsDeleteDialogOpen(false);
-              setSelectedWebhookForDeletion(null);
-            }}
-            webhookId={selectedWebhookForDeletion.id}
-            webhookName={selectedWebhookForDeletion.name}
-            onDeleteConfirm={handleDeleteConfirm}
-            isDeleting={isLoading}
-          />
-        )}
-
-        {/* Soft Deleted Webhooks Panel */}
-        <SoftDeletedWebhooksPanel
-          isOpen={isDeletedWebhooksPanelOpen}
-          onClose={() => setIsDeletedWebhooksPanelOpen(false)}
-          onWebhookRestored={fetchWebhooks}
         />
       </div>
     </Layout>

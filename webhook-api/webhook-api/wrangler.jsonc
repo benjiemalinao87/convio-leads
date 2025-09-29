@@ -70,20 +70,22 @@
 	//   }
 	// ],
 	/**
-	 * Queues for asynchronous lead processing
+	 * Queues for asynchronous processing (temporarily disabled)
 	 */
 	// "queues": {
 	//   "producers": [
 	//     {
-	//       "binding": "LEAD_PROCESSOR_QUEUE",
-	//       "queue": "lead-processing"
+	//       "binding": "WEBHOOK_DELETION_QUEUE",
+	//       "queue": "webhook-deletion"
 	//     }
 	//   ],
 	//   "consumers": [
 	//     {
-	//       "queue": "lead-processing",
-	//       "max_batch_size": 10,
-	//       "max_batch_timeout": 5
+	//       "queue": "webhook-deletion",
+	//       "max_batch_size": 5,
+	//       "max_batch_timeout": 10,
+	//       "max_retries": 3,
+	//       "dead_letter_queue": "webhook-deletion-dlq"
 	//     }
 	//   ]
 	// }

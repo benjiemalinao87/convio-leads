@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -47,13 +47,14 @@ interface FormData {
   is_active: boolean;
 }
 
-// Available workspaces - in a real app, this would come from an API
-const WORKSPACES = [
-  { id: 'default_workspace', name: 'Default Workspace' },
-  { id: 'demo_sales_team', name: 'Demo Sales Team' },
-  { id: 'hvac_specialists', name: 'HVAC Specialists Team' },
-  { id: 'test_team_001', name: 'Test Team for API Demo' },
-];
+interface Workspace {
+  id: string;
+  name: string;
+  is_active: boolean;
+  api_key?: string;
+  outbound_webhook_url?: string;
+  webhook_active?: boolean;
+}
 
 // Available product types
 const PRODUCT_TYPES = [
@@ -71,6 +72,8 @@ const PRODUCT_TYPES = [
 
 export function CreateRoutingRuleDialog({ open, onOpenChange, onSuccess }: CreateRoutingRuleDialogProps) {
   const [loading, setLoading] = useState(false);
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [workspacesLoading, setWorkspacesLoading] = useState(false);
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [csvError, setCsvError] = useState('');
   const [csvPreview, setCsvPreview] = useState<string[]>([]);
@@ -89,6 +92,41 @@ export function CreateRoutingRuleDialog({ open, onOpenChange, onSuccess }: Creat
   const [newProductType, setNewProductType] = useState('');
   const [newZipCode, setNewZipCode] = useState('');
   const [zipCodesText, setZipCodesText] = useState('');
+
+  // Fetch workspaces from API
+  const fetchWorkspaces = async () => {
+    try {
+      setWorkspacesLoading(true);
+      const response = await fetch('https://api.homeprojectpartners.com/conversions/workspaces');
+      const data = await response.json();
+
+      if (data.success) {
+        setWorkspaces(data.workspaces || []);
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to load workspaces",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching workspaces:', error);
+      toast({
+        title: "Error",
+        description: "Failed to connect to API",
+        variant: "destructive",
+      });
+    } finally {
+      setWorkspacesLoading(false);
+    }
+  };
+
+  // Fetch workspaces when dialog opens
+  useEffect(() => {
+    if (open) {
+      fetchWorkspaces();
+    }
+  }, [open]);
 
   const handleAddProductType = (productType: string) => {
     if (productType && !formData.product_types.includes(productType)) {
@@ -338,6 +376,7 @@ export function CreateRoutingRuleDialog({ open, onOpenChange, onSuccess }: Creat
     setCsvFile(null);
     setCsvError('');
     setCsvPreview([]);
+    setWorkspaces([]); // Clear workspaces when dialog closes
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -376,16 +415,19 @@ export function CreateRoutingRuleDialog({ open, onOpenChange, onSuccess }: Creat
                 <Select
                   value={formData.workspace_id}
                   onValueChange={(value) => setFormData(prev => ({ ...prev, workspace_id: value }))}
+                  disabled={workspacesLoading}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select workspace" />
+                    <SelectValue placeholder={workspacesLoading ? "Loading workspaces..." : "Select workspace"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {WORKSPACES.map((workspace) => (
-                      <SelectItem key={workspace.id} value={workspace.id}>
-                        {workspace.name}
-                      </SelectItem>
-                    ))}
+                    {workspaces
+                      .filter(workspace => workspace.is_active)
+                      .map((workspace) => (
+                        <SelectItem key={workspace.id} value={workspace.id}>
+                          {workspace.name}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
