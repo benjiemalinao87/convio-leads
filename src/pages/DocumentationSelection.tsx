@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Database, Target, Code, Workflow, ArrowRight, BookOpen } from 'lucide-react';
+import { Database, Target, Code, Workflow, ArrowRight, BookOpen, Users, TrendingUp } from 'lucide-react';
 
 const documentOptions = [
   {
@@ -42,6 +42,22 @@ const documentOptions = [
     icon: Target,
     description: 'Comprehensive guide to appointment routing algorithms, rules management, and workspace forwarding',
     color: 'bg-red-500'
+  },
+  {
+    id: 'sales-demo',
+    name: 'Sales Demonstration Guide',
+    file: '/webhook-api/SALES_DEMONSTRATION_GUIDE.md',
+    icon: Users,
+    description: 'Complete sales demonstration playbook with business logic, ASCII diagrams, and revenue model for partner demos',
+    color: 'bg-indigo-500'
+  },
+  {
+    id: 'marketing-strategy',
+    name: 'Marketing Strategy Guide',
+    file: '/webhook-api/MARKETING_STRATEGY_GUIDE.md',
+    icon: TrendingUp,
+    description: 'Comprehensive marketing strategy with outreach scripts, campaign tactics, and partner acquisition framework',
+    color: 'bg-pink-500'
   }
 ];
 

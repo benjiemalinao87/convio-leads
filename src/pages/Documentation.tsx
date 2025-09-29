@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
-import { ChevronDown, Target, Code, Workflow, Database, ArrowLeft } from 'lucide-react';
+import { ChevronDown, Target, Code, Workflow, Database, ArrowLeft, Users, TrendingUp } from 'lucide-react';
 import MermaidDiagram from '@/components/MermaidDiagram';
 import { Button } from '@/components/ui/button';
 
@@ -40,6 +40,20 @@ const documentOptions = [
     file: '/webhook-api/APPOINTMENT_ROUTING_GUIDE.md',
     icon: Target,
     description: 'Comprehensive guide to appointment routing algorithms, rules management, and workspace forwarding'
+  },
+  {
+    id: 'sales-demo',
+    name: 'Sales Demonstration Guide',
+    file: '/webhook-api/SALES_DEMONSTRATION_GUIDE.md',
+    icon: Users,
+    description: 'Complete sales demonstration playbook with business logic, ASCII diagrams, and revenue model for partner demos'
+  },
+  {
+    id: 'marketing-strategy',
+    name: 'Marketing Strategy Guide',
+    file: '/webhook-api/MARKETING_STRATEGY_GUIDE.md',
+    icon: TrendingUp,
+    description: 'Comprehensive marketing strategy with outreach scripts, campaign tactics, and partner acquisition framework'
   }
 ];
 
