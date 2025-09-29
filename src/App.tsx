@@ -13,6 +13,7 @@ import Leads from "./pages/Leads";
 import ContactDetail from "./pages/ContactDetail";
 import Settings from "./pages/Settings";
 import Documentation from "./pages/Documentation";
+import DocumentationSelection from "./pages/DocumentationSelection";
 import Appointments from "./pages/Appointments";
 import MermaidTest from "./pages/MermaidTest";
 import NotFound from "./pages/NotFound";
@@ -93,6 +94,14 @@ const App = () => (
             />
             <Route
               path="/docs"
+              element={
+                <ProtectedRoute>
+                  <DocumentationSelection />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/docs/:docId"
               element={
                 <ProtectedRoute>
                   <Documentation />

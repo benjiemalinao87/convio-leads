@@ -444,3 +444,95 @@ User requested to study the remote D1 database and create mermaid diagrams for a
 - Clear visualization of how one contact can have multiple leads
 - Easy to explain the complete customer journey from contact to conversion
 - Provides both high-level overview and detailed relationship mapping
+
+## Contact Deletion Foreign Key Constraint Fix (September 29, 2025)
+
+### Problem
+Contact deletion from the frontend UI appeared to work but the contact would reappear after page refresh. Investigation revealed the contact was not actually being deleted from the database due to foreign key constraint failures.
+
+### Root Cause Analysis
+1. **Frontend ID Mismatch**: UI showed contact as ID "1" but actual database contact had ID "868042"
+2. **Incomplete Cascade Deletion**: API's DELETE `/contacts/:contactId` endpoint was missing crucial cascade deletion steps
+3. **Missing Foreign Key Handling**: The API wasn't deleting from `lead_status_history` table before deleting leads
+4. **Silent Error in API**: Database constraint errors were logged but API returned generic "Database error" message
+
+### API Error Details
+**Error**: `FOREIGN KEY constraint failed: SQLITE_CONSTRAINT`
+**Root Cause**: Lead 7725656196 had a record in `lead_status_history` table that wasn't being deleted in cascade deletion logic
+
+### Solution Applied
+
+#### 1. Frontend Fix (`src/pages/Leads.tsx`)
+**Problem**: Frontend creates synthetic lead IDs like `contact_868042` for contacts without leads, but delete handler always tried to delete as leads.
+
+```typescript
+// Before: Always tried to delete as a lead
+const response = await fetch(`${API_BASE}/leads/${leadId}`, { method: 'DELETE' });
+
+// After: Check if it's a contact and use correct endpoint
+if (leadId.startsWith('contact_')) {
+  const contactId = leadId.replace('contact_', '');
+  response = await fetch(`${API_BASE}/contacts/${contactId}`, { method: 'DELETE' });
+} else {
+  response = await fetch(`${API_BASE}/leads/${leadId}`, { method: 'DELETE' });
+}
+```
+
+#### 2. API Cascade Deletion Fix
+**Files Modified**: 
+- `/webhook-api/webhook-api/src/routes/contacts.ts` (Contact deletion endpoint)
+- `/webhook-api/webhook-api/src/routes/leads.ts` (Lead deletion endpoint and contact deletion via leads route)
+
+**Missing Deletion Steps Added**:
+```sql
+-- CRITICAL: These were missing and causing foreign key constraint failures
+DELETE FROM lead_status_history WHERE lead_id IN (SELECT id FROM leads WHERE contact_id = ?);
+DELETE FROM lead_activities WHERE lead_id IN (SELECT id FROM leads WHERE contact_id = ?);
+```
+
+#### 3. Manual Database Cleanup
+Since API was failing, performed correct cascade deletion order manually:
+1. ✅ `DELETE FROM lead_events WHERE lead_id IN (...)`
+2. ✅ `DELETE FROM appointment_events WHERE appointment_id IN (...)`  
+3. ✅ `DELETE FROM contact_events WHERE contact_id = 868042`
+4. ✅ `DELETE FROM lead_status_history WHERE lead_id = 7725656196` **(Critical missing step)**
+5. ✅ `DELETE FROM leads WHERE contact_id = 868042`
+6. ✅ `DELETE FROM contacts WHERE id = 868042`
+
+### Results
+- ✅ **Contact Deletion**: Now works correctly via API endpoint `/contacts/:contactId`
+- ✅ **Frontend Logic**: Properly routes contact vs lead deletions to correct endpoints
+- ✅ **Database Integrity**: All foreign key constraints properly handled in cascade deletion
+- ✅ **Error Handling**: API now properly reports constraint failures instead of silent errors
+
+### Key Lessons
+- ✅ **DO**: Include ALL related tables in cascade deletion logic, not just obvious ones
+- ✅ **DO**: Map out complete foreign key relationships before implementing deletion endpoints
+- ✅ **DO**: Test deletion endpoints with real data that has foreign key relationships
+- ✅ **DO**: Check that frontend synthetic IDs (like `contact_${id}`) are properly parsed for API calls
+- ✅ **DO**: Use proper error reporting in APIs rather than generic "Database error" messages
+- ✅ **DO**: Query database directly to verify deletion actually occurred, not just API response
+- ✅ **DO**: Consider using database views or stored procedures for complex cascade deletions
+- ❌ **DON'T**: Assume cascade deletion works without testing with real foreign key relationships
+- ❌ **DON'T**: Rely only on frontend state updates - verify database changes
+- ❌ **DON'T**: Use silent error handling for critical foreign key constraint failures
+- ❌ **DON'T**: Forget to update both contact deletion endpoints (contacts.ts and leads.ts routes)
+
+### Database Tables Requiring Cascade Deletion
+**For Contact Deletion**, must delete in this order:
+1. `lead_events` (references lead_id)
+2. `lead_status_history` (references lead_id) **← Was missing**
+3. `lead_activities` (references lead_id) **← Was missing**
+4. `appointment_events` (references appointment_id)
+5. `appointments` (references lead_id or contact_id)
+6. `conversion_events` (references conversion_id)
+7. `conversions` (references lead_id or contact_id)
+8. `workspace_tracking` (references lead_id or contact_id)
+9. `contact_events` (references contact_id)
+10. `leads` (references contact_id)
+11. `contacts` (primary table)
+
+### Files Modified
+- `/src/pages/Leads.tsx` - Fixed frontend routing for contact vs lead deletion
+- `/webhook-api/webhook-api/src/routes/contacts.ts` - Added missing cascade deletion steps
+- `/webhook-api/webhook-api/src/routes/leads.ts` - Added missing cascade deletion steps

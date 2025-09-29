@@ -1,7 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
-import { ChevronDown, Target, Code, Workflow, Database } from 'lucide-react';
+import { ChevronDown, Target, Code, Workflow, Database, ArrowLeft } from 'lucide-react';
 import MermaidDiagram from '@/components/MermaidDiagram';
+import { Button } from '@/components/ui/button';
 
 const documentOptions = [
   {
@@ -42,10 +44,28 @@ const documentOptions = [
 ];
 
 const Documentation = () => {
-  const [selectedDoc, setSelectedDoc] = useState(documentOptions[0]);
+  const { docId } = useParams<{ docId: string }>();
+  const navigate = useNavigate();
+  const [selectedDoc, setSelectedDoc] = useState(() => {
+    // Find the document based on URL parameter, default to first if not found
+    return documentOptions.find(doc => doc.id === docId) || documentOptions[0];
+  });
   const [markdown, setMarkdown] = useState('');
   const [loading, setLoading] = useState(true);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+
+  // If no valid docId is provided, redirect to selection
+  useEffect(() => {
+    if (!docId || !documentOptions.find(doc => doc.id === docId)) {
+      navigate('/docs', { replace: true });
+      return;
+    }
+    // Update selected document when docId changes
+    const doc = documentOptions.find(doc => doc.id === docId);
+    if (doc) {
+      setSelectedDoc(doc);
+    }
+  }, [docId, navigate]);
 
   // Extract mermaid diagrams from markdown
   const { processedMarkdown, mermaidDiagrams } = useMemo(() => {
@@ -104,11 +124,32 @@ const Documentation = () => {
     loadDocument();
   }, [selectedDoc]);
 
+  const handleDocumentChange = (doc: typeof documentOptions[0]) => {
+    setSelectedDoc(doc);
+    setDropdownOpen(false);
+    navigate(`/docs/${doc.id}`);
+  };
+
+  const handleBackToSelection = () => {
+    navigate('/docs');
+  };
+
   return (
     <div className="container mx-auto px-4 py-6">
       <div className="mb-6">
         <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl font-bold text-white">Documentation</h1>
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleBackToSelection}
+              className="flex items-center gap-2 text-gray-400 hover:text-white"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back to Documentation
+            </Button>
+            <h1 className="text-2xl font-bold text-white">Documentation</h1>
+          </div>
 
           <div className="relative">
             <button
@@ -127,10 +168,7 @@ const Documentation = () => {
                   <button
                     type="button"
                     key={doc.id}
-                    onClick={() => {
-                      setSelectedDoc(doc);
-                      setDropdownOpen(false);
-                    }}
+                    onClick={() => handleDocumentChange(doc)}
                     className={`w-full px-4 py-3 flex items-start gap-3 hover:bg-gray-700 transition-colors text-left ${
                       selectedDoc.id === doc.id ? 'bg-gray-700' : ''
                     } ${doc.id === documentOptions[0].id ? 'rounded-t-lg' : ''} ${

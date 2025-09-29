@@ -480,6 +480,16 @@ contacts.delete('/:contactId', async (c) => {
       DELETE FROM lead_events WHERE lead_id IN (SELECT id FROM leads WHERE contact_id = ?)
     `).bind(contactId).run()
 
+    // Delete lead status history for leads with this contact_id (CRITICAL: This was missing!)
+    await db.prepare(`
+      DELETE FROM lead_status_history WHERE lead_id IN (SELECT id FROM leads WHERE contact_id = ?)
+    `).bind(contactId).run()
+
+    // Delete lead activities for leads with this contact_id
+    await db.prepare(`
+      DELETE FROM lead_activities WHERE lead_id IN (SELECT id FROM leads WHERE contact_id = ?)
+    `).bind(contactId).run()
+
     // Delete appointment events for appointments linked to leads with this contact_id
     await db.prepare(`
       DELETE FROM appointment_events WHERE appointment_id IN (

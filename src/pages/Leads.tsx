@@ -286,26 +286,39 @@ const Leads = () => {
 
   const handleDeleteLead = async (leadId: string) => {
     try {
-      // For now, always delete individual leads until API permissions are fixed
-      const response = await fetch(`${API_BASE}/leads/${leadId}`, {
-        method: 'DELETE',
-      });
+      let response;
+      let deleteType = 'lead';
+
+      // Check if this is a contact entry (synthetic lead created for contacts without actual leads)
+      if (leadId.startsWith('contact_')) {
+        // Extract the actual contact ID and delete the contact
+        const contactId = leadId.replace('contact_', '');
+        deleteType = 'contact';
+        response = await fetch(`${API_BASE}/contacts/${contactId}`, {
+          method: 'DELETE',
+        });
+      } else {
+        // This is a regular lead deletion
+        response = await fetch(`${API_BASE}/leads/${leadId}`, {
+          method: 'DELETE',
+        });
+      }
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(`Failed to delete lead: ${errorData.message || response.statusText}`);
+        throw new Error(`Failed to delete ${deleteType}: ${errorData.message || response.statusText}`);
       }
 
       const result = await response.json();
 
-      // Remove the deleted lead from the local state
+      // Remove the deleted lead/contact from the local state
       setApiLeads(prev => prev.filter(lead => lead.id !== leadId));
 
-      console.log('Lead deleted successfully:', result.deleted_lead || result);
+      console.log(`${deleteType.charAt(0).toUpperCase() + deleteType.slice(1)} deleted successfully:`, result.deleted_lead || result.deleted_contact || result);
 
     } catch (error) {
-      console.error('Failed to delete lead:', error);
-      alert(`Error deleting lead: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('Failed to delete:', error);
+      alert(`Error deleting: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
