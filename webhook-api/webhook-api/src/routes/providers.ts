@@ -418,6 +418,193 @@ providers.delete('/:providerId', async (c) => {
   }
 })
 
+// Get provider conversion analytics
+providers.get('/:providerId/conversions', async (c) => {
+  const providerId = c.req.param('providerId')
+  const fromDate = c.req.query('from') // Expected format: MM-DD-YYYY
+  const toDate = c.req.query('to')     // Expected format: MM-DD-YYYY
+  const status = c.req.query('status') // Optional status filter (e.g., 'scheduled')
+
+  if (!(c.env as any).LEADS_DB) {
+    return c.json({
+      error: 'Database not configured',
+      message: 'D1 database is not configured for this environment'
+    }, 503)
+  }
+
+  try {
+    const db = (c.env as any).LEADS_DB
+
+    // Verify provider exists
+    const { results: providerCheck } = await db.prepare(
+      'SELECT provider_id, provider_name FROM lead_source_providers WHERE provider_id = ?'
+    ).bind(providerId).all()
+
+    if (providerCheck.length === 0) {
+      return c.json({
+        error: 'Provider not found',
+        message: `Provider ${providerId} does not exist`,
+        timestamp: new Date().toISOString()
+      }, 404)
+    }
+
+    const provider = providerCheck[0]
+
+    // Parse and validate date parameters
+    let startDate = null
+    let endDate = null
+
+    if (fromDate) {
+      // Convert MM-DD-YYYY to YYYY-MM-DD for SQL
+      const fromParts = fromDate.split('-')
+      if (fromParts.length === 3) {
+        startDate = `${fromParts[2]}-${fromParts[0].padStart(2, '0')}-${fromParts[1].padStart(2, '0')}`
+      } else {
+        return c.json({
+          error: 'Invalid date format',
+          message: 'from parameter must be in MM-DD-YYYY format',
+          timestamp: new Date().toISOString()
+        }, 400)
+      }
+    }
+
+    if (toDate) {
+      // Convert MM-DD-YYYY to YYYY-MM-DD for SQL
+      const toParts = toDate.split('-')
+      if (toParts.length === 3) {
+        endDate = `${toParts[2]}-${toParts[0].padStart(2, '0')}-${toParts[1].padStart(2, '0')} 23:59:59`
+      } else {
+        return c.json({
+          error: 'Invalid date format',
+          message: 'to parameter must be in MM-DD-YYYY format',
+          timestamp: new Date().toISOString()
+        }, 400)
+      }
+    }
+
+    // Build WHERE conditions and parameters properly
+    let whereConditions = ['pul.provider_id = ?']
+    let queryParams = [providerId]
+
+    if (startDate) {
+      whereConditions.push('(l.created_at >= ? OR (l.created_at IS NULL AND a.created_at >= ?))')
+      queryParams.push(startDate)
+      queryParams.push(startDate)
+    }
+
+    if (endDate) {
+      whereConditions.push('(l.created_at <= ? OR (l.created_at IS NULL AND a.created_at <= ?))')
+      queryParams.push(endDate)
+      queryParams.push(endDate)
+    }
+
+    if (status) {
+      whereConditions.push('LOWER(l.status) = LOWER(?)')
+      queryParams.push(status)
+    }
+
+    // Query for leads with appointment conversion data
+    // Join through provider_usage_log to link providers to leads via webhook_id
+    const conversionQuery = `
+      SELECT
+        l.id as lead_id,
+        l.first_name,
+        l.last_name,
+        l.email,
+        l.phone,
+        l.zip_code,
+        l.service_type,
+        l.status as lead_status,
+        l.source as lead_source,
+        l.created_at as lead_created_at,
+        a.id as appointment_id,
+        a.scheduled_at as appointment_date,
+        a.appointment_type,
+        a.estimated_value,
+        a.forward_status,
+        a.created_at as appointment_created_at,
+        c.id as contact_id
+      FROM leads l
+      LEFT JOIN appointments a ON l.id = a.lead_id
+      LEFT JOIN contacts c ON l.contact_id = c.id
+      INNER JOIN provider_usage_log pul ON l.webhook_id = pul.webhook_id
+      WHERE ${whereConditions.join(' AND ')}
+      ORDER BY l.created_at DESC
+    `
+
+    const { results: conversions } = await db.prepare(conversionQuery).bind(...queryParams).all()
+
+    // Calculate summary statistics
+    const totalLeads = conversions.length
+    const scheduledLeads = conversions.filter((c: any) => c.appointment_id !== null).length
+    const conversionRate = totalLeads > 0 ? ((scheduledLeads / totalLeads) * 100).toFixed(2) : '0.00'
+
+    // Group by status for status breakdown
+    const statusBreakdown = conversions.reduce((acc: any, lead: any) => {
+      const status = lead.lead_status || 'unknown'
+      acc[status] = (acc[status] || 0) + 1
+      return acc
+    }, {})
+
+    // Calculate total estimated value
+    const totalEstimatedValue = conversions
+      .filter((c: any) => c.estimated_value)
+      .reduce((sum: number, c: any) => sum + (parseFloat(c.estimated_value) || 0), 0)
+
+    return c.json({
+      status: 'success',
+      provider: {
+        provider_id: providerId,
+        provider_name: provider.provider_name
+      },
+      date_range: {
+        from: fromDate || 'all_time',
+        to: toDate || 'all_time',
+        from_sql: startDate || 'all_time',
+        to_sql: endDate || 'all_time'
+      },
+      summary: {
+        total_leads: totalLeads,
+        scheduled_appointments: scheduledLeads,
+        conversion_rate: `${conversionRate}%`,
+        total_estimated_value: totalEstimatedValue,
+        status_breakdown: statusBreakdown
+      },
+      conversions: conversions.map((conv: any) => ({
+        lead_id: conv.lead_id,
+        contact_id: conv.contact_id,
+        customer_name: `${conv.first_name || ''} ${conv.last_name || ''}`.trim(),
+        email: conv.email,
+        phone: conv.phone,
+        zip_code: conv.zip_code,
+        service_type: conv.service_type,
+        lead_status: conv.lead_status,
+        lead_source: conv.lead_source,
+        lead_created_at: conv.lead_created_at,
+        appointment: conv.appointment_id ? {
+          appointment_id: conv.appointment_id,
+          appointment_date: conv.appointment_date,
+          appointment_type: conv.appointment_type,
+          estimated_value: conv.estimated_value,
+          forward_status: conv.forward_status,
+          appointment_created_at: conv.appointment_created_at
+        } : null
+      })),
+      timestamp: new Date().toISOString()
+    })
+
+  } catch (error) {
+    console.error('Error fetching provider conversions:', error)
+    return c.json({
+      error: 'Database error',
+      message: 'Failed to fetch provider conversion data',
+      details: error instanceof Error ? error.message : 'Unknown error',
+      query: 'Query construction failed',
+      timestamp: new Date().toISOString()
+    }, 500)
+  }
+})
+
 // Test provider ID generation
 providers.post('/test-id', async (c) => {
   try {

@@ -63,7 +63,7 @@ export default function SoftDeletedWebhooksPanel({
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const API_BASE = 'https://api.homeprojectpartners.com';
+  const API_BASE = 'https://convio-leads-webhook-api.curly-king-877d.workers.dev';
 
   useEffect(() => {
     if (isOpen) {

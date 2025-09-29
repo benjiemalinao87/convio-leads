@@ -2113,6 +2113,110 @@ Records all activities and interactions with leads.
 ### `lead_analytics` Table
 Aggregated daily analytics data for reporting.
 
+## Provider Analytics Endpoints
+
+### GET /providers/:providerId/conversions
+Get conversion analytics for a specific provider, showing how many leads were converted to appointments.
+
+**URL Parameters**:
+- `providerId` (string): Provider identifier (e.g., `benjie_malinao_9378`)
+
+**Query Parameters**:
+- `from` (string, optional): Start date in MM-DD-YYYY format (e.g., `09-01-2025`)
+- `to` (string, optional): End date in MM-DD-YYYY format (e.g., `09-30-2025`)
+- `status` (string, optional): Filter by lead status (e.g., `scheduled`, `new`, `converted`)
+
+**Example Request**:
+```bash
+# Get all conversions for provider
+curl "https://api.homeprojectpartners.com/providers/benjie_malinao_9378/conversions"
+
+# Get conversions for September 2025
+curl "https://api.homeprojectpartners.com/providers/benjie_malinao_9378/conversions?from=09-01-2025&to=09-30-2025"
+
+# Get only scheduled appointments
+curl "https://api.homeprojectpartners.com/providers/benjie_malinao_9378/conversions?status=scheduled"
+
+# Combined filters
+curl "https://api.homeprojectpartners.com/providers/benjie_malinao_9378/conversions?from=09-01-2025&to=09-30-2025&status=scheduled"
+```
+
+**Response** (200):
+```json
+{
+  "status": "success",
+  "provider": {
+    "provider_id": "benjie_malinao_9378",
+    "provider_name": "Benjie Malinao"
+  },
+  "date_range": {
+    "from": "09-01-2025",
+    "to": "09-30-2025",
+    "from_sql": "2025-09-01",
+    "to_sql": "2025-09-30 23:59:59"
+  },
+  "summary": {
+    "total_leads": 15,
+    "scheduled_appointments": 8,
+    "conversion_rate": "53.33%",
+    "total_estimated_value": 185000,
+    "status_breakdown": {
+      "scheduled": 8,
+      "new": 4,
+      "qualified": 2,
+      "lost": 1
+    }
+  },
+  "conversions": [
+    {
+      "lead_id": 1944718690,
+      "contact_id": 982067,
+      "customer_name": "Analytics Test",
+      "email": "analytics.test@example.com",
+      "phone": "+15551234998",
+      "zip_code": "90210",
+      "service_type": "Solar",
+      "lead_status": "scheduled",
+      "lead_source": "Google Ads",
+      "lead_created_at": "2025-09-15T10:30:00Z",
+      "appointment": {
+        "appointment_id": 20,
+        "appointment_date": "2025-10-20T15:00:00Z",
+        "appointment_type": "consultation",
+        "estimated_value": 45000,
+        "forward_status": "success",
+        "appointment_created_at": "2025-09-29T05:48:32Z"
+      }
+    },
+    {
+      "lead_id": 1944718691,
+      "contact_id": 982068,
+      "customer_name": "John Smith",
+      "email": "john.smith@email.com",
+      "phone": "+15551234997",
+      "zip_code": "90211",
+      "service_type": "Solar",
+      "lead_status": "new",
+      "lead_source": "Facebook Ads",
+      "lead_created_at": "2025-09-16T14:20:00Z",
+      "appointment": null
+    }
+  ],
+  "timestamp": "2025-09-29T06:54:15.838Z"
+}
+```
+
+**Error Responses**:
+- **404**: Provider not found
+- **400**: Invalid date format (must be MM-DD-YYYY)
+- **500**: Database error
+
+**Business Use Cases**:
+- **Lead Provider ROI Tracking**: Monitor conversion rates and revenue per lead
+- **Performance Analytics**: Compare conversion rates across date ranges
+- **Commission Calculations**: Track total estimated value for revenue sharing
+- **Partnership Reports**: Generate conversion reports for business reviews
+
 ## Testing
 
 ### Test Script
@@ -2247,6 +2351,18 @@ curl -X GET "https://api.homeprojectpartners.com/conversions/funnel?workspace_id
 
 # Query conversions with filters
 curl -X GET "https://api.homeprojectpartners.com/conversions?conversion_type=sale&min_value=10000&limit=10"
+
+# Test provider conversion analytics
+curl -X GET "https://api.homeprojectpartners.com/providers/benjie_malinao_9378/conversions"
+
+# Test provider analytics with date range
+curl -X GET "https://api.homeprojectpartners.com/providers/benjie_malinao_9378/conversions?from=09-01-2025&to=09-30-2025"
+
+# Test provider analytics with status filter
+curl -X GET "https://api.homeprojectpartners.com/providers/benjie_malinao_9378/conversions?status=scheduled"
+
+# Test provider analytics with combined filters
+curl -X GET "https://api.homeprojectpartners.com/providers/benjie_malinao_9378/conversions?from=09-01-2025&to=09-30-2025&status=scheduled"
 ```
 
 ### Environment Variables

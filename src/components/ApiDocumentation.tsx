@@ -818,6 +818,62 @@ curl -X GET "https://api.homeprojectpartners.com/contacts?webhook_id=ws_cal_sola
     "response": "Appointment received successfully"
   }
 }`
+    },
+    {
+      id: 'provider-analytics',
+      method: 'GET',
+      path: '/providers/:providerId/conversions',
+      title: 'Provider Conversion Analytics',
+      description: 'Get conversion analytics for a specific provider, showing leads converted to appointments with ROI metrics',
+      example: `curl -X GET "https://api.homeprojectpartners.com/providers/benjie_malinao_9378/conversions?from=09-01-2025&to=09-30-2025&status=scheduled"`,
+      response: `{
+  "status": "success",
+  "provider": {
+    "provider_id": "benjie_malinao_9378",
+    "provider_name": "Benjie Malinao"
+  },
+  "date_range": {
+    "from": "09-01-2025",
+    "to": "09-30-2025",
+    "from_sql": "2025-09-01",
+    "to_sql": "2025-09-30 23:59:59"
+  },
+  "summary": {
+    "total_leads": 15,
+    "scheduled_appointments": 8,
+    "conversion_rate": "53.33%",
+    "total_estimated_value": 185000,
+    "status_breakdown": {
+      "scheduled": 8,
+      "new": 4,
+      "qualified": 2,
+      "lost": 1
+    }
+  },
+  "conversions": [
+    {
+      "lead_id": 1944718690,
+      "contact_id": 982067,
+      "customer_name": "Analytics Test",
+      "email": "analytics.test@example.com",
+      "phone": "+15551234998",
+      "zip_code": "90210",
+      "service_type": "Solar",
+      "lead_status": "scheduled",
+      "lead_source": "Google Ads",
+      "lead_created_at": "2025-09-15T10:30:00Z",
+      "appointment": {
+        "appointment_id": 20,
+        "appointment_date": "2025-10-20T15:00:00Z",
+        "appointment_type": "consultation",
+        "estimated_value": 45000,
+        "forward_status": "success",
+        "appointment_created_at": "2025-09-29T05:48:32Z"
+      }
+    }
+  ],
+  "timestamp": "2025-09-29T06:54:15.838Z"
+}`
     }
   ];
 

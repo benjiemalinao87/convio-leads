@@ -12,6 +12,7 @@ import {
 import { LeadDatabase, LeadRecord } from '../db/leads'
 import { ContactDatabase, ContactRecord } from '../db/contacts'
 import { normalizePhoneNumber } from '../utils/phone'
+import { scheduleWebhookDeletion } from '../queue/webhook-deletion'
 
 const webhook = new Hono()
 
@@ -75,6 +76,92 @@ function normalizeLead(leadData: any, webhookId: string) {
     processed_at: new Date().toISOString(),
   }
 }
+
+// List all soft-deleted webhooks (must come before /:webhookId route)
+webhook.get('/deleted', async (c) => {
+  try {
+    const db = ((c.env as any) as any).LEADS_DB
+
+    // Fetch soft-deleted webhooks with their restoration status
+    const { results } = await db.prepare(`
+      SELECT
+        w.id,
+        w.webhook_id,
+        w.name,
+        w.description,
+        w.lead_type,
+        w.deleted_at,
+        w.deleted_by,
+        w.deletion_reason,
+        w.scheduled_deletion_at,
+        w.deletion_job_id,
+        sd.status as job_status,
+        sd.attempts,
+        sd.error_message,
+        sd.execute_at,
+        COUNT(l.id) as total_leads,
+        CASE
+          WHEN sd.execute_at > CURRENT_TIMESTAMP AND sd.status = 'pending' THEN 1
+          ELSE 0
+        END as can_restore,
+        CAST(
+          (julianday(sd.execute_at) - julianday(CURRENT_TIMESTAMP)) * 24 * 60 * 60
+          AS INTEGER
+        ) as seconds_until_deletion
+      FROM webhook_configs w
+      LEFT JOIN webhook_scheduled_deletions sd ON w.id = sd.webhook_id AND w.deletion_job_id = sd.job_id
+      LEFT JOIN leads l ON w.webhook_id = l.webhook_id
+      WHERE w.deleted_at IS NOT NULL
+      GROUP BY w.id, w.webhook_id, w.name, w.description, w.lead_type, w.deleted_at, w.deleted_by, w.deletion_reason, w.scheduled_deletion_at, w.deletion_job_id, sd.status, sd.attempts, sd.error_message, sd.execute_at
+      ORDER BY w.deleted_at DESC
+    `).all()
+
+    const deletedWebhooks = results.map((webhook: any) => ({
+      id: webhook.webhook_id,
+      name: webhook.name,
+      description: webhook.description,
+      type: webhook.lead_type,
+      deletion: {
+        deleted_at: webhook.deleted_at,
+        deleted_by: webhook.deleted_by,
+        reason: webhook.deletion_reason,
+        scheduled_deletion_at: webhook.scheduled_deletion_at,
+        job_id: webhook.deletion_job_id
+      },
+      job_status: {
+        status: webhook.job_status || 'unknown',
+        attempts: webhook.attempts || 0,
+        execute_at: webhook.execute_at,
+        completed_at: null,
+        error_message: webhook.error_message
+      },
+      restoration: {
+        can_restore: webhook.can_restore === 1,
+        seconds_until_deletion: Math.max(0, webhook.seconds_until_deletion || 0),
+        restore_endpoint: webhook.can_restore === 1 ? `/webhook/${webhook.webhook_id}/restore` : null
+      },
+      stats: {
+        total_leads: webhook.total_leads || 0
+      }
+    }))
+
+    return c.json({
+      service: 'Webhook API - Deleted Webhooks',
+      total_deleted: deletedWebhooks.length,
+      restorable: deletedWebhooks.filter((w: any) => w.restoration.can_restore).length,
+      webhooks: deletedWebhooks,
+      timestamp: new Date().toISOString()
+    })
+
+  } catch (error) {
+    console.error('Database error:', error)
+    return c.json({
+      error: 'Database error',
+      message: 'Failed to fetch deleted webhooks',
+      timestamp: new Date().toISOString()
+    }, 500)
+  }
+})
 
 // Health check for specific webhook endpoint
 webhook.get('/:webhookId', async (c) => {
@@ -398,6 +485,33 @@ webhook.post('/:webhookId', async (c) => {
           // Don't fail the webhook processing if stats update fails
         }
 
+        // Step 4: Log provider usage for analytics
+        try {
+          const today = new Date().toISOString().split('T')[0] // YYYY-MM-DD format
+
+          // Use INSERT OR REPLACE to either create new record or increment existing
+          await ((c.env as any) as any).LEADS_DB.prepare(`
+            INSERT OR REPLACE INTO provider_usage_log (
+              provider_id,
+              webhook_id,
+              request_count,
+              date,
+              created_at
+            ) VALUES (
+              ?,
+              ?,
+              COALESCE((SELECT request_count FROM provider_usage_log WHERE provider_id = ? AND webhook_id = ? AND date = ?), 0) + 1,
+              ?,
+              CURRENT_TIMESTAMP
+            )
+          `).bind(authorization, webhookId, authorization, webhookId, today, today).run()
+
+          console.log(`Logged provider usage: ${authorization} -> ${webhookId} for ${today}`)
+        } catch (usageError) {
+          console.error('Failed to log provider usage:', usageError)
+          // Don't fail the webhook processing if usage logging fails
+        }
+
       } catch (dbError) {
         console.error('Database error during contact/lead creation:', dbError)
         
@@ -477,6 +591,7 @@ webhook.get('/', async (c) => {
         SUM(CASE WHEN l.revenue_potential IS NOT NULL THEN l.revenue_potential ELSE 0 END) as total_revenue
       FROM webhook_configs w
       LEFT JOIN leads l ON w.webhook_id = l.webhook_id
+      WHERE w.deleted_at IS NULL
       GROUP BY w.webhook_id, w.name, w.description, w.lead_type, w.is_active, w.total_leads, w.created_at, w.last_lead_at
       ORDER BY w.is_active DESC, w.created_at DESC
     `).all()
@@ -608,9 +723,14 @@ webhook.post('/', async (c) => {
   }
 })
 
-// Delete a webhook configuration
+// Delete a webhook configuration (with soft deletion support)
 webhook.delete('/:webhookId', async (c) => {
   const webhookId = c.req.param('webhookId')
+  const userId = c.req.header('X-User-ID') || 'unknown'
+  
+  // Get query parameters
+  const reason = c.req.query('reason') || 'No reason provided'
+  const force = c.req.query('force') === 'true'
 
   // Validate webhook ID format
   if (!WEBHOOK_PATTERN.test(webhookId)) {
@@ -624,10 +744,12 @@ webhook.delete('/:webhookId', async (c) => {
   try {
     const db = ((c.env as any) as any).LEADS_DB
 
-    // Check if webhook exists in database (including inactive ones)
-    const { results } = await db.prepare(
-      'SELECT webhook_id, name, is_active FROM webhook_configs WHERE webhook_id = ?'
-    ).bind(webhookId).all()
+    // Check if webhook exists in database and get current state
+    const { results } = await db.prepare(`
+      SELECT id, webhook_id, name, is_active, deleted_at, scheduled_deletion_at, deletion_job_id
+      FROM webhook_configs 
+      WHERE webhook_id = ?
+    `).bind(webhookId).all()
 
     if (results.length === 0) {
       return c.json({
@@ -637,23 +759,138 @@ webhook.delete('/:webhookId', async (c) => {
       }, 404)
     }
 
+    const webhook = results[0]
+
+    // Check if already soft deleted
+    if (webhook.deleted_at && !force) {
+      return c.json({
+        error: 'Webhook already deleted',
+        message: `Webhook ${webhookId} is already scheduled for deletion`,
+        webhook_id: webhookId,
+        deleted_at: webhook.deleted_at,
+        scheduled_deletion_at: webhook.scheduled_deletion_at,
+        note: 'Use ?force=true to permanently delete immediately or POST /webhook/{id}/restore to restore',
+        timestamp: new Date().toISOString()
+      }, 409)
+    }
+
     // Count leads before deletion for reporting
     const { results: leadCount } = await db.prepare(
       'SELECT COUNT(*) as count FROM leads WHERE webhook_id = ?'
     ).bind(webhookId).all()
 
-    // Only delete the webhook configuration - keep all leads data
-    // The leads will become "orphaned" but remain accessible in the system
-    await db.prepare(
-      'DELETE FROM webhook_configs WHERE webhook_id = ?'
-    ).bind(webhookId).run()
+    // Force delete - permanent deletion
+    if (force) {
+      await db.batch([
+        // Log permanent deletion event
+        db.prepare(`
+          INSERT INTO webhook_deletion_events (webhook_id, event_type, event_timestamp, user_id, reason, metadata)
+          VALUES (?, 'permanent_delete', CURRENT_TIMESTAMP, ?, ?, ?)
+        `).bind(
+          webhook.id,
+          userId,
+          reason,
+          JSON.stringify({
+            deletion_type: 'force',
+            leads_preserved: leadCount[0]?.count || 0,
+            previous_soft_delete: webhook.deleted_at
+          })
+        ),
+        
+        // Delete webhook configuration permanently
+        db.prepare('DELETE FROM webhook_configs WHERE webhook_id = ?').bind(webhookId)
+      ])
+
+      return c.json({
+        status: 'success',
+        message: 'Webhook configuration permanently deleted immediately',
+        webhook_id: webhookId,
+        leads_preserved: leadCount[0]?.count || 0,
+        deletion_type: 'immediate',
+        note: 'All leads data has been preserved and remains accessible',
+        timestamp: new Date().toISOString()
+      })
+    }
+
+    // Soft delete - schedule for deletion in 24 hours
+    const scheduledDeletionAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+    const jobId = `webhook-del-${webhookId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+
+    await db.batch([
+      // Mark webhook as soft deleted
+      db.prepare(`
+        UPDATE webhook_configs
+        SET 
+          deleted_at = CURRENT_TIMESTAMP,
+          scheduled_deletion_at = ?,
+          deletion_reason = ?,
+          deleted_by = ?,
+          deletion_job_id = ?,
+          is_active = 0,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE webhook_id = ?
+      `).bind(scheduledDeletionAt, reason, userId, jobId, webhookId),
+      
+      // Create scheduled deletion job
+      db.prepare(`
+        INSERT INTO webhook_scheduled_deletions 
+        (webhook_id, job_id, execute_at, created_by)
+        VALUES (?, ?, ?, ?)
+      `).bind(webhook.id, jobId, scheduledDeletionAt, userId),
+      
+      // Log soft deletion event
+      db.prepare(`
+        INSERT INTO webhook_deletion_events (webhook_id, event_type, event_timestamp, user_id, reason, metadata, job_id)
+        VALUES (?, 'soft_delete', CURRENT_TIMESTAMP, ?, ?, ?, ?)
+      `).bind(
+        webhook.id,
+        userId,
+        reason,
+        JSON.stringify({
+          deletion_type: 'soft',
+          scheduled_deletion_at: scheduledDeletionAt,
+          leads_preserved: leadCount[0]?.count || 0
+        }),
+        jobId
+      ),
+      
+      // Log queue scheduling event
+      db.prepare(`
+        INSERT INTO webhook_deletion_events (webhook_id, event_type, event_timestamp, user_id, reason, metadata, job_id)
+        VALUES (?, 'queue_scheduled', CURRENT_TIMESTAMP, ?, ?, ?, ?)
+      `).bind(
+        webhook.id,
+        'system',
+        'Scheduled for deletion in 24 hours',
+        JSON.stringify({
+          execute_at: scheduledDeletionAt,
+          delay_seconds: 86400
+        }),
+        jobId
+      )
+    ])
+
+    // Schedule the deletion in the queue (if available)
+    try {
+      await scheduleWebhookDeletion(((c.env as any) as any), webhookId, jobId, scheduledDeletionAt)
+    } catch (queueError) {
+      console.warn('Failed to schedule deletion in queue:', queueError)
+      // Continue without queue - cron will pick it up as fallback
+    }
 
     return c.json({
       status: 'success',
-      message: 'Webhook configuration deleted successfully',
+      message: 'Webhook scheduled for deletion in 24 hours',
       webhook_id: webhookId,
+      job_id: jobId,
       leads_preserved: leadCount[0]?.count || 0,
-      note: 'All leads data has been preserved and remains accessible',
+      deletion_type: 'scheduled',
+      scheduled_deletion_at: scheduledDeletionAt,
+      restoration: {
+        available_until: scheduledDeletionAt,
+        restore_endpoint: `/webhook/${webhookId}/restore`
+      },
+      note: 'Webhook can be restored within 24 hours. All leads data will be preserved.',
       timestamp: new Date().toISOString()
     })
 
@@ -667,6 +904,112 @@ webhook.delete('/:webhookId', async (c) => {
   }
 })
 
+// Restore a soft-deleted webhook
+webhook.post('/:webhookId/restore', async (c) => {
+  const webhookId = c.req.param('webhookId')
+  const userId = c.req.header('X-User-ID') || 'unknown'
+
+  // Validate webhook ID format
+  if (!WEBHOOK_PATTERN.test(webhookId)) {
+    return c.json({
+      error: 'Invalid webhook ID format',
+      message: 'Webhook ID must follow pattern: [name-prefix]_ws_[region]_[category]_[id] or ws_[region]_[category]_[id]',
+      timestamp: new Date().toISOString()
+    }, 400)
+  }
+
+  try {
+    const db = ((c.env as any) as any).LEADS_DB
+
+    // Check if webhook exists and is soft deleted
+    const { results } = await db.prepare(`
+      SELECT id, webhook_id, name, deleted_at, scheduled_deletion_at, deletion_job_id
+      FROM webhook_configs
+      WHERE webhook_id = ? AND deleted_at IS NOT NULL
+    `).bind(webhookId).all()
+
+    if (results.length === 0) {
+      return c.json({
+        error: 'Webhook not found or not deleted',
+        message: `Webhook ${webhookId} is not in a soft-deleted state`,
+        timestamp: new Date().toISOString()
+      }, 404)
+    }
+
+    const webhook = results[0]
+
+    // Check if restoration window has expired
+    const scheduledDeletion = new Date(webhook.scheduled_deletion_at)
+    const now = new Date()
+
+    if (scheduledDeletion <= now) {
+      return c.json({
+        error: 'Restoration window expired',
+        message: `Webhook ${webhookId} was scheduled for deletion at ${webhook.scheduled_deletion_at} and can no longer be restored`,
+        webhook_id: webhookId,
+        expired_at: webhook.scheduled_deletion_at,
+        timestamp: new Date().toISOString()
+      }, 410)
+    }
+
+    await db.batch([
+      // Restore the webhook
+      db.prepare(`
+        UPDATE webhook_configs
+        SET
+          deleted_at = NULL,
+          scheduled_deletion_at = NULL,
+          deletion_reason = NULL,
+          deleted_by = NULL,
+          deletion_job_id = NULL,
+          is_active = 1,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE webhook_id = ?
+      `).bind(webhookId),
+      
+      // Cancel the scheduled deletion job
+      db.prepare(`
+        UPDATE webhook_scheduled_deletions
+        SET status = 'cancelled', completed_at = CURRENT_TIMESTAMP
+        WHERE job_id = ? AND status = 'pending'
+      `).bind(webhook.deletion_job_id),
+      
+      // Log restoration event
+      db.prepare(`
+        INSERT INTO webhook_deletion_events (webhook_id, event_type, event_timestamp, user_id, reason, metadata, job_id)
+        VALUES (?, 'restore', CURRENT_TIMESTAMP, ?, ?, ?, ?)
+      `).bind(
+        webhook.id,
+        userId,
+        'Webhook restored by user',
+        JSON.stringify({
+          restored_by: userId,
+          cancelled_job_id: webhook.deletion_job_id,
+          restored_at: new Date().toISOString()
+        }),
+        webhook.deletion_job_id
+      )
+    ])
+
+    return c.json({
+      status: 'success',
+      message: 'Webhook restored successfully',
+      webhook_id: webhookId,
+      restored_by: userId,
+      restored_at: new Date().toISOString(),
+      note: 'Webhook is now active and can receive leads again',
+      timestamp: new Date().toISOString()
+    })
+
+  } catch (error) {
+    console.error('Restore webhook error:', error)
+    return c.json({
+      error: 'Database error',
+      message: 'Failed to restore webhook configuration',
+      timestamp: new Date().toISOString()
+    }, 500)
+  }
+})
 
 // Enable/disable a webhook
 webhook.patch('/:webhookId/status', async (c) => {

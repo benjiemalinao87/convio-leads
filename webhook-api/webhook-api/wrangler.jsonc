@@ -70,23 +70,29 @@
 	//   }
 	// ],
 	/**
-	 * Queues for asynchronous processing (temporarily disabled)
+	 * Queues for asynchronous processing (webhook soft deletion)
 	 */
-	// "queues": {
-	//   "producers": [
-	//     {
-	//       "binding": "WEBHOOK_DELETION_QUEUE",
-	//       "queue": "webhook-deletion"
-	//     }
-	//   ],
-	//   "consumers": [
-	//     {
-	//       "queue": "webhook-deletion",
-	//       "max_batch_size": 5,
-	//       "max_batch_timeout": 10,
-	//       "max_retries": 3,
-	//       "dead_letter_queue": "webhook-deletion-dlq"
-	//     }
-	//   ]
-	// }
+	"queues": {
+		"producers": [
+			{
+				"binding": "WEBHOOK_DELETION_QUEUE",
+				"queue": "webhook-deletion"
+			}
+		],
+		"consumers": [
+			{
+				"queue": "webhook-deletion",
+				"max_batch_size": 5,
+				"max_batch_timeout": 10,
+				"max_retries": 3,
+				"dead_letter_queue": "webhook-deletion-dlq"
+			}
+		]
+	},
+	/**
+	 * Cron triggers for fallback deletion processing
+	 */
+	"triggers": {
+		"crons": ["0 * * * *"]
+	}
 }

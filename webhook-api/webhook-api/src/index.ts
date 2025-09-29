@@ -13,11 +13,13 @@ import { routingRulesRouter } from './routes/routing-rules'
 import { providersRouter } from './routes/providers'
 import { requestValidation } from './middleware/validation'
 import { errorHandler } from './middleware/error-handler'
-import { D1Database } from '@cloudflare/workers-types'
+import { webhookDeletionConsumer, processPendingDeletions } from './queue/webhook-deletion'
+import { D1Database, Queue, MessageBatch, ScheduledEvent, ExecutionContext } from '@cloudflare/workers-types'
 
 type Bindings = {
   // Define your Cloudflare bindings here
   LEADS_DB?: D1Database
+  WEBHOOK_DELETION_QUEUE?: Queue
   // KV: KVNamespace
   WEBHOOK_SECRET?: string
 }
@@ -47,7 +49,7 @@ app.use('*', cors({
     'http://localhost:8889',
     'http://localhost:8890'
   ],
-  allowHeaders: ['Content-Type', 'Authorization', 'X-Webhook-Signature'],
+  allowHeaders: ['Content-Type', 'Authorization', 'X-Webhook-Signature', 'X-User-ID'],
   allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
 }))
 
@@ -86,4 +88,28 @@ app.notFound((c) => {
   }, 404)
 })
 
-export default app
+// Export the queue consumer for Cloudflare Queues
+export async function queue(batch: MessageBatch<any>, env: Bindings): Promise<void> {
+  await webhookDeletionConsumer(batch, env)
+}
+
+// Export scheduled handler for cron triggers (fallback)
+export async function scheduled(event: ScheduledEvent, env: Bindings, ctx: ExecutionContext): Promise<void> {
+  console.log('Cron trigger received:', event.cron)
+  
+  if (event.cron === '0 * * * *') { // Every hour
+    try {
+      const result = await processPendingDeletions(env)
+      console.log(`Cron deletion result:`, result)
+    } catch (error) {
+      console.error('Cron deletion failed:', error)
+    }
+  }
+}
+
+// Export default app with handlers
+export default {
+  fetch: app.fetch,
+  queue,
+  scheduled
+}
