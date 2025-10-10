@@ -18,13 +18,15 @@ import {
   RefreshCw,
   Trash2,
   FileText,
-  RotateCcw
+  RotateCcw,
+  Share2
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import ApiDocumentation from '@/components/ApiDocumentation';
 import SoftDeleteDialog from '@/components/webhooks/SoftDeleteDialog';
 import SoftDeletedWebhooksPanel from '@/components/webhooks/SoftDeletedWebhooksPanel';
+import { ForwardingManagementDialog } from '@/components/leads/ForwardingManagementDialog';
 
 // API Webhook interface
 interface APIWebhook {
@@ -69,7 +71,9 @@ export default function Webhooks() {
   const [isApiDocOpen, setIsApiDocOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeletedWebhooksPanelOpen, setIsDeletedWebhooksPanelOpen] = useState(false);
+  const [isForwardingDialogOpen, setIsForwardingDialogOpen] = useState(false);
   const [selectedWebhookForDeletion, setSelectedWebhookForDeletion] = useState<WebhookWithStats | null>(null);
+  const [selectedWebhookForForwarding, setSelectedWebhookForForwarding] = useState<WebhookWithStats | null>(null);
   const [newWebhookName, setNewWebhookName] = useState('');
   const { toast } = useToast();
 
@@ -175,6 +179,11 @@ export default function Webhooks() {
   const handleDeleteWebhook = (webhook: WebhookWithStats) => {
     setSelectedWebhookForDeletion(webhook);
     setIsDeleteDialogOpen(true);
+  };
+
+  const handleManageForwarding = (webhook: WebhookWithStats) => {
+    setSelectedWebhookForForwarding(webhook);
+    setIsForwardingDialogOpen(true);
   };
 
   const handleDeleteConfirm = async (webhookId: string, reason: string, forceDelete: boolean) => {
@@ -396,7 +405,7 @@ export default function Webhooks() {
               </div>
 
               {/* Webhook URL */}
-              <div className="border border-border/50 rounded-lg p-3 bg-secondary/20">
+              <div className="border border-border/50 rounded-lg p-3 bg-secondary/20 mb-3">
                 <div className="flex items-center justify-between mb-2">
                   <Label className="text-xs font-medium text-muted-foreground">Webhook URL</Label>
                   <div className="flex space-x-1">
@@ -421,6 +430,17 @@ export default function Webhooks() {
                   {webhook.webhook_url}
                 </p>
               </div>
+
+              {/* Manage Forwarding Button */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleManageForwarding(webhook)}
+                className="w-full"
+              >
+                <Share2 className="w-4 h-4 mr-2" />
+                Manage Lead Forwarding
+              </Button>
             </Card>
           ))}
         </div>
@@ -521,6 +541,21 @@ export default function Webhooks() {
           onClose={() => setIsDeletedWebhooksPanelOpen(false)}
           onWebhookRestored={fetchWebhooks}
         />
+
+        {/* Lead Forwarding Management Dialog */}
+        {selectedWebhookForForwarding && (
+          <ForwardingManagementDialog
+            webhookId={selectedWebhookForForwarding.id}
+            webhookName={selectedWebhookForForwarding.name}
+            open={isForwardingDialogOpen}
+            onOpenChange={(open) => {
+              setIsForwardingDialogOpen(open);
+              if (!open) {
+                setSelectedWebhookForForwarding(null);
+              }
+            }}
+          />
+        )}
       </div>
     </Layout>
   );

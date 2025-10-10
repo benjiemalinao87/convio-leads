@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Database, Target, Code, Workflow, ArrowRight, BookOpen, Users, TrendingUp } from 'lucide-react';
+import { Database, Target, Code, Workflow, ArrowRight, BookOpen, Users, TrendingUp, Webhook } from 'lucide-react';
 
 const documentOptions = [
   {
@@ -26,6 +26,14 @@ const documentOptions = [
     icon: Code,
     description: 'Complete API reference including enhanced contact search, lead management, and conversion tracking endpoints',
     color: 'bg-purple-500'
+  },
+  {
+    id: 'webhook-lead-receiving',
+    name: 'Webhook Lead Receiving Implementation',
+    file: '/WEBHOOK_LEAD_RECEIVING_IMPLEMENTATION.md',
+    icon: Webhook,
+    description: 'Technical deep-dive into webhook lead processing: architecture, validation, deduplication, and database storage with ASCII diagrams',
+    color: 'bg-cyan-500'
   },
   {
     id: 'appointment-flow',

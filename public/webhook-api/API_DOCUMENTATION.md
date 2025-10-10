@@ -15,6 +15,7 @@ The Home Project Partners Webhook API is a Cloudflare Workers-based service for 
 3. [API Endpoints](#api-endpoints)
    - [Health Check](#health-check-endpoints)
    - [Webhook Management](#webhook-endpoints)
+   - [Lead Forwarding](#lead-forwarding-endpoints)
    - [Contact Management](#contact-endpoints)
    - [Lead Management](#lead-endpoints)
    - [Appointment Management](#appointment-management-endpoints)
@@ -383,6 +384,325 @@ Enable or disable a webhook configuration.
   "timestamp": "2024-09-24T21:00:00.000Z"
 }
 ```
+
+---
+
+### Lead Forwarding Endpoints
+
+Lead forwarding allows you to automatically forward incoming leads to other webhooks based on criteria (product type and zip code). This is useful for routing leads to specialized partners or backup systems.
+
+#### POST /webhook/:webhookId/forwarding-rules
+Create a new forwarding rule for a webhook.
+
+**Parameters**:
+- `webhookId` (string): Source webhook identifier
+
+**Request Body**:
+```json
+{
+  "target_webhook_id": "partner-webhook_ws_us_solar_001",
+  "target_webhook_url": "https://api.partner.com/webhook/receive",
+  "product_types": ["Solar", "Roofing"],
+  "zip_codes": ["90210", "90211", "90212"],
+  "priority": 1,
+  "forward_enabled": true,
+  "notes": "Forward solar leads in Beverly Hills area"
+}
+```
+
+**Response** (200):
+```json
+{
+  "success": true,
+  "message": "Forwarding rule created successfully",
+  "rule": {
+    "id": 1,
+    "source_webhook_id": "ws_cal_solar_001",
+    "target_webhook_id": "partner-webhook_ws_us_solar_001",
+    "target_webhook_url": "https://api.partner.com/webhook/receive",
+    "product_types": ["Solar", "Roofing"],
+    "zip_codes": ["90210", "90211", "90212"],
+    "priority": 1,
+    "is_active": true,
+    "forward_enabled": true,
+    "notes": "Forward solar leads in Beverly Hills area",
+    "zip_count": 3,
+    "product_count": 2
+  },
+  "timestamp": "2024-10-10T21:00:00.000Z"
+}
+```
+
+#### POST /webhook/:webhookId/forwarding-rules/bulk
+Create a forwarding rule with CSV-formatted zip codes (for bulk operations).
+
+**Parameters**:
+- `webhookId` (string): Source webhook identifier
+
+**Request Body**:
+```json
+{
+  "target_webhook_id": "partner-webhook_ws_us_solar_001",
+  "target_webhook_url": "https://api.partner.com/webhook/receive",
+  "product_types": ["Solar"],
+  "zip_codes_csv": "90210,90211,90212,90213,90214",
+  "priority": 1,
+  "forward_enabled": true,
+  "notes": "Bulk forwarding rule"
+}
+```
+
+**Response** (200):
+```json
+{
+  "success": true,
+  "message": "Forwarding rule created successfully with 5 zip codes",
+  "rule": {
+    "id": 2,
+    "source_webhook_id": "ws_cal_solar_001",
+    "target_webhook_id": "partner-webhook_ws_us_solar_001",
+    "target_webhook_url": "https://api.partner.com/webhook/receive",
+    "product_types": ["Solar"],
+    "zip_codes": ["90210", "90211", "90212", "90213", "90214"],
+    "priority": 1,
+    "is_active": true,
+    "forward_enabled": true,
+    "zip_count": 5,
+    "product_count": 1
+  },
+  "timestamp": "2024-10-10T21:00:00.000Z"
+}
+```
+
+#### GET /webhook/:webhookId/forwarding-rules
+Get all forwarding rules for a webhook.
+
+**Parameters**:
+- `webhookId` (string): Source webhook identifier
+
+**Response** (200):
+```json
+{
+  "success": true,
+  "webhook_id": "ws_cal_solar_001",
+  "total_rules": 2,
+  "active_rules": 2,
+  "rules": [
+    {
+      "id": 1,
+      "source_webhook_id": "ws_cal_solar_001",
+      "target_webhook_id": "partner-webhook_ws_us_solar_001",
+      "target_webhook_url": "https://api.partner.com/webhook/receive",
+      "product_types": ["Solar", "Roofing"],
+      "zip_codes": ["90210", "90211", "90212"],
+      "priority": 1,
+      "is_active": true,
+      "forward_enabled": true,
+      "notes": "Forward solar leads in Beverly Hills area",
+      "created_at": "2024-10-10T20:00:00.000Z",
+      "updated_at": "2024-10-10T20:00:00.000Z"
+    }
+  ],
+  "timestamp": "2024-10-10T21:00:00.000Z"
+}
+```
+
+#### GET /webhook/:webhookId/forwarding-rules/:ruleId
+Get a specific forwarding rule.
+
+**Parameters**:
+- `webhookId` (string): Source webhook identifier
+- `ruleId` (number): Rule ID
+
+**Response** (200):
+```json
+{
+  "success": true,
+  "rule": {
+    "id": 1,
+    "source_webhook_id": "ws_cal_solar_001",
+    "target_webhook_id": "partner-webhook_ws_us_solar_001",
+    "target_webhook_url": "https://api.partner.com/webhook/receive",
+    "product_types": ["Solar", "Roofing"],
+    "zip_codes": ["90210", "90211", "90212"],
+    "priority": 1,
+    "is_active": true,
+    "forward_enabled": true,
+    "notes": "Forward solar leads in Beverly Hills area",
+    "created_at": "2024-10-10T20:00:00.000Z",
+    "updated_at": "2024-10-10T20:00:00.000Z"
+  },
+  "timestamp": "2024-10-10T21:00:00.000Z"
+}
+```
+
+#### PUT /webhook/:webhookId/forwarding-rules/:ruleId
+Update a forwarding rule.
+
+**Parameters**:
+- `webhookId` (string): Source webhook identifier
+- `ruleId` (number): Rule ID
+
+**Request Body** (partial update supported):
+```json
+{
+  "target_webhook_url": "https://api.partner.com/webhook/v2/receive",
+  "product_types": ["Solar"],
+  "priority": 2,
+  "forward_enabled": false
+}
+```
+
+**Response** (200):
+```json
+{
+  "success": true,
+  "message": "Forwarding rule updated successfully",
+  "rule": {
+    "id": 1,
+    "source_webhook_id": "ws_cal_solar_001",
+    "target_webhook_id": "partner-webhook_ws_us_solar_001",
+    "target_webhook_url": "https://api.partner.com/webhook/v2/receive",
+    "product_types": ["Solar"],
+    "zip_codes": ["90210", "90211", "90212"],
+    "priority": 2,
+    "is_active": true,
+    "forward_enabled": false,
+    "updated_at": "2024-10-10T21:30:00.000Z"
+  },
+  "timestamp": "2024-10-10T21:30:00.000Z"
+}
+```
+
+#### DELETE /webhook/:webhookId/forwarding-rules/:ruleId
+Delete a forwarding rule.
+
+**Parameters**:
+- `webhookId` (string): Source webhook identifier
+- `ruleId` (number): Rule ID
+
+**Response** (200):
+```json
+{
+  "success": true,
+  "message": "Forwarding rule deleted successfully",
+  "rule_id": 1,
+  "timestamp": "2024-10-10T21:00:00.000Z"
+}
+```
+
+#### PATCH /webhook/:webhookId/forwarding-toggle
+Toggle lead forwarding on/off for entire webhook (master toggle).
+
+**Parameters**:
+- `webhookId` (string): Source webhook identifier
+
+**Request Body**:
+```json
+{
+  "forwarding_enabled": true
+}
+```
+
+**Response** (200):
+```json
+{
+  "success": true,
+  "message": "Lead forwarding enabled for webhook",
+  "webhook_id": "ws_cal_solar_001",
+  "forwarding_enabled": true,
+  "timestamp": "2024-10-10T21:00:00.000Z"
+}
+```
+
+#### GET /webhook/:webhookId/forwarding-log
+Get forwarding activity log with optional filters.
+
+**Parameters**:
+- `webhookId` (string): Source webhook identifier
+
+**Query Parameters**:
+- `status` (string): Filter by status: `success`, `failed`, `retry`
+- `from_date` (string): ISO 8601 timestamp for start date
+- `to_date` (string): ISO 8601 timestamp for end date
+- `limit` (number): Maximum results (default: 50, max: 100)
+
+**Response** (200):
+```json
+{
+  "success": true,
+  "webhook_id": "ws_cal_solar_001",
+  "total_logs": 10,
+  "filters": {
+    "status": "success",
+    "from_date": null,
+    "to_date": null,
+    "limit": 50
+  },
+  "logs": [
+    {
+      "id": 1,
+      "lead_id": 12345,
+      "contact_id": 6789,
+      "rule_id": 1,
+      "source_webhook_id": "ws_cal_solar_001",
+      "target_webhook_id": "partner-webhook_ws_us_solar_001",
+      "target_webhook_url": "https://api.partner.com/webhook/receive",
+      "forwarded_at": "2024-10-10T21:00:00.000Z",
+      "forward_status": "success",
+      "http_status_code": 200,
+      "response_body": "{\"status\":\"received\"}",
+      "error_message": null,
+      "retry_count": 0,
+      "matched_product": "Solar",
+      "matched_zip": "90210",
+      "payload": "{\"firstName\":\"John\",\"lastName\":\"Doe\",...}"
+    }
+  ],
+  "timestamp": "2024-10-10T21:00:00.000Z"
+}
+```
+
+#### GET /webhook/:webhookId/forwarding-stats
+Get forwarding statistics for a webhook.
+
+**Parameters**:
+- `webhookId` (string): Source webhook identifier
+
+**Response** (200):
+```json
+{
+  "success": true,
+  "webhook_id": "ws_cal_solar_001",
+  "stats": {
+    "total_forwards": 150,
+    "success_count": 145,
+    "failed_count": 5,
+    "success_rate": 96.67,
+    "last_forward_at": "2024-10-10T21:00:00.000Z"
+  },
+  "top_targets": [
+    {
+      "target_webhook_id": "partner-webhook_ws_us_solar_001",
+      "forward_count": 100,
+      "success_count": 98
+    },
+    {
+      "target_webhook_id": "backup-webhook_ws_us_solar_002",
+      "forward_count": 50,
+      "success_count": 47
+    }
+  ],
+  "timestamp": "2024-10-10T21:00:00.000Z"
+}
+```
+
+**Forwarding Headers**:
+When leads are forwarded to target webhooks, the following custom headers are included:
+- `X-Forwarded-From`: Source webhook ID
+- `X-Original-Lead-Id`: Original lead ID
+- `X-Original-Contact-Id`: Original contact ID
+- `X-Forwarding-Rule-Id`: Rule ID that triggered the forward
 
 ---
 

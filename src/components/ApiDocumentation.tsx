@@ -131,6 +131,155 @@ const ApiDocumentation = ({ open, onOpenChange }: ApiDocumentationProps) => {
       ]
     },
     {
+      id: 'forwarding-create-rule',
+      method: 'POST',
+      path: '/webhook/:webhookId/forwarding-rules',
+      title: 'Create Forwarding Rule',
+      description: 'Create a new lead forwarding rule to automatically forward leads to other webhooks based on product type and zip code criteria',
+      example: `curl -X POST https://api.homeprojectpartners.com/webhook/ws_cal_solar_001/forwarding-rules \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "target_webhook_id": "partner-webhook_ws_us_solar_001",
+    "target_webhook_url": "https://api.partner.com/webhook/receive",
+    "product_types": ["Solar", "Roofing"],
+    "zip_codes": ["90210", "90211", "90212"],
+    "priority": 1,
+    "forward_enabled": true,
+    "notes": "Forward solar leads in Beverly Hills area"
+  }'`,
+      response: `{
+  "success": true,
+  "message": "Forwarding rule created successfully",
+  "rule": {
+    "id": 1,
+    "source_webhook_id": "ws_cal_solar_001",
+    "target_webhook_id": "partner-webhook_ws_us_solar_001",
+    "target_webhook_url": "https://api.partner.com/webhook/receive",
+    "product_types": ["Solar", "Roofing"],
+    "zip_codes": ["90210", "90211", "90212"],
+    "priority": 1,
+    "is_active": true,
+    "forward_enabled": true,
+    "notes": "Forward solar leads in Beverly Hills area",
+    "zip_count": 3,
+    "product_count": 2
+  },
+  "timestamp": "2024-10-10T21:00:00.000Z"
+}`
+    },
+    {
+      id: 'forwarding-list-rules',
+      method: 'GET',
+      path: '/webhook/:webhookId/forwarding-rules',
+      title: 'List Forwarding Rules',
+      description: 'Get all forwarding rules for a webhook',
+      example: `curl -X GET https://api.homeprojectpartners.com/webhook/ws_cal_solar_001/forwarding-rules`,
+      response: `{
+  "success": true,
+  "webhook_id": "ws_cal_solar_001",
+  "total_rules": 2,
+  "active_rules": 2,
+  "rules": [
+    {
+      "id": 1,
+      "source_webhook_id": "ws_cal_solar_001",
+      "target_webhook_id": "partner-webhook_ws_us_solar_001",
+      "target_webhook_url": "https://api.partner.com/webhook/receive",
+      "product_types": ["Solar", "Roofing"],
+      "zip_codes": ["90210", "90211", "90212"],
+      "priority": 1,
+      "is_active": true,
+      "forward_enabled": true,
+      "created_at": "2024-10-10T20:00:00.000Z"
+    }
+  ],
+  "timestamp": "2024-10-10T21:00:00.000Z"
+}`
+    },
+    {
+      id: 'forwarding-toggle',
+      method: 'PATCH',
+      path: '/webhook/:webhookId/forwarding-toggle',
+      title: 'Toggle Lead Forwarding',
+      description: 'Enable or disable lead forwarding for entire webhook (master toggle)',
+      example: `curl -X PATCH https://api.homeprojectpartners.com/webhook/ws_cal_solar_001/forwarding-toggle \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "forwarding_enabled": true
+  }'`,
+      response: `{
+  "success": true,
+  "message": "Lead forwarding enabled for webhook",
+  "webhook_id": "ws_cal_solar_001",
+  "forwarding_enabled": true,
+  "timestamp": "2024-10-10T21:00:00.000Z"
+}`
+    },
+    {
+      id: 'forwarding-log',
+      method: 'GET',
+      path: '/webhook/:webhookId/forwarding-log',
+      title: 'Forwarding Activity Log',
+      description: 'Get forwarding activity log with optional filters (status, date range, limit)',
+      example: `# Get all forwarding logs
+curl -X GET "https://api.homeprojectpartners.com/webhook/ws_cal_solar_001/forwarding-log?limit=50"
+
+# Filter by status
+curl -X GET "https://api.homeprojectpartners.com/webhook/ws_cal_solar_001/forwarding-log?status=success"`,
+      response: `{
+  "success": true,
+  "webhook_id": "ws_cal_solar_001",
+  "total_logs": 10,
+  "filters": {
+    "status": "success",
+    "limit": 50
+  },
+  "logs": [
+    {
+      "id": 1,
+      "lead_id": 12345,
+      "contact_id": 6789,
+      "rule_id": 1,
+      "source_webhook_id": "ws_cal_solar_001",
+      "target_webhook_id": "partner-webhook_ws_us_solar_001",
+      "forwarded_at": "2024-10-10T21:00:00.000Z",
+      "forward_status": "success",
+      "http_status_code": 200,
+      "matched_product": "Solar",
+      "matched_zip": "90210"
+    }
+  ],
+  "timestamp": "2024-10-10T21:00:00.000Z"
+}`
+    },
+    {
+      id: 'forwarding-stats',
+      method: 'GET',
+      path: '/webhook/:webhookId/forwarding-stats',
+      title: 'Forwarding Statistics',
+      description: 'Get forwarding statistics including success rate and top targets',
+      example: `curl -X GET https://api.homeprojectpartners.com/webhook/ws_cal_solar_001/forwarding-stats`,
+      response: `{
+  "success": true,
+  "webhook_id": "ws_cal_solar_001",
+  "stats": {
+    "total_forwards": 150,
+    "success_count": 145,
+    "failed_count": 5,
+    "success_rate": 96.67,
+    "last_forward_at": "2024-10-10T21:00:00.000Z"
+  },
+  "top_targets": [
+    {
+      "target_webhook_id": "partner-webhook_ws_us_solar_001",
+      "forward_count": 100,
+      "success_count": 98
+    }
+  ],
+  "timestamp": "2024-10-10T21:00:00.000Z"
+}`
+    },
+    {
       id: 'leads-list',
       method: 'GET',
       path: '/leads',

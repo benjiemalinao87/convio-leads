@@ -13,6 +13,7 @@ import { LeadDatabase, LeadRecord } from '../db/leads'
 import { ContactDatabase, ContactRecord } from '../db/contacts'
 import { normalizePhoneNumber } from '../utils/phone'
 import { scheduleWebhookDeletion } from '../queue/webhook-deletion'
+import { checkAndForwardLead } from '../utils/lead-forwarder'
 
 const webhook = new Hono()
 
@@ -510,6 +511,30 @@ webhook.post('/:webhookId', async (c) => {
         } catch (usageError) {
           console.error('Failed to log provider usage:', usageError)
           // Don't fail the webhook processing if usage logging fails
+        }
+
+        // Step 5: Check and forward lead to other webhooks if criteria match
+        try {
+          const forwardingResult = await checkAndForwardLead(
+            ((c.env as any) as any).LEADS_DB,
+            webhookId,
+            leadId,
+            contactId,
+            normalizedLead.productid,
+            normalizedLead.zip || normalizedLead.zipCode || normalizedLead.zip_code,
+            requestBody // Forward original payload
+          )
+
+          if (forwardingResult.forwarded_count > 0) {
+            console.log(`✅ Lead ${leadId} forwarded to ${forwardingResult.forwarded_count} target webhook(s)`)
+          }
+
+          if (forwardingResult.errors.length > 0) {
+            console.error(`⚠️ Some forwarding attempts failed for lead ${leadId}:`, forwardingResult.errors)
+          }
+        } catch (forwardError) {
+          console.error('Lead forwarding error:', forwardError)
+          // Don't fail the webhook processing if forwarding fails
         }
 
       } catch (dbError) {

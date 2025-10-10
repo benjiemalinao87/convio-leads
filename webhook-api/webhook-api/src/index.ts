@@ -11,6 +11,7 @@ import conversionsRouter from './routes/conversions'
 import { appointmentsRouter } from './routes/appointments'
 import { routingRulesRouter } from './routes/routing-rules'
 import { providersRouter } from './routes/providers'
+import { leadForwardingRouter } from './routes/lead-forwarding'
 import authRouter from './routes/auth'
 import { requestValidation } from './middleware/validation'
 import { errorHandler } from './middleware/error-handler'
@@ -65,6 +66,7 @@ app.onError(errorHandler)
 // Routes
 app.route('/health', healthRouter)
 app.route('/webhook', webhookRouter)
+app.route('/webhook', leadForwardingRouter)  // Lead forwarding routes (nested under /webhook)
 app.route('/leads', leadsRouter)
 app.route('/contacts', contactsRouter)
 app.route('/conversions', conversionsRouter)
