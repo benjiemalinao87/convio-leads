@@ -519,6 +519,12 @@ webhook.post('/:webhookId', async (c) => {
 
         // Step 5: Check and forward lead to other webhooks if criteria match
         try {
+          // Create normalized payload with formatted phone number
+          const normalizedPayload = {
+            ...requestBody,
+            phone: normalizedPhone // Use normalized phone (+1XXXXXXXXXX format)
+          }
+
           const forwardingResult = await checkAndForwardLead(
             ((c.env as any) as any).LEADS_DB,
             webhookId,
@@ -526,7 +532,7 @@ webhook.post('/:webhookId', async (c) => {
             contactId,
             normalizedLead.productid,
             normalizedLead.zip || normalizedLead.zipCode || normalizedLead.zip_code,
-            requestBody // Forward original payload
+            normalizedPayload // Forward with normalized phone
           )
 
           if (forwardingResult.forwarded_count > 0) {
