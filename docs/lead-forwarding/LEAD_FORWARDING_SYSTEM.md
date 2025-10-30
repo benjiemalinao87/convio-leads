@@ -446,7 +446,7 @@ if (productMatch && zipMatch) {
     Body:
       {
         ...original lead payload...,
-        "_convio_metadata": {
+        "home_project_partner_metadata": {
           "lead_id": 123,
           "contact_id": 456,
           "forwarded_from": "profitise_ws_us_general_703",
@@ -533,7 +533,7 @@ X-Forwarding-Rule-Id: 1
 
 #### JSON Body (Original Payload + Metadata)
 
-The request body contains the **complete original lead data** plus a `_convio_metadata` object:
+The request body contains the **complete original lead data** plus a `home_project_partner_metadata` object:
 
 ```json
 {
@@ -545,7 +545,7 @@ The request body contains the **complete original lead data** plus a `_convio_me
   "productid": "Solar",
   "source": "Google Ads",
   "custom_field_1": "Some value",
-  "_convio_metadata": {
+  "home_project_partner_metadata": {
     "lead_id": 123,
     "contact_id": 456,
     "forwarded_from": "profitise_ws_us_general_703",
@@ -577,11 +577,11 @@ Partners can use `lead_id` to detect and handle duplicate deliveries:
 ```javascript
 // Example partner webhook handler
 app.post('/webhook', (req, res) => {
-  const { _convio_metadata } = req.body
+  const { home_project_partner_metadata } = req.body
 
   // Check if we've already received this lead
-  if (await isLeadProcessed(_convio_metadata.lead_id)) {
-    console.log(`Duplicate lead ${_convio_metadata.lead_id} - skipping`)
+  if (await isLeadProcessed(home_project_partner_metadata.lead_id)) {
+    console.log(`Duplicate lead ${home_project_partner_metadata.lead_id} - skipping`)
     return res.json({ success: true, duplicate: true })
   }
 
@@ -595,19 +595,19 @@ Track performance by source webhook:
 ```javascript
 // Track conversion by source
 analytics.track({
-  source: req.body._convio_metadata.forwarded_from,
-  product: req.body._convio_metadata.matched_product,
-  lead_id: req.body._convio_metadata.lead_id
+  source: req.body.home_project_partner_metadata.forwarded_from,
+  product: req.body.home_project_partner_metadata.matched_product,
+  lead_id: req.body.home_project_partner_metadata.lead_id
 })
 ```
 
 #### Backward Compatibility
-Partners who don't need the metadata can simply ignore the `_convio_metadata` field:
+Partners who don't need the metadata can simply ignore the `home_project_partner_metadata` field:
 
 ```javascript
 // Existing partner code continues to work
 const { firstname, lastname, email, phone } = req.body
-// _convio_metadata is safely ignored
+// home_project_partner_metadata is safely ignored
 ```
 
 ### Complete Example Request
@@ -626,7 +626,7 @@ curl -X POST https://partner-webhook.com/leads \
     "phone": "+14155551234",
     "zip": "90210",
     "productid": "Solar",
-    "_convio_metadata": {
+    "home_project_partner_metadata": {
       "lead_id": 123,
       "contact_id": 456,
       "forwarded_from": "profitise_ws_us_general_703",

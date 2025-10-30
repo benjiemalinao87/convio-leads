@@ -267,7 +267,7 @@ STEP 6: SEQUENTIAL RULE EVALUATION
     │ Body:                                                   │
     │   {                                                     │
     │     ...complete original lead payload...,               │
-    │     "_convio_metadata": {                               │
+    │     "home_project_partner_metadata": {                               │
     │       "lead_id": 123,                                   │
     │       "contact_id": 456,                                │
     │       "forwarded_from": "profitise_ws_us_general_703",  │

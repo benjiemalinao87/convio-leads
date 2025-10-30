@@ -190,7 +190,7 @@ async function forwardLeadToWebhook(
     // Enrich payload with metadata for easy partner mapping
     const enrichedPayload = {
       ...payload,
-      _convio_metadata: {
+      home_project_partner_metadata: {
         lead_id: leadId,
         contact_id: contactId,
         forwarded_from: rule.source_webhook_id,

@@ -51,7 +51,7 @@ X-Forwarding-Rule-Id: 1
   "phone": "+14155551234",
   "zip": "90210",
   "productid": "Solar",
-  "_convio_metadata": {
+  "home_project_partner_metadata": {
     "lead_id": 123,
     "contact_id": 456,
     "forwarded_from": "profitise_ws_us_general_703",
@@ -72,16 +72,16 @@ Partners can access tracking data directly from the JSON body without parsing HT
 
 ```javascript
 // Simple body parsing - no header parsing needed
-const { _convio_metadata } = req.body
-console.log(`Lead ID: ${_convio_metadata.lead_id}`)
-console.log(`From: ${_convio_metadata.forwarded_from}`)
+const { home_project_partner_metadata } = req.body
+console.log(`Lead ID: ${home_project_partner_metadata.lead_id}`)
+console.log(`From: ${home_project_partner_metadata.forwarded_from}`)
 ```
 
 ### 2. Better Deduplication
 Partners can use `lead_id` to prevent processing the same lead twice:
 
 ```javascript
-if (await db.exists('leads', _convio_metadata.lead_id)) {
+if (await db.exists('leads', home_project_partner_metadata.lead_id)) {
   return { success: true, duplicate: true }
 }
 ```
@@ -91,17 +91,17 @@ Track which products and zip codes are performing best:
 
 ```javascript
 analytics.track({
-  lead_id: _convio_metadata.lead_id,
-  product: _convio_metadata.matched_product,
-  zip: _convio_metadata.matched_zip,
-  source: _convio_metadata.forwarded_from
+  lead_id: home_project_partner_metadata.lead_id,
+  product: home_project_partner_metadata.matched_product,
+  zip: home_project_partner_metadata.matched_zip,
+  source: home_project_partner_metadata.forwarded_from
 })
 ```
 
 ### 4. Backward Compatibility
 Existing partner integrations continue to work without changes:
 - Original payload fields remain unchanged
-- `_convio_metadata` is a new optional field
+- `home_project_partner_metadata` is a new optional field
 - Partners can ignore it if not needed
 
 ---
@@ -146,7 +146,7 @@ const response = await fetch(rule.target_webhook_url, {
 // Enrich payload with metadata for easy partner mapping
 const enrichedPayload = {
   ...payload,
-  _convio_metadata: {
+  home_project_partner_metadata: {
     lead_id: leadId,
     contact_id: contactId,
     forwarded_from: rule.source_webhook_id,
@@ -184,7 +184,7 @@ Updated documentation files to reflect the new payload structure:
 
 2. **[ARCHITECTURE_DIAGRAM.md](ARCHITECTURE_DIAGRAM.md)**
    - Updated HTTP POST body visualization
-   - Added `_convio_metadata` object to examples
+   - Added `home_project_partner_metadata` object to examples
 
 ---
 
@@ -222,7 +222,7 @@ curl -X POST "https://api.homeprojectpartners.com/webhook/profitise_ws_us_genera
 # 2. Check forwarding log
 curl "https://api.homeprojectpartners.com/webhook/profitise_ws_us_general_703/forwarding-log?limit=1"
 
-# 3. Verify partner received enriched payload with _convio_metadata
+# 3. Verify partner received enriched payload with home_project_partner_metadata
 ```
 
 ### Expected Partner Response
@@ -237,7 +237,7 @@ Partners should see requests like this in their webhook logs:
   "phone": "+15551234567",
   "zip": "90210",
   "productid": "Solar",
-  "_convio_metadata": {
+  "home_project_partner_metadata": {
     "lead_id": 125,
     "contact_id": 89,
     "forwarded_from": "profitise_ws_us_general_703",
@@ -254,7 +254,7 @@ Partners should see requests like this in their webhook logs:
 ## Migration Guide for Partners
 
 ### No Action Required
-Existing partner integrations will continue to work without any changes. The `_convio_metadata` field is completely optional.
+Existing partner integrations will continue to work without any changes. The `home_project_partner_metadata` field is completely optional.
 
 ### Optional: Leverage New Metadata
 
@@ -269,19 +269,19 @@ app.post('/webhook', (req, res) => {
 
 // After (with metadata support)
 app.post('/webhook', (req, res) => {
-  const { firstname, lastname, email, phone, _convio_metadata } = req.body
+  const { firstname, lastname, email, phone, home_project_partner_metadata } = req.body
 
   // Optional: Use metadata for deduplication
-  if (_convio_metadata && await isDuplicate(_convio_metadata.lead_id)) {
+  if (home_project_partner_metadata && await isDuplicate(home_project_partner_metadata.lead_id)) {
     return res.json({ success: true, duplicate: true })
   }
 
   // Optional: Track analytics
-  if (_convio_metadata) {
+  if (home_project_partner_metadata) {
     analytics.track({
-      lead_id: _convio_metadata.lead_id,
-      source: _convio_metadata.forwarded_from,
-      product: _convio_metadata.matched_product
+      lead_id: home_project_partner_metadata.lead_id,
+      source: home_project_partner_metadata.forwarded_from,
+      product: home_project_partner_metadata.matched_product
     })
   }
 
@@ -304,7 +304,7 @@ If issues arise, rollback is simple since this is a non-breaking change:
 
 2. **No Database Changes:** No migration to rollback
 
-3. **Partners Unaffected:** Partners never depended on `_convio_metadata`, so removal won't break integrations
+3. **Partners Unaffected:** Partners never depended on `home_project_partner_metadata`, so removal won't break integrations
 
 ---
 
