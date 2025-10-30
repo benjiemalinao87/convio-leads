@@ -183,7 +183,7 @@ webhook.get('/:webhookId', async (c) => {
 
     // Check if webhook exists in database
     const { results } = await db.prepare(
-      'SELECT webhook_id, name, description, lead_type, is_active, total_leads, created_at, forwarding_enabled, auto_forward_count, last_forwarded_at FROM webhook_configs WHERE webhook_id = ? AND is_active = 1'
+      'SELECT webhook_id, name, description, lead_type, is_active, total_leads, created_at, forwarding_enabled, forward_mode, auto_forward_count, last_forwarded_at FROM webhook_configs WHERE webhook_id = ? AND is_active = 1'
     ).bind(webhookId).all()
 
     if (results.length === 0) {
@@ -208,6 +208,7 @@ webhook.get('/:webhookId', async (c) => {
         total_leads: config.total_leads,
         created_at: config.created_at,
         forwarding_enabled: config.forwarding_enabled || 0,
+        forward_mode: config.forward_mode || 'first-match',
         auto_forward_count: config.auto_forward_count || 0,
         last_forwarded_at: config.last_forwarded_at
       },

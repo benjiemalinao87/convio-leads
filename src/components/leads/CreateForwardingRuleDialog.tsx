@@ -26,7 +26,8 @@ import {
   Upload,
   FileText,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
+  Zap
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -84,6 +85,21 @@ export function CreateForwardingRuleDialog({ webhookId, open, onOpenChange, onSu
   const [newProductType, setNewProductType] = useState('');
   const [newZipCode, setNewZipCode] = useState('');
   const [zipCodesText, setZipCodesText] = useState('');
+
+  // Quick action: Create catch-all rule template
+  const fillCatchAllTemplate = () => {
+    setFormData(prev => ({
+      ...prev,
+      product_types: ['*'],
+      zip_codes: ['*'],
+      priority: 999,
+      notes: 'Catch-all fallback for new markets and unlisted zip codes'
+    }));
+    toast({
+      title: "Catch-All Template Applied",
+      description: "Rule configured to match all products and zip codes. Set priority 999 as fallback.",
+    });
+  };
 
   const handleAddProductType = (productType: string) => {
     if (productType && !formData.product_types.includes(productType)) {
@@ -351,6 +367,25 @@ export function CreateForwardingRuleDialog({ webhookId, open, onOpenChange, onSu
           <DialogDescription>
             Configure automatic forwarding criteria for incoming leads from webhook: <strong>{webhookId}</strong>
           </DialogDescription>
+
+          {/* Quick Action: Catch-All Template */}
+          <Alert className="mt-4 border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950">
+            <Zap className="h-4 w-4 text-blue-600" />
+            <AlertDescription className="flex items-center justify-between">
+              <div className="text-sm">
+                <strong>Quick Start:</strong> Create a catch-all rule to forward leads that don't match other rules
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={fillCatchAllTemplate}
+                className="ml-4 shrink-0"
+              >
+                <Zap className="h-4 w-4 mr-1" />
+                Use Catch-All Template
+              </Button>
+            </AlertDescription>
+          </Alert>
         </DialogHeader>
 
         <div className="space-y-6">
@@ -401,8 +436,16 @@ export function CreateForwardingRuleDialog({ webhookId, open, onOpenChange, onSu
             {formData.product_types.length > 0 && (
               <div className="flex flex-wrap gap-2">
                 {formData.product_types.map(type => (
-                  <Badge key={type} variant="secondary" className="gap-1">
-                    {type}
+                  <Badge
+                    key={type}
+                    variant={type === '*' ? 'default' : 'secondary'}
+                    className={`gap-1 ${type === '*' ? 'bg-blue-600 hover:bg-blue-700' : ''}`}
+                  >
+                    {type === '*' ? (
+                      <><Zap className="h-3 w-3" /> All Products (Wildcard)</>
+                    ) : (
+                      type
+                    )}
                     <button onClick={() => handleRemoveProductType(type)} className="ml-1 hover:text-destructive" title="Remove product type">
                       <X className="h-3 w-3" />
                     </button>
@@ -506,8 +549,16 @@ export function CreateForwardingRuleDialog({ webhookId, open, onOpenChange, onSu
                 </p>
                 <div className="flex flex-wrap gap-1 max-h-32 overflow-y-auto border rounded p-2">
                   {formData.zip_codes.map(zip => (
-                    <Badge key={zip} variant="outline" className="gap-1 font-mono text-xs">
-                      {zip}
+                    <Badge
+                      key={zip}
+                      variant={zip === '*' ? 'default' : 'outline'}
+                      className={`gap-1 font-mono text-xs ${zip === '*' ? 'bg-blue-600 hover:bg-blue-700' : ''}`}
+                    >
+                      {zip === '*' ? (
+                        <><Zap className="h-3 w-3" /> All Zip Codes (Wildcard)</>
+                      ) : (
+                        zip
+                      )}
                       <button onClick={() => handleRemoveZipCode(zip)} className="ml-1 hover:text-destructive" title="Remove zip code">
                         <X className="h-3 w-3" />
                       </button>

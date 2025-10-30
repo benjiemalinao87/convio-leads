@@ -54,9 +54,9 @@ export async function checkAndForwardLead(
   }
 
   try {
-    // Step 1: Check if forwarding is enabled for this webhook
+    // Step 1: Check if forwarding is enabled for this webhook and get forward_mode
     const webhookConfig = await db.prepare(`
-      SELECT forwarding_enabled FROM webhook_configs
+      SELECT forwarding_enabled, forward_mode FROM webhook_configs
       WHERE webhook_id = ? AND is_active = 1 AND deleted_at IS NULL
     `).bind(webhookId).first()
 
@@ -64,6 +64,10 @@ export async function checkAndForwardLead(
       console.log(`Forwarding disabled for webhook ${webhookId}`)
       return result
     }
+
+    // Get forward mode (default to 'first-match' for safety)
+    const forwardMode = (webhookConfig.forward_mode as string) || 'first-match'
+    console.log(`Webhook ${webhookId} forward_mode: ${forwardMode}`)
 
     // Step 2: Get active forwarding rules sorted by priority
     const { results: rules } = await db.prepare(`
@@ -87,15 +91,26 @@ export async function checkAndForwardLead(
         const productTypes = JSON.parse(rule.product_types)
         const zipCodes = JSON.parse(rule.zip_codes)
 
-        // Check criteria match
-        const productMatch = productId && productTypes.some((p: string) =>
-          p.toLowerCase() === productId.toLowerCase()
-        )
-        const zipMatch = zipCode && zipCodes.includes(zipCode)
+        // Check criteria match with wildcard support
+        // Wildcard "*" matches everything (useful for catch-all rules)
+        const productMatch = productTypes.includes("*") ||
+          (productId && productTypes.some((p: string) =>
+            p.toLowerCase() === productId.toLowerCase()
+          ))
+
+        const zipMatch = zipCodes.includes("*") ||
+          (zipCode && zipCodes.includes(zipCode))
 
         // Both criteria must match (AND logic)
         if (productMatch && zipMatch) {
-          console.log(`Rule ${rule.id} matched for lead ${leadId}: product=${productId}, zip=${zipCode}`)
+          const matchType = productTypes.includes("*") && zipCodes.includes("*")
+            ? 'catch-all'
+            : productTypes.includes("*")
+            ? 'product-catchall'
+            : zipCodes.includes("*")
+            ? 'zip-catchall'
+            : 'exact'
+          console.log(`Rule ${rule.id} matched (${matchType}) for lead ${leadId}: product=${productId}, zip=${zipCode}`)
 
           // Forward lead to target webhook
           const forwardSuccess = await forwardLeadToWebhook(
@@ -118,12 +133,15 @@ export async function checkAndForwardLead(
                   last_forwarded_at = CURRENT_TIMESTAMP
               WHERE webhook_id = ?
             `).bind(webhookId).run()
-          }
 
-          // Optional: Break after first match or continue to forward to multiple?
-          // For now, we'll forward to ALL matching rules
-          // If you want to stop after first match, uncomment:
-          // break;
+            // Check forward_mode to determine if we should stop after first match
+            if (forwardMode === 'first-match') {
+              console.log(`Forward mode is 'first-match' - stopping after successful forward`)
+              break // Stop after first successful forward (prevents duplicate lead distribution)
+            }
+            // If forward_mode is 'all-matches', continue to next rule
+            console.log(`Forward mode is 'all-matches' - continuing to evaluate remaining rules`)
+          }
         } else {
           console.log(`Rule ${rule.id} did not match: product_match=${productMatch}, zip_match=${zipMatch}`)
         }
@@ -169,6 +187,20 @@ async function forwardLeadToWebhook(
   try {
     console.log(`Forwarding lead ${leadId} to ${rule.target_webhook_url}`)
 
+    // Enrich payload with metadata for easy partner mapping
+    const enrichedPayload = {
+      ...payload,
+      _convio_metadata: {
+        lead_id: leadId,
+        contact_id: contactId,
+        forwarded_from: rule.source_webhook_id,
+        rule_id: rule.id,
+        matched_product: matchedProduct,
+        matched_zip: matchedZip,
+        forwarded_at: new Date().toISOString()
+      }
+    }
+
     // Make HTTP POST request to target webhook
     const response = await fetch(rule.target_webhook_url, {
       method: 'POST',
@@ -179,7 +211,7 @@ async function forwardLeadToWebhook(
         'X-Original-Contact-Id': contactId.toString(),
         'X-Forwarding-Rule-Id': rule.id.toString()
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(enrichedPayload)
     })
 
     const responseBody = await response.text()

@@ -65,6 +65,30 @@ leadForwardingRouter.post('/:webhookId/forwarding-rules', async (c) => {
       }, 404)
     }
 
+    // Check for catch-all rule configuration
+    const isCatchAll = body.product_types.includes("*") && body.zip_codes.includes("*")
+    const isPartialCatchAll = body.product_types.includes("*") || body.zip_codes.includes("*")
+
+    // Warn if creating catch-all rule with high priority (might override specific rules)
+    if (isCatchAll && body.priority && body.priority < 100) {
+      console.warn(`⚠️  Creating catch-all rule with priority ${body.priority} - this may override specific rules`)
+    }
+
+    // Check for existing catch-all rules (optional warning, not blocking)
+    if (isCatchAll) {
+      const existingCatchAll = await db.prepare(`
+        SELECT id, priority, target_webhook_id FROM lead_forwarding_rules
+        WHERE source_webhook_id = ?
+          AND product_types LIKE '%"*"%'
+          AND zip_codes LIKE '%"*"%'
+          AND is_active = 1
+      `).bind(webhookId).first()
+
+      if (existingCatchAll) {
+        console.log(`ℹ️  Another catch-all rule exists (ID: ${existingCatchAll.id}, Priority: ${existingCatchAll.priority})`)
+      }
+    }
+
     // Set priority if not provided (get next available priority)
     let priority = body.priority
     if (!priority) {
@@ -99,7 +123,11 @@ leadForwardingRouter.post('/:webhookId/forwarding-rules', async (c) => {
 
     return c.json({
       success: true,
-      message: 'Forwarding rule created successfully',
+      message: isCatchAll
+        ? 'Catch-all forwarding rule created successfully (matches all leads)'
+        : isPartialCatchAll
+        ? 'Partial catch-all forwarding rule created successfully'
+        : 'Forwarding rule created successfully',
       rule: {
         id: ruleId,
         source_webhook_id: webhookId,
@@ -112,7 +140,9 @@ leadForwardingRouter.post('/:webhookId/forwarding-rules', async (c) => {
         forward_enabled: body.forward_enabled !== false,
         notes: body.notes,
         zip_count: body.zip_codes.length,
-        product_count: body.product_types.length
+        product_count: body.product_types.length,
+        is_catch_all: isCatchAll,
+        is_partial_catch_all: isPartialCatchAll && !isCatchAll
       },
       timestamp: new Date().toISOString()
     })
@@ -566,6 +596,71 @@ leadForwardingRouter.patch('/:webhookId/forwarding-toggle', async (c) => {
     return c.json({
       success: false,
       error: 'Failed to toggle forwarding',
+      details: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString()
+    }, 500)
+  }
+})
+
+// ============================================================================
+// PATCH /webhook/:webhookId/forward-mode
+// Configure forwarding behavior for webhook
+// ============================================================================
+leadForwardingRouter.patch('/:webhookId/forward-mode', async (c) => {
+  try {
+    const db = c.env.LEADS_DB
+    const webhookId = c.req.param('webhookId')
+    const body = await c.req.json<{ forward_mode: 'first-match' | 'all-matches' }>()
+
+    // Validate forward_mode value
+    if (!body.forward_mode || !['first-match', 'all-matches'].includes(body.forward_mode)) {
+      return c.json({
+        success: false,
+        error: 'forward_mode must be either "first-match" or "all-matches"',
+        timestamp: new Date().toISOString()
+      }, 400)
+    }
+
+    // Check if webhook exists
+    const webhook = await db.prepare(`
+      SELECT webhook_id, name, forwarding_enabled FROM webhook_configs
+      WHERE webhook_id = ? AND is_active = 1 AND deleted_at IS NULL
+    `).bind(webhookId).first()
+
+    if (!webhook) {
+      return c.json({
+        success: false,
+        error: 'Webhook not found or inactive',
+        webhook_id: webhookId,
+        timestamp: new Date().toISOString()
+      }, 404)
+    }
+
+    // Update forward_mode
+    await db.prepare(`
+      UPDATE webhook_configs
+      SET forward_mode = ?,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE webhook_id = ?
+    `).bind(body.forward_mode, webhookId).run()
+
+    return c.json({
+      success: true,
+      message: `Forward mode updated to '${body.forward_mode}' for webhook`,
+      webhook_id: webhookId,
+      forward_mode: body.forward_mode,
+      description: body.forward_mode === 'first-match'
+        ? 'Leads will forward to first matching rule only (prevents duplicates)'
+        : 'Leads will forward to all matching rules (useful for analytics)',
+      forwarding_enabled: webhook.forwarding_enabled === 1,
+      timestamp: new Date().toISOString()
+    })
+
+  } catch (error) {
+    console.error('Error updating forward mode:', error)
+    return c.json({
+      success: false,
+      error: 'Failed to update forward mode',
       details: error instanceof Error ? error.message : 'Unknown error',
       timestamp: new Date().toISOString()
     }, 500)
