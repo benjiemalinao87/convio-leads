@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Switch } from '@/components/ui/switch';
 import {
   Table,
   TableBody,
@@ -39,11 +40,18 @@ import {
   Share2,
   CheckCircle,
   XCircle,
-  ExternalLink
+  ExternalLink,
+  Power,
+  AlertTriangle
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
 import { CreateForwardingRuleDialog } from './CreateForwardingRuleDialog';
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from '@/components/ui/alert';
 
 interface ForwardingRule {
   id: number;
@@ -71,7 +79,71 @@ interface ForwardingRulesListProps {
 export function ForwardingRulesList({ webhookId, rules, onRefresh }: ForwardingRulesListProps) {
   const [deleting, setDeleting] = useState<number | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [forwardingEnabled, setForwardingEnabled] = useState(false);
+  const [loadingMasterToggle, setLoadingMasterToggle] = useState(false);
+  const [fetchingMasterToggle, setFetchingMasterToggle] = useState(true);
   const { toast } = useToast();
+
+  // Fetch master forwarding toggle status
+  const fetchMasterToggle = async () => {
+    try {
+      setFetchingMasterToggle(true);
+      const response = await fetch(
+        `https://api.homeprojectpartners.com/webhook/${webhookId}`
+      );
+      const data = await response.json();
+
+      if (data.config) {
+        // Check if forwarding_enabled exists in the response
+        const enabled = data.config.forwarding_enabled === 1 || data.config.forwarding_enabled === true;
+        setForwardingEnabled(enabled);
+      }
+    } catch (error) {
+      console.error('Error fetching master toggle:', error);
+    } finally {
+      setFetchingMasterToggle(false);
+    }
+  };
+
+  // Toggle master forwarding switch
+  const handleMasterToggle = async (checked: boolean) => {
+    try {
+      setLoadingMasterToggle(true);
+      const response = await fetch(
+        `https://api.homeprojectpartners.com/webhook/${webhookId}/forwarding-toggle`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ forwarding_enabled: checked }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (data.success) {
+        setForwardingEnabled(checked);
+        toast({
+          title: "Success",
+          description: `Lead forwarding ${checked ? 'enabled' : 'disabled'} for this webhook`,
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: data.error || "Failed to update forwarding status",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error toggling master forwarding:', error);
+      toast({
+        title: "Error",
+        description: "Failed to connect to API",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingMasterToggle(false);
+    }
+  };
 
   const handleDeleteRule = async (ruleId: number) => {
     try {
@@ -144,6 +216,11 @@ export function ForwardingRulesList({ webhookId, rules, onRefresh }: ForwardingR
     }
   };
 
+  // Fetch master toggle status on component mount
+  useEffect(() => {
+    fetchMasterToggle();
+  }, [webhookId]);
+
   const formatDateTime = (dateString: string) => {
     const date = new Date(dateString);
     return {
@@ -170,6 +247,48 @@ export function ForwardingRulesList({ webhookId, rules, onRefresh }: ForwardingR
 
   return (
     <div className="space-y-6">
+      {/* Master Forwarding Toggle - Critical Control */}
+      <Alert className={forwardingEnabled
+        ? "border-green-500/30 bg-green-950/20 dark:border-green-500/40 dark:bg-green-950/30"
+        : "border-amber-500/30 bg-amber-950/20 dark:border-amber-500/40 dark:bg-amber-950/30"
+      }>
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <Power className={`h-4 w-4 flex-shrink-0 ${forwardingEnabled ? 'text-green-500' : 'text-amber-500'}`} />
+            <div className="flex-1 min-w-0">
+              <AlertTitle className="mb-0.5 text-sm font-semibold">
+                {forwardingEnabled ? (
+                  <span className="text-green-500">Lead forwarding is ENABLED</span>
+                ) : (
+                  <span className="text-amber-500">Lead forwarding is DISABLED</span>
+                )}
+              </AlertTitle>
+              <AlertDescription className="text-xs text-muted-foreground">
+                {forwardingEnabled
+                  ? "Leads matching your rules will be automatically forwarded to target webhooks"
+                  : "Configure rules below, then enable forwarding to start automatic lead distribution"
+                }
+              </AlertDescription>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            {!forwardingEnabled && rules.length > 0 && (
+              <div className="flex items-center gap-1.5 text-amber-500 bg-amber-950/30 px-2 py-1 rounded-md">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                <span className="text-xs font-medium">Rules inactive</span>
+              </div>
+            )}
+            <Switch
+              id="master-toggle"
+              checked={forwardingEnabled}
+              onCheckedChange={handleMasterToggle}
+              disabled={loadingMasterToggle || fetchingMasterToggle}
+              className="data-[state=checked]:bg-green-600"
+            />
+          </div>
+        </div>
+      </Alert>
+
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>

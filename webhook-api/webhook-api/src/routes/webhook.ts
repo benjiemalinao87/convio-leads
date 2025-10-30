@@ -183,7 +183,7 @@ webhook.get('/:webhookId', async (c) => {
 
     // Check if webhook exists in database
     const { results } = await db.prepare(
-      'SELECT webhook_id, name, description, lead_type, is_active, total_leads, created_at FROM webhook_configs WHERE webhook_id = ? AND is_active = 1'
+      'SELECT webhook_id, name, description, lead_type, is_active, total_leads, created_at, forwarding_enabled, auto_forward_count, last_forwarded_at FROM webhook_configs WHERE webhook_id = ? AND is_active = 1'
     ).bind(webhookId).all()
 
     if (results.length === 0) {
@@ -206,7 +206,10 @@ webhook.get('/:webhookId', async (c) => {
         region: webhookId.split('_')[1] || 'unknown',
         category: webhookId.split('_')[2] || 'unknown',
         total_leads: config.total_leads,
-        created_at: config.created_at
+        created_at: config.created_at,
+        forwarding_enabled: config.forwarding_enabled || 0,
+        auto_forward_count: config.auto_forward_count || 0,
+        last_forwarded_at: config.last_forwarded_at
       },
       endpoints: {
         health: `GET /webhook/${webhookId}`,
