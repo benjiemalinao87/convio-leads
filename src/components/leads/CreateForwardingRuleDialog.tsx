@@ -235,15 +235,6 @@ export function CreateForwardingRuleDialog({ webhookId, open, onOpenChange, onSu
 
   const handleSubmit = async (useBulk: boolean = false) => {
     // Validation
-    if (!formData.target_webhook_id.trim()) {
-      toast({
-        title: "Validation Error",
-        description: "Target webhook ID is required",
-        variant: "destructive",
-      });
-      return;
-    }
-
     if (!formData.target_webhook_url.trim()) {
       toast({
         title: "Validation Error",
@@ -286,13 +277,17 @@ export function CreateForwardingRuleDialog({ webhookId, open, onOpenChange, onSu
     try {
       setLoading(true);
 
+      // Auto-generate webhook ID if empty
+      const targetWebhookId = formData.target_webhook_id.trim() ||
+        `target_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
       const endpoint = useBulk
         ? `https://api.homeprojectpartners.com/webhook/${webhookId}/forwarding-rules/bulk`
         : `https://api.homeprojectpartners.com/webhook/${webhookId}/forwarding-rules`;
 
       const requestBody = useBulk
         ? {
-            target_webhook_id: formData.target_webhook_id,
+            target_webhook_id: targetWebhookId,
             target_webhook_url: formData.target_webhook_url,
             product_types: formData.product_types,
             zip_codes_csv: formData.zip_codes.join(','),
@@ -301,7 +296,7 @@ export function CreateForwardingRuleDialog({ webhookId, open, onOpenChange, onSu
             notes: formData.notes || undefined,
           }
         : {
-            target_webhook_id: formData.target_webhook_id,
+            target_webhook_id: targetWebhookId,
             target_webhook_url: formData.target_webhook_url,
             product_types: formData.product_types,
             zip_codes: formData.zip_codes,
@@ -392,16 +387,7 @@ export function CreateForwardingRuleDialog({ webhookId, open, onOpenChange, onSu
           {/* Target Webhook Section */}
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-foreground">Target Webhook</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="target_webhook_id">Target Webhook ID *</Label>
-                <Input
-                  id="target_webhook_id"
-                  placeholder="e.g., partner-webhook_ws_us_solar_001"
-                  value={formData.target_webhook_id}
-                  onChange={(e) => setFormData(prev => ({ ...prev, target_webhook_id: e.target.value }))}
-                />
-              </div>
+            <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="target_webhook_url">Target Webhook URL *</Label>
                 <Input
@@ -411,6 +397,24 @@ export function CreateForwardingRuleDialog({ webhookId, open, onOpenChange, onSu
                   value={formData.target_webhook_url}
                   onChange={(e) => setFormData(prev => ({ ...prev, target_webhook_url: e.target.value }))}
                 />
+                <p className="text-xs text-muted-foreground">
+                  The URL where leads will be forwarded via HTTP POST
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="target_webhook_id">
+                  Target Webhook ID <span className="text-muted-foreground">(Optional)</span>
+                </Label>
+                <Input
+                  id="target_webhook_id"
+                  placeholder="e.g., partner-webhook_ws_us_solar_001"
+                  value={formData.target_webhook_id}
+                  onChange={(e) => setFormData(prev => ({ ...prev, target_webhook_id: e.target.value }))}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Internal label for identifying this target (auto-generated if left empty)
+                </p>
               </div>
             </div>
           </div>
