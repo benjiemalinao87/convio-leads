@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import {
   Select,
   SelectContent,
@@ -11,7 +12,7 @@ import {
 } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { FileText, Mail, Loader2, CheckCircle2 } from 'lucide-react';
+import { FileText, Mail, Loader2, CheckCircle2, X } from 'lucide-react';
 import { OnboardingMaterialsPreview } from '@/components/admin/OnboardingMaterialsPreview';
 
 interface FormData {
@@ -20,7 +21,7 @@ interface FormData {
   contact_phone: string;
   contact_email: string;
   webhook_name: string;
-  webhook_type: string;
+  webhook_types: string[]; // Changed to array for multiple selection
   webhook_region: string;
   admin_email: string;
   admin_name: string;
@@ -117,7 +118,7 @@ export default function AdminOnboarding() {
     contact_phone: '',
     contact_email: '',
     webhook_name: '',
-    webhook_type: '',
+    webhook_types: [], // Changed to array
     webhook_region: 'us',
     admin_email: '',
     admin_name: '',
@@ -164,7 +165,6 @@ export default function AdminOnboarding() {
       'contact_phone',
       'contact_email',
       'webhook_name',
-      'webhook_type',
       'admin_email'
     ];
 
@@ -174,6 +174,15 @@ export default function AdminOnboarding() {
       toast({
         title: 'Missing Required Fields',
         description: `Please fill in: ${missing.join(', ')}`,
+        variant: 'destructive',
+      });
+      return false;
+    }
+
+    if (formData.webhook_types.length === 0) {
+      toast({
+        title: 'Missing Webhook Types',
+        description: 'Please select at least one webhook type',
         variant: 'destructive',
       });
       return false;
@@ -250,7 +259,7 @@ export default function AdminOnboarding() {
         contact_name: formData.contact_name,
         contact_email: formData.contact_email,
         webhook_name: formData.webhook_name,
-        webhook_type: formData.webhook_type,
+        webhook_type: formData.webhook_types.join(', '), // Join multiple types for display
         email_template: materialsData.email_template,
         setup_guide_html: materialsData.setup_guide_html,
       });
@@ -279,7 +288,7 @@ export default function AdminOnboarding() {
       contact_phone: '',
       contact_email: '',
       webhook_name: '',
-      webhook_type: '',
+      webhook_types: [],
       webhook_region: 'us',
       admin_email: '',
       admin_name: '',
@@ -371,18 +380,58 @@ export default function AdminOnboarding() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="webhook_type">Webhook Type</Label>
+                  <Label htmlFor="webhook_types">Webhook Types (Multiple Selection)</Label>
+
+                  {/* Display selected types as badges */}
+                  {formData.webhook_types.length > 0 && (
+                    <div className="flex flex-wrap gap-2 p-3 bg-muted rounded-md">
+                      {formData.webhook_types.map((type) => {
+                        const typeLabel = WEBHOOK_TYPES.find(t => t.value === type)?.label || type;
+                        return (
+                          <Badge key={type} variant="secondary" className="gap-1">
+                            {typeLabel}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setFormData(prev => ({
+                                  ...prev,
+                                  webhook_types: prev.webhook_types.filter(t => t !== type)
+                                }));
+                              }}
+                              disabled={loading || !!onboardingData}
+                              className="ml-1 hover:bg-destructive/20 rounded-full"
+                              aria-label={`Remove ${typeLabel}`}
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </Badge>
+                        );
+                      })}
+                    </div>
+                  )}
+
                   <Select
-                    value={formData.webhook_type}
-                    onValueChange={(value) => handleInputChange('webhook_type', value)}
+                    value=""
+                    onValueChange={(value) => {
+                      if (value && !formData.webhook_types.includes(value)) {
+                        setFormData(prev => ({
+                          ...prev,
+                          webhook_types: [...prev.webhook_types, value]
+                        }));
+                      }
+                    }}
                     disabled={loading || !!onboardingData}
                   >
-                    <SelectTrigger id="webhook_type">
-                      <SelectValue placeholder="Select webhook type" />
+                    <SelectTrigger id="webhook_types">
+                      <SelectValue placeholder="Select webhook types to add..." />
                     </SelectTrigger>
                     <SelectContent>
                       {WEBHOOK_TYPES.map((type) => (
-                        <SelectItem key={type.value} value={type.value}>
+                        <SelectItem
+                          key={type.value}
+                          value={type.value}
+                          disabled={formData.webhook_types.includes(type.value)}
+                        >
                           {type.label}
                         </SelectItem>
                       ))}
@@ -433,7 +482,7 @@ export default function AdminOnboarding() {
                   <Input
                     id="admin_email"
                     type="email"
-                    placeholder="admin@homeprojectpartners.com"
+                    placeholder="yourname@buyerfound.ai"
                     value={formData.admin_email}
                     onChange={(e) => handleInputChange('admin_email', e.target.value)}
                     disabled={loading || !!onboardingData}

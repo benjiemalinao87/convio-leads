@@ -59,7 +59,6 @@ adminOnboardingRouter.post('/onboard-provider', async (c) => {
       'contact_phone',
       'contact_email',
       'webhook_name',
-      'webhook_type',
       'admin_email'
     ]
 
@@ -69,6 +68,15 @@ adminOnboardingRouter.post('/onboard-provider', async (c) => {
         success: false,
         error: 'Missing required fields',
         missing: missingFields,
+        timestamp: new Date().toISOString()
+      }, 400)
+    }
+
+    // Validate webhook_types array
+    if (!body.webhook_types || !Array.isArray(body.webhook_types) || body.webhook_types.length === 0) {
+      return c.json({
+        success: false,
+        error: 'webhook_types must be a non-empty array',
         timestamp: new Date().toISOString()
       }, 400)
     }
@@ -137,7 +145,9 @@ adminOnboardingRouter.post('/onboard-provider', async (c) => {
     // ========================================================================
     // STEP 3: Generate Webhook ID
     // ========================================================================
-    let webhookId = generateWebhookId(body.webhook_name, webhookRegion, body.webhook_type)
+    // Use first webhook type as primary type for webhook ID generation
+    const primaryWebhookType = body.webhook_types[0]
+    let webhookId = generateWebhookId(body.webhook_name, webhookRegion, primaryWebhookType)
     collisionAttempts = 0
 
     // Check for webhook ID collisions
@@ -148,7 +158,7 @@ adminOnboardingRouter.post('/onboard-provider', async (c) => {
 
       if (!existing) break
 
-      webhookId = generateWebhookId(body.webhook_name, webhookRegion, body.webhook_type)
+      webhookId = generateWebhookId(body.webhook_name, webhookRegion, primaryWebhookType)
       collisionAttempts++
     }
 
@@ -177,8 +187,8 @@ adminOnboardingRouter.post('/onboard-provider', async (c) => {
     `).bind(
       webhookId,
       body.webhook_name,
-      `Webhook for ${body.company_name} - ${body.webhook_type} leads`,
-      body.webhook_type,
+      `Webhook for ${body.company_name} - ${body.webhook_types.join(', ')} leads`,
+      primaryWebhookType, // Store primary type in lead_type field
       1, // is_active
       0, // forwarding_enabled
       'first-match', // forward_mode
@@ -228,7 +238,7 @@ adminOnboardingRouter.post('/onboard-provider', async (c) => {
       body.contact_email,
       body.contact_phone,
       body.webhook_name,
-      body.webhook_type,
+      body.webhook_types.join(', '), // Store all types as comma-separated string
       webhookRegion
     ).run()
 
@@ -257,7 +267,8 @@ adminOnboardingRouter.post('/onboard-provider', async (c) => {
           webhook_id: webhookId,
           webhook_url: webhookUrl,
           webhook_name: body.webhook_name,
-          webhook_type: body.webhook_type,
+          webhook_types: body.webhook_types, // Return all types
+          webhook_type: primaryWebhookType, // Primary type used for ID
           webhook_region: webhookRegion,
           is_active: true
         },
