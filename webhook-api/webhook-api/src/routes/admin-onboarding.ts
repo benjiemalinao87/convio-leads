@@ -391,11 +391,11 @@ function generateEmailTemplate(data: {
   webhook_id: string
   webhook_type: string
 }): string {
-  return `Subject: Welcome to Home Project Partners - Lead API Setup
+  return `Subject: Welcome to BuyerFound - Lead API Setup
 
 Hi ${data.contact_name},
 
-Welcome to Home Project Partners! Your lead integration is ready to go.
+Welcome to BuyerFound! Your lead integration is ready to go.
 
 CREDENTIALS
 -----------
@@ -416,14 +416,23 @@ curl -X POST ${data.webhook_url} \\
   -H "Content-Type: application/json" \\
   -H "Authorization: ${data.provider_id}" \\
   -d '{
-    "firstName": "John",
-    "lastName": "Doe",
-    "email": "john@example.com",
-    "phone": "555-123-4567",
-    "zip": "90210",
+    "firstname": "John",
+    "lastname": "Doe",
+    "email": "john.doe@example.com",
+    "phone": "5551234567",
+    "address1": "123 Main Street",
+    "address2": "Apt 4B",
+    "city": "Los Angeles",
     "state": "CA",
-    "productId": "${data.webhook_type}",
-    "source": "Your Company Name"
+    "zip": "90210",
+    "source": "Google Ads",
+    "productid": "${data.webhook_type}",
+    "subsource": "Solar Installation Campaign",
+    "landing_page_url": "https://solarpanel.com/ca-landing",
+    "consent": {
+      "description": "By providing your phone number, you consent to receive marketing messages via text. Reply STOP to opt out.",
+      "value": true
+    }
   }'
 
 TESTING
@@ -437,31 +446,34 @@ Expected response:
 PAYLOAD FIELDS
 --------------
 Required:
-- firstName (string)
-- lastName (string)
-- email (string)
-- phone (string) - Format: 555-123-4567 or +15551234567
+- firstname (string) - Lead's first name
+- lastname (string) - Lead's last name
+- email (string) - Valid email address
+- phone (string) - Format: 5551234567 or +15551234567
 
 Recommended:
-- zip (string) - 5-digit zip code
 - state (string) - 2-letter state code (e.g., CA, NY)
-- productId (string) - Product type (Solar, HVAC, Roofing, etc.)
-- source (string) - Lead source identifier
+- zip (string) - 5-digit zip code
+- productid (string) - Product type (Solar, HVAC, Roofing, etc.)
+- source (string) - Lead source identifier (e.g., "Google Ads")
 
 Optional:
-- address (string)
-- city (string)
-- notes (string)
+- address1 (string) - Street address
+- address2 (string) - Apartment, suite, etc.
+- city (string) - City name
+- subsource (string) - Campaign or sub-source detail
+- landing_page_url (string) - URL where lead originated
+- consent (object) - Consent information with description and value
 - Any custom fields your system uses
 
 SUPPORT
 -------
 Questions? Contact us at:
-Email: support@homeprojectpartners.com
+Email: brian@buyerfound.ai
 Documentation: https://api.homeprojectpartners.com/docs
 
 Best regards,
-Home Project Partners Team`
+BuyerFound Team`
 }
 
 function generateSetupGuideHtml(data: {
@@ -520,7 +532,7 @@ function generateSetupGuideHtml(data: {
     <div class="container">
         <div class="header">
             <h1>🚀 API Integration Guide</h1>
-            <p>Welcome to Home Project Partners, ${data.contact_name}!</p>
+            <p>Welcome to BuyerFound, ${data.contact_name}!</p>
         </div>
 
         <!-- Account Information -->
@@ -591,14 +603,23 @@ function generateSetupGuideHtml(data: {
   -H "Content-Type: application/json" \\
   -H "Authorization: ${data.provider_id}" \\
   -d '{
-    "firstName": "John",
-    "lastName": "Doe",
-    "email": "john@example.com",
-    "phone": "555-123-4567",
-    "zip": "90210",
+    "firstname": "John",
+    "lastname": "Doe",
+    "email": "john.doe@example.com",
+    "phone": "5551234567",
+    "address1": "123 Main Street",
+    "address2": "Apt 4B",
+    "city": "Los Angeles",
     "state": "CA",
-    "productId": "${data.webhook_type}",
-    "source": "${data.company_name}"
+    "zip": "90210",
+    "source": "Google Ads",
+    "productid": "${data.webhook_type}",
+    "subsource": "Solar Installation Campaign",
+    "landing_page_url": "https://solarpanel.com/ca-landing",
+    "consent": {
+      "description": "By providing your phone number, you consent to receive marketing messages via text. Reply STOP to opt out.",
+      "value": true
+    }
   }'</div>
 
             <h3>Step 3: Handle Response</h3>
@@ -627,11 +648,11 @@ function generateSetupGuideHtml(data: {
             <h3>Required Fields</h3>
             <table class="info-table">
                 <tr>
-                    <td>firstName</td>
+                    <td>firstname</td>
                     <td>string - Lead's first name</td>
                 </tr>
                 <tr>
-                    <td>lastName</td>
+                    <td>lastname</td>
                     <td>string - Lead's last name</td>
                 </tr>
                 <tr>
@@ -640,38 +661,53 @@ function generateSetupGuideHtml(data: {
                 </tr>
                 <tr>
                     <td>phone</td>
-                    <td>string - Format: 555-123-4567 or +15551234567</td>
+                    <td>string - Format: 5551234567 or +15551234567</td>
                 </tr>
             </table>
 
-            <h3>Recommended Fields</h3>
+            <h3>Optional Fields</h3>
             <table class="info-table">
                 <tr>
-                    <td>zip</td>
-                    <td>string - 5-digit zip code</td>
+                    <td>address1</td>
+                    <td>string - Street address</td>
+                </tr>
+                <tr>
+                    <td>address2</td>
+                    <td>string - Apartment, suite, etc.</td>
+                </tr>
+                <tr>
+                    <td>city</td>
+                    <td>string - City name</td>
                 </tr>
                 <tr>
                     <td>state</td>
                     <td>string - 2-letter state code (CA, NY, TX, etc.)</td>
                 </tr>
                 <tr>
-                    <td>productId</td>
-                    <td>string - Product type (Solar, HVAC, Roofing, Bath, etc.)</td>
+                    <td>zip</td>
+                    <td>string - 5-digit zip code</td>
                 </tr>
                 <tr>
                     <td>source</td>
                     <td>string - Lead source identifier</td>
                 </tr>
+                <tr>
+                    <td>productid</td>
+                    <td>string - Product type (Solar, HVAC, Roofing, Bath, etc.)</td>
+                </tr>
+                <tr>
+                    <td>subsource</td>
+                    <td>string - Campaign or sub-source detail</td>
+                </tr>
+                <tr>
+                    <td>landing_page_url</td>
+                    <td>string - URL where lead originated</td>
+                </tr>
+                <tr>
+                    <td>consent</td>
+                    <td>object - Consent information with description and value</td>
+                </tr>
             </table>
-
-            <h3>Optional Fields</h3>
-            <p>You can include any additional fields your system uses. Common optional fields:</p>
-            <ul style="margin-left: 20px; color: #6b7280;">
-                <li>address - Street address</li>
-                <li>city - City name</li>
-                <li>notes - Additional notes about the lead</li>
-                <li>Custom fields specific to your business</li>
-            </ul>
         </div>
 
         <!-- Authentication -->
@@ -732,14 +768,14 @@ function generateSetupGuideHtml(data: {
         <!-- Support -->
         <div class="section">
             <h2>💬 Support & Resources</h2>
-            <p><strong>Email:</strong> support@homeprojectpartners.com</p>
+            <p><strong>Email:</strong> brian@buyerfound.ai</p>
             <p><strong>Documentation:</strong> https://api.homeprojectpartners.com/docs</p>
             <p><strong>API Status:</strong> https://api.homeprojectpartners.com/health</p>
         </div>
 
         <div class="footer">
             <p><strong>Generated on:</strong> ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</p>
-            <p>© ${new Date().getFullYear()} Home Project Partners. All rights reserved.</p>
+            <p>© ${new Date().getFullYear()} BuyerFound. All rights reserved.</p>
         </div>
     </div>
 </body>
