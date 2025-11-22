@@ -113,12 +113,26 @@ export default function AdminOnboarding() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [onboardingData, setOnboardingData] = useState<OnboardingResponse | null>(null);
+  const { width, height } = useWindowSize();
 
   // Verification flow state
   const [verificationStep, setVerificationStep] = useState<'form' | 'verify' | 'complete'>('form');
   const [verificationCode, setVerificationCode] = useState('');
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [expiresAt, setExpiresAt] = useState<Date | null>(null);
+
+  // Confetti state
+  const [showConfetti, setShowConfetti] = useState(false);
+
+  // Stop confetti after 5 seconds
+  useEffect(() => {
+    if (showConfetti) {
+      const timer = setTimeout(() => {
+        setShowConfetti(false);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [showConfetti]);
 
   const [formData, setFormData] = useState<FormData>({
     company_name: '',
@@ -337,6 +351,9 @@ export default function AdminOnboarding() {
 
       setVerificationStep('complete');
 
+      // Trigger confetti
+      setShowConfetti(true);
+
       toast({
         title: 'Success!',
         description: 'Provider and webhook created successfully',
@@ -372,6 +389,7 @@ export default function AdminOnboarding() {
     setVerificationCode('');
     setSessionId(null);
     setExpiresAt(null);
+    setShowConfetti(false);
   };
 
   const handleBackToForm = () => {
@@ -382,13 +400,23 @@ export default function AdminOnboarding() {
   };
 
   return (
-    <div className="container mx-auto py-8 px-4">
-      <div className="mb-8 text-center">
-        <h1 className="text-3xl font-bold mb-2">Provider Onboarding Portal</h1>
-        <p className="text-muted-foreground">
-          Create new provider accounts and generate onboarding materials
-        </p>
-      </div>
+    <>
+      {showConfetti && (
+        <Confetti
+          width={width}
+          height={height}
+          recycle={false}
+          numberOfPieces={500}
+          gravity={0.3}
+        />
+      )}
+      <div className="container mx-auto py-8 px-4">
+        <div className="mb-8 text-center">
+          <h1 className="text-3xl font-bold mb-2">Provider Onboarding Portal</h1>
+          <p className="text-muted-foreground">
+            Create new provider accounts and generate onboarding materials
+          </p>
+        </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left Panel: Provider Information Form */}
@@ -745,5 +773,6 @@ export default function AdminOnboarding() {
         )}
       </div>
     </div>
+    </>
   );
 }
