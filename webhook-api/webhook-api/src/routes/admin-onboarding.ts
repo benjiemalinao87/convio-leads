@@ -467,6 +467,13 @@ async function createProviderAndWebhook(db: D1Database, body: any) {
       VALUES (?, ?, CURRENT_TIMESTAMP)
     `).bind(webhookId, providerId).run()
 
+    // Update provider's allowed_webhooks field
+    await db.prepare(`
+      UPDATE lead_source_providers
+      SET allowed_webhooks = ?
+      WHERE provider_id = ?
+    `).bind(JSON.stringify([webhookId]), providerId).run()
+
     // ========================================================================
     // STEP 6: Log onboarding event
     // ========================================================================
