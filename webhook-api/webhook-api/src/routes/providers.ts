@@ -393,7 +393,31 @@ providers.delete('/:providerId', async (c) => {
 
     const provider = existing[0]
 
-    // Delete the provider
+    // ============================================================================
+    // CASCADE DELETE: Delete all related records in dependency order
+    // ============================================================================
+
+    // 1. Delete from webhook_provider_mapping
+    await db.prepare(
+      'DELETE FROM webhook_provider_mapping WHERE provider_id = ?'
+    ).bind(providerId).run()
+
+    // 2. Delete from admin_onboarding_events
+    await db.prepare(
+      'DELETE FROM admin_onboarding_events WHERE provider_id = ?'
+    ).bind(providerId).run()
+
+    // 3. Delete from provider_usage_log
+    await db.prepare(
+      'DELETE FROM provider_usage_log WHERE provider_id = ?'
+    ).bind(providerId).run()
+
+    // 4. Delete from admin_onboarding_log (if exists)
+    await db.prepare(
+      'DELETE FROM admin_onboarding_log WHERE provider_id = ?'
+    ).bind(providerId).run()
+
+    // 5. Finally, delete the provider itself
     await db.prepare(
       'DELETE FROM lead_source_providers WHERE provider_id = ?'
     ).bind(providerId).run()
@@ -413,6 +437,7 @@ providers.delete('/:providerId', async (c) => {
     return c.json({
       error: 'Database error',
       message: 'Failed to delete provider',
+      details: error instanceof Error ? error.message : 'Unknown error',
       timestamp: new Date().toISOString()
     }, 500)
   }
