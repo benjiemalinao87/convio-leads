@@ -138,13 +138,20 @@ export async function checkAndForwardLead(
           if (forwardSuccess) {
             result.forwarded_count++
 
-            // Update webhook statistics
-            await db.prepare(`
-              UPDATE webhook_configs
-              SET auto_forward_count = auto_forward_count + 1,
-                  last_forwarded_at = CURRENT_TIMESTAMP
-              WHERE webhook_id = ?
-            `).bind(webhookId).run()
+            // Update webhook statistics and rule forward count
+            await Promise.all([
+              db.prepare(`
+                UPDATE webhook_configs
+                SET auto_forward_count = auto_forward_count + 1,
+                    last_forwarded_at = CURRENT_TIMESTAMP
+                WHERE webhook_id = ?
+              `).bind(webhookId).run(),
+              db.prepare(`
+                UPDATE lead_forwarding_rules
+                SET forward_count = forward_count + 1
+                WHERE id = ?
+              `).bind(rule.id).run()
+            ])
 
             // Check forward_mode to determine if we should stop after first match
             if (forwardMode === 'first-match') {

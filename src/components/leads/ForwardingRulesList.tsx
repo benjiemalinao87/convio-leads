@@ -42,7 +42,9 @@ import {
   XCircle,
   ExternalLink,
   Power,
-  AlertTriangle
+  AlertTriangle,
+  Target,
+  Globe
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
@@ -60,9 +62,11 @@ interface ForwardingRule {
   target_webhook_url: string;
   product_types: string[];
   zip_codes: string[];
+  states: string[];
   priority: number;
   is_active: boolean;
   forward_enabled: boolean;
+  forward_count: number;
   notes: string | null;
   zip_count?: number;
   product_count?: number;
@@ -398,6 +402,8 @@ export function ForwardingRulesList({ webhookId, rules, onRefresh }: ForwardingR
                           <TableHead>Priority</TableHead>
                           <TableHead>Product Types</TableHead>
                           <TableHead>Zip Codes</TableHead>
+                          <TableHead>States</TableHead>
+                          <TableHead>Hits</TableHead>
                           <TableHead>Status</TableHead>
                           <TableHead>Created</TableHead>
                           <TableHead className="w-[50px]"></TableHead>
@@ -453,6 +459,38 @@ export function ForwardingRulesList({ webhookId, rules, onRefresh }: ForwardingR
                                     <p className="text-xs text-muted-foreground">
                                       {rule.zip_count || rule.zip_codes.length} zip code{(rule.zip_count || rule.zip_codes.length) !== 1 ? 's' : ''}
                                     </p>
+                                  </div>
+                                </TableCell>
+
+                                <TableCell>
+                                  <div className="space-y-1">
+                                    <div className="flex flex-wrap gap-1">
+                                      {rule.states?.slice(0, 5).map((state, idx) => (
+                                        <Badge key={idx} variant="outline" className="text-xs font-mono">
+                                          {state}
+                                        </Badge>
+                                      ))}
+                                      {rule.states && rule.states.length > 5 && (
+                                        <Badge variant="outline" className="text-xs">
+                                          +{rule.states.length - 5} more
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">
+                                      {rule.states?.length || 0} state{(rule.states?.length || 0) !== 1 ? 's' : ''}
+                                    </p>
+                                  </div>
+                                </TableCell>
+
+                                <TableCell>
+                                  <div className="flex items-center gap-2">
+                                    <Badge
+                                      variant={rule.forward_count > 0 ? "default" : "secondary"}
+                                      className={rule.forward_count > 0 ? "bg-blue-600 hover:bg-blue-700" : ""}
+                                    >
+                                      <Target className="h-3 w-3 mr-1" />
+                                      {rule.forward_count}
+                                    </Badge>
                                   </div>
                                 </TableCell>
 
