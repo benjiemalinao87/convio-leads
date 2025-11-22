@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,6 +14,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { FileText, Mail, Loader2, CheckCircle2, X } from 'lucide-react';
 import { OnboardingMaterialsPreview } from '@/components/admin/OnboardingMaterialsPreview';
+import Confetti from 'react-confetti';
+import { useWindowSize } from '@/hooks/use-window-size';
 
 interface FormData {
   company_name: string;

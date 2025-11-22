@@ -31,17 +31,23 @@ function generateProviderId(providerName: string): string {
 /**
  * Generate webhook ID from webhook name and details
  * Format: {name_prefix}_ws_{region}_{category}_{random_3_digit}
- * Example: click-ventures_ws_cal_solar_123
+ * Example: click-ventures_ws_us_solar_123
  */
 function generateWebhookId(webhookName: string, region: string, category: string): string {
-  const sanitized = webhookName
+  const sanitizedName = webhookName
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .substring(0, 30)
 
+  // Sanitize category to remove spaces and special characters
+  const sanitizedCategory = category
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '')  // Remove all non-alphanumeric characters (including spaces)
+    .substring(0, 20)
+
   const suffix = Math.floor(100 + Math.random() * 900)
-  return `${sanitized}_ws_${region.toLowerCase()}_${category.toLowerCase()}_${suffix}`
+  return `${sanitizedName}_ws_${region.toLowerCase()}_${sanitizedCategory}_${suffix}`
 }
 
 // ============================================================================
@@ -283,12 +289,16 @@ adminOnboardingRouter.post('/verify-and-create', async (c) => {
 
     // Parse form data from session
     const formData = JSON.parse(session.form_data as string)
+    console.log('[verify-and-create] Parsed form data:', JSON.stringify(formData, null, 2))
 
     // Call the existing onboard-provider logic
     // We'll reuse the same logic by making an internal call
+    console.log('[verify-and-create] Calling createProviderAndWebhook...')
     const onboardingResult = await createProviderAndWebhook(db, formData)
+    console.log('[verify-and-create] Result from createProviderAndWebhook:', JSON.stringify(onboardingResult, null, 2))
 
     if (!onboardingResult.success) {
+      console.error('[verify-and-create] Provider creation failed:', onboardingResult.error)
       return c.json({
         success: false,
         error: onboardingResult.error || 'Failed to create provider',
@@ -296,6 +306,7 @@ adminOnboardingRouter.post('/verify-and-create', async (c) => {
       }, 500)
     }
 
+    console.log('[verify-and-create] Success! Returning response to client')
     return c.json({
       success: true,
       message: 'Provider and webhook created successfully',
@@ -318,6 +329,7 @@ adminOnboardingRouter.post('/verify-and-create', async (c) => {
 // Helper function to create provider and webhook (extracted for reuse)
 // ============================================================================
 async function createProviderAndWebhook(db: D1Database, body: any) {
+  console.log('[createProviderAndWebhook] Starting with body:', JSON.stringify(body, null, 2))
   try {
     // Validate required fields
     const requiredFields = [
@@ -462,17 +474,30 @@ async function createProviderAndWebhook(db: D1Database, body: any) {
     // ========================================================================
     // STEP 5: Link provider to webhook
     // ========================================================================
-    await db.prepare(`
+    console.log('[STEP 5] Linking provider to webhook:', { webhookId, providerId })
+    const mappingResult = await db.prepare(`
       INSERT INTO webhook_provider_mapping (webhook_id, provider_id, created_at)
       VALUES (?, ?, CURRENT_TIMESTAMP)
     `).bind(webhookId, providerId).run()
+    console.log('[STEP 5] Mapping result:', mappingResult)
 
     // Update provider's allowed_webhooks field
-    await db.prepare(`
+    console.log('[STEP 5] Updating allowed_webhooks for provider:', providerId)
+    const allowedWebhooksJson = JSON.stringify([webhookId])
+    console.log('[STEP 5] allowed_webhooks JSON:', allowedWebhooksJson)
+
+    const updateResult = await db.prepare(`
       UPDATE lead_source_providers
       SET allowed_webhooks = ?
       WHERE provider_id = ?
-    `).bind(JSON.stringify([webhookId]), providerId).run()
+    `).bind(allowedWebhooksJson, providerId).run()
+    console.log('[STEP 5] UPDATE result:', updateResult)
+
+    // Verify the update worked
+    const verifyProvider = await db.prepare(`
+      SELECT provider_id, allowed_webhooks FROM lead_source_providers WHERE provider_id = ?
+    `).bind(providerId).first()
+    console.log('[STEP 5] Verification - provider after update:', verifyProvider)
 
     // ========================================================================
     // STEP 6: Log onboarding event
@@ -498,6 +523,10 @@ async function createProviderAndWebhook(db: D1Database, body: any) {
     ).run()
 
     const webhookUrl = `https://api.homeprojectpartners.com/webhook/${webhookId}`
+
+    console.log('[createProviderAndWebhook] Successfully created provider and webhook')
+    console.log('[createProviderAndWebhook] Provider ID:', providerId)
+    console.log('[createProviderAndWebhook] Webhook ID:', webhookId)
 
     return {
       success: true,
@@ -528,7 +557,9 @@ async function createProviderAndWebhook(db: D1Database, body: any) {
       }
     }
   } catch (error) {
-    console.error('Error in createProviderAndWebhook:', error)
+    console.error('[createProviderAndWebhook] CAUGHT ERROR:', error)
+    console.error('[createProviderAndWebhook] Error stack:', error instanceof Error ? error.stack : 'No stack trace')
+    console.error('[createProviderAndWebhook] Error type:', typeof error)
     return {
       success: false,
       error: 'Internal error creating provider and webhook',
