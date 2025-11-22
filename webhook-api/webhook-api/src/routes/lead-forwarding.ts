@@ -12,7 +12,7 @@ interface ForwardingRuleRequest {
   target_webhook_id: string
   target_webhook_url: string
   product_types: string[]     // ["Kitchen", "Bath", "Solar"]
-  zip_codes: string[]         // ["90210", "90211", "90212"]
+  zip_codes?: string[]        // ["90210", "90211", "90212"] - Optional, defaults to ["*"]
   states?: string[]           // ["CA", "NY", "TX"] - Optional, defaults to ["*"]
   priority?: number
   forward_enabled?: boolean
@@ -42,12 +42,11 @@ leadForwardingRouter.post('/:webhookId/forwarding-rules', async (c) => {
 
     // Validate required fields
     if (!body.target_webhook_id || !body.target_webhook_url ||
-        !body.product_types || !Array.isArray(body.product_types) ||
-        !body.zip_codes || !Array.isArray(body.zip_codes)) {
+        !body.product_types || !Array.isArray(body.product_types)) {
       return c.json({
         success: false,
         error: 'Missing required fields',
-        required: ['target_webhook_id', 'target_webhook_url', 'product_types', 'zip_codes'],
+        required: ['target_webhook_id', 'target_webhook_url', 'product_types'],
         timestamp: new Date().toISOString()
       }, 400)
     }
@@ -67,12 +66,13 @@ leadForwardingRouter.post('/:webhookId/forwarding-rules', async (c) => {
       }, 404)
     }
 
-    // Default states to ["*"] if not provided
+    // Default zip_codes and states to ["*"] if not provided
+    const zipCodes = body.zip_codes && body.zip_codes.length > 0 ? body.zip_codes : ["*"]
     const states = body.states && body.states.length > 0 ? body.states : ["*"]
 
     // Check for catch-all rule configuration
-    const isCatchAll = body.product_types.includes("*") && body.zip_codes.includes("*") && states.includes("*")
-    const isPartialCatchAll = body.product_types.includes("*") || body.zip_codes.includes("*") || states.includes("*")
+    const isCatchAll = body.product_types.includes("*") && zipCodes.includes("*") && states.includes("*")
+    const isPartialCatchAll = body.product_types.includes("*") || zipCodes.includes("*") || states.includes("*")
 
     // Warn if creating catch-all rule with high priority (might override specific rules)
     if (isCatchAll && body.priority && body.priority < 100) {
@@ -119,7 +119,7 @@ leadForwardingRouter.post('/:webhookId/forwarding-rules', async (c) => {
       body.target_webhook_id,
       body.target_webhook_url,
       JSON.stringify(body.product_types),
-      JSON.stringify(body.zip_codes),
+      JSON.stringify(zipCodes),
       JSON.stringify(states),
       priority,
       body.forward_enabled !== false, // Default to true
@@ -141,13 +141,13 @@ leadForwardingRouter.post('/:webhookId/forwarding-rules', async (c) => {
         target_webhook_id: body.target_webhook_id,
         target_webhook_url: body.target_webhook_url,
         product_types: body.product_types,
-        zip_codes: body.zip_codes,
+        zip_codes: zipCodes,
         states: states,
         priority,
         is_active: true,
         forward_enabled: body.forward_enabled !== false,
         notes: body.notes,
-        zip_count: body.zip_codes.length,
+        zip_count: zipCodes.length,
         product_count: body.product_types.length,
         state_count: states.length,
         is_catch_all: isCatchAll,

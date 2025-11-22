@@ -86,8 +86,8 @@ export function CreateForwardingRuleDialog({ webhookId, open, onOpenChange, onSu
     target_webhook_id: '',
     target_webhook_url: '',
     product_types: [],
-    zip_codes: [],
-    states: ['*'], // Default to all states
+    zip_codes: ['*'], // Default to all zip codes (optional)
+    states: ['*'], // Default to all states (optional)
     priority: 1,
     forward_enabled: true,
     notes: '',
@@ -497,7 +497,7 @@ export function CreateForwardingRuleDialog({ webhookId, open, onOpenChange, onSu
 
           {/* Zip Codes Section */}
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-foreground">Zip Codes *</h3>
+            <h3 className="text-sm font-semibold text-foreground">Zip Codes (Optional)</h3>
             <Tabs defaultValue="single" className="w-full">
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="single">Single Entry</TabsTrigger>
