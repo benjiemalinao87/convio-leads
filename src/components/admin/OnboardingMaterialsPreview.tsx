@@ -74,11 +74,9 @@ export function OnboardingMaterialsPreview({ data }: OnboardingMaterialsPreviewP
   };
 
   const openSetupGuideInNewTab = () => {
-    if (!data.setup_guide_html) return;
-
-    const blob = new Blob([data.setup_guide_html], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    window.open(url, '_blank');
+    // Open the public setup guide URL that providers can bookmark and share
+    const setupGuideUrl = `https://api.homeprojectpartners.com/admin/setup-guide/${data.provider_id}`;
+    window.open(setupGuideUrl, '_blank');
   };
 
   const printSetupGuide = () => {
@@ -206,7 +204,7 @@ export function OnboardingMaterialsPreview({ data }: OnboardingMaterialsPreviewP
             <div className="space-y-2">
               <Label className="text-sm font-medium">HTML Setup Guide</Label>
               <p className="text-xs text-muted-foreground">
-                Download the comprehensive setup guide as HTML or open it in a new tab to save as PDF
+                Share the setup guide with your provider. The "Open in New Tab" button provides a permanent, bookmarkable URL they can reference anytime.
               </p>
 
               <div className="grid grid-cols-1 gap-2">
@@ -225,7 +223,7 @@ export function OnboardingMaterialsPreview({ data }: OnboardingMaterialsPreviewP
                   className="w-full justify-start"
                 >
                   <ExternalLink className="h-4 w-4 mr-2" />
-                  Open in New Tab
+                  Open in New Tab (Public URL)
                 </Button>
 
                 <Button
@@ -236,6 +234,24 @@ export function OnboardingMaterialsPreview({ data }: OnboardingMaterialsPreviewP
                   <FileText className="h-4 w-4 mr-2" />
                   Print as PDF
                 </Button>
+              </div>
+
+              {/* Display the public shareable URL */}
+              <div className="mt-3 p-3 bg-green-50 dark:bg-green-950 rounded-md border border-green-200 dark:border-green-800">
+                <div className="flex items-start gap-2">
+                  <ExternalLink className="h-4 w-4 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-medium text-green-900 dark:text-green-100 mb-1">
+                      📎 Shareable Setup Guide URL
+                    </div>
+                    <div className="font-mono text-xs text-green-700 dark:text-green-300 break-all">
+                      https://api.homeprojectpartners.com/admin/setup-guide/{data.provider_id}
+                    </div>
+                    <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                      Share this permanent link with {data.contact_name} - they can bookmark it for future reference
+                    </p>
+                  </div>
+                </div>
               </div>
 
               {/* Preview of setup guide */}

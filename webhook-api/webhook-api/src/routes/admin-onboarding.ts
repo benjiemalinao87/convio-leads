@@ -1098,4 +1098,106 @@ function generateSetupGuideHtml(data: {
 </html>`
 }
 
+// ============================================================================
+// GET /admin/setup-guide/:providerId
+// Serve the HTML setup guide directly (for public sharing)
+// ============================================================================
+adminOnboardingRouter.get('/setup-guide/:providerId', async (c) => {
+  try {
+    const db = c.env.LEADS_DB
+    const providerId = c.req.param('providerId')
+
+    // Fetch provider details
+    const provider = await db.prepare(`
+      SELECT * FROM lead_source_providers WHERE provider_id = ?
+    `).bind(providerId).first()
+
+    if (!provider) {
+      return c.html(`
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Setup Guide Not Found</title>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f5f5f5; }
+            .container { text-align: center; padding: 40px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+            h1 { color: #dc2626; font-size: 24px; margin-bottom: 10px; }
+            p { color: #6b7280; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <h1>⚠️ Setup Guide Not Found</h1>
+            <p>Provider ID: ${providerId}</p>
+            <p>Please contact support for assistance.</p>
+          </div>
+        </body>
+        </html>
+      `, 404)
+    }
+
+    // Fetch webhook details (get first webhook from allowed_webhooks)
+    let webhookId: string | null = null
+    let webhook: any = null
+
+    if (provider.allowed_webhooks) {
+      const allowedWebhooks = JSON.parse(provider.allowed_webhooks as string)
+      if (allowedWebhooks.length > 0) {
+        webhookId = allowedWebhooks[0]
+        webhook = await db.prepare(`
+          SELECT * FROM webhook_configs WHERE webhook_id = ?
+        `).bind(webhookId).first()
+      }
+    }
+
+    const webhookUrl = webhookId
+      ? `https://api.homeprojectpartners.com/webhook/${webhookId}`
+      : 'N/A'
+
+    // Generate HTML setup guide
+    const setupGuideHtml = generateSetupGuideHtml({
+      company_name: provider.company_name as string,
+      contact_name: provider.contact_name as string,
+      contact_email: provider.contact_email as string,
+      provider_id: providerId,
+      webhook_url: webhookUrl,
+      webhook_id: webhookId || 'N/A',
+      webhook_name: webhook?.name || 'N/A',
+      webhook_type: webhook?.lead_type || 'unknown',
+      rate_limit: provider.rate_limit as number || 5000
+    })
+
+    // Return HTML directly
+    return c.html(setupGuideHtml)
+
+  } catch (error) {
+    console.error('Error serving setup guide:', error)
+    return c.html(`
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Error Loading Setup Guide</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f5f5f5; }
+          .container { text-align: center; padding: 40px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+          h1 { color: #dc2626; font-size: 24px; margin-bottom: 10px; }
+          p { color: #6b7280; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h1>⚠️ Error Loading Setup Guide</h1>
+          <p>An unexpected error occurred.</p>
+          <p>Please contact support for assistance.</p>
+        </div>
+      </body>
+      </html>
+    `, 500)
+  }
+})
+
 export { adminOnboardingRouter }
