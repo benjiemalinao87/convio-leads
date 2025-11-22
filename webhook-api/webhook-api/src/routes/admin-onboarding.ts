@@ -3,6 +3,7 @@ import { D1Database } from '@cloudflare/workers-types'
 
 type Bindings = {
   LEADS_DB: D1Database
+  SLACK_WEBHOOK_URL?: string
 }
 
 const adminOnboardingRouter = new Hono<{ Bindings: Bindings }>()
@@ -44,12 +45,20 @@ function generateWebhookId(webhookName: string, region: string, category: string
 }
 
 // ============================================================================
-// POST /admin/onboard-provider
-// One-step provider + webhook creation with onboarding materials
+// POST /admin/request-verification
+// Step 1: Generate verification code and send to Slack
 // ============================================================================
-adminOnboardingRouter.post('/onboard-provider', async (c) => {
+adminOnboardingRouter.post('/request-verification', async (c) => {
   try {
     const db = c.env.LEADS_DB
+    if (!db) {
+      return c.json({
+        success: false,
+        error: 'Database not available',
+        timestamp: new Date().toISOString()
+      }, 500)
+    }
+
     const body = await c.req.json()
 
     // Validate required fields
@@ -81,6 +90,262 @@ adminOnboardingRouter.post('/onboard-provider', async (c) => {
       }, 400)
     }
 
+    // Generate 6-digit verification code
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString()
+
+    // Generate session ID
+    const sessionId = crypto.randomUUID()
+
+    // Store verification session (expires in 15 minutes)
+    await db.prepare(`
+      INSERT INTO admin_verification_sessions (
+        session_id, verification_code, form_data,
+        created_at, expires_at
+      ) VALUES (?, ?, ?, CURRENT_TIMESTAMP, datetime(CURRENT_TIMESTAMP, '+15 minutes'))
+    `).bind(
+      sessionId,
+      verificationCode,
+      JSON.stringify(body)
+    ).run()
+
+    // Send to Slack #provider-code-generation channel
+    const slackPayload = {
+      text: `🔐 New Provider Onboarding Verification Request`,
+      blocks: [
+        {
+          type: "header",
+          text: {
+            type: "plain_text",
+            text: "🔐 Provider Verification Code",
+            emoji: true
+          }
+        },
+        {
+          type: "section",
+          fields: [
+            {
+              type: "mrkdwn",
+              text: `*Verification Code:*\n\`${verificationCode}\``
+            },
+            {
+              type: "mrkdwn",
+              text: `*Company:*\n${body.company_name}`
+            },
+            {
+              type: "mrkdwn",
+              text: `*Contact Person:*\n${body.contact_name}`
+            },
+            {
+              type: "mrkdwn",
+              text: `*Contact Email:*\n${body.contact_email}`
+            },
+            {
+              type: "mrkdwn",
+              text: `*Webhook Types:*\n${body.webhook_types.join(', ')}`
+            },
+            {
+              type: "mrkdwn",
+              text: `*Requested By:*\n${body.admin_email}`
+            }
+          ]
+        },
+        {
+          type: "context",
+          elements: [
+            {
+              type: "mrkdwn",
+              text: `⏰ Expires in 15 minutes • Session: \`${sessionId.substring(0, 8)}...\``
+            }
+          ]
+        }
+      ]
+    }
+
+    // Send to Slack webhook
+    const slackWebhookUrl = c.env.SLACK_WEBHOOK_URL
+    if (slackWebhookUrl) {
+      const slackResponse = await fetch(slackWebhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(slackPayload)
+      })
+
+      if (!slackResponse.ok) {
+        console.error('Failed to send Slack notification:', await slackResponse.text())
+        // Don't fail the request, just log the error
+      }
+    } else {
+      console.warn('SLACK_WEBHOOK_URL environment variable not set, skipping Slack notification')
+    }
+
+    return c.json({
+      success: true,
+      session_id: sessionId,
+      message: 'Verification code sent to Slack #provider-code-generation',
+      expires_in: 900, // 15 minutes in seconds
+      timestamp: new Date().toISOString()
+    })
+
+  } catch (error) {
+    console.error('Error requesting verification:', error)
+    return c.json({
+      success: false,
+      error: 'Failed to request verification',
+      details: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString()
+    }, 500)
+  }
+})
+
+// ============================================================================
+// POST /admin/verify-and-create
+// Step 2: Verify code and create provider + webhook
+// ============================================================================
+adminOnboardingRouter.post('/verify-and-create', async (c) => {
+  try {
+    const db = c.env.LEADS_DB
+    if (!db) {
+      return c.json({
+        success: false,
+        error: 'Database not available',
+        timestamp: new Date().toISOString()
+      }, 500)
+    }
+
+    const body = await c.req.json()
+
+    // Validate required fields
+    if (!body.session_id || !body.verification_code) {
+      return c.json({
+        success: false,
+        error: 'Missing session_id or verification_code',
+        timestamp: new Date().toISOString()
+      }, 400)
+    }
+
+    // Retrieve verification session
+    const session = await db.prepare(`
+      SELECT * FROM admin_verification_sessions
+      WHERE session_id = ? AND verification_code = ?
+    `).bind(body.session_id, body.verification_code).first()
+
+    if (!session) {
+      // Track failed attempt
+      await db.prepare(`
+        UPDATE admin_verification_sessions
+        SET failed_attempts = failed_attempts + 1
+        WHERE session_id = ?
+      `).bind(body.session_id).run()
+
+      return c.json({
+        success: false,
+        error: 'Invalid verification code or session',
+        timestamp: new Date().toISOString()
+      }, 401)
+    }
+
+    // Check if already verified
+    if (session.verified) {
+      return c.json({
+        success: false,
+        error: 'Session already verified',
+        timestamp: new Date().toISOString()
+      }, 400)
+    }
+
+    // Check if expired
+    const expiresAt = new Date(session.expires_at as string)
+    if (expiresAt < new Date()) {
+      return c.json({
+        success: false,
+        error: 'Verification code expired',
+        timestamp: new Date().toISOString()
+      }, 401)
+    }
+
+    // Check failed attempts (max 3)
+    if ((session.failed_attempts as number) >= 3) {
+      return c.json({
+        success: false,
+        error: 'Too many failed attempts. Please request a new code.',
+        timestamp: new Date().toISOString()
+      }, 429)
+    }
+
+    // Mark session as verified
+    await db.prepare(`
+      UPDATE admin_verification_sessions
+      SET verified = 1, verified_at = CURRENT_TIMESTAMP
+      WHERE session_id = ?
+    `).bind(body.session_id).run()
+
+    // Parse form data from session
+    const formData = JSON.parse(session.form_data as string)
+
+    // Call the existing onboard-provider logic
+    // We'll reuse the same logic by making an internal call
+    const onboardingResult = await createProviderAndWebhook(db, formData)
+
+    if (!onboardingResult.success) {
+      return c.json({
+        success: false,
+        error: onboardingResult.error || 'Failed to create provider',
+        timestamp: new Date().toISOString()
+      }, 500)
+    }
+
+    return c.json({
+      success: true,
+      message: 'Provider and webhook created successfully',
+      data: onboardingResult.data,
+      timestamp: new Date().toISOString()
+    })
+
+  } catch (error) {
+    console.error('Error verifying and creating:', error)
+    return c.json({
+      success: false,
+      error: 'Failed to verify and create provider',
+      details: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString()
+    }, 500)
+  }
+})
+
+// ============================================================================
+// Helper function to create provider and webhook (extracted for reuse)
+// ============================================================================
+async function createProviderAndWebhook(db: D1Database, body: any) {
+  try {
+    // Validate required fields
+    const requiredFields = [
+      'company_name',
+      'contact_name',
+      'contact_phone',
+      'contact_email',
+      'webhook_name',
+      'admin_email'
+    ]
+
+    const missingFields = requiredFields.filter(field => !body[field])
+    if (missingFields.length > 0) {
+      return {
+        success: false,
+        error: 'Missing required fields',
+        missing: missingFields
+      }
+    }
+
+    // Validate webhook_types array
+    if (!body.webhook_types || !Array.isArray(body.webhook_types) || body.webhook_types.length === 0) {
+      return {
+        success: false,
+        error: 'webhook_types must be a non-empty array'
+      }
+    }
+
     // Extract and validate webhook region (optional, defaults to 'us')
     const webhookRegion = body.webhook_region || 'us'
 
@@ -104,11 +369,10 @@ adminOnboardingRouter.post('/onboard-provider', async (c) => {
     }
 
     if (collisionAttempts >= maxAttempts) {
-      return c.json({
+      return {
         success: false,
-        error: 'Failed to generate unique provider ID after multiple attempts',
-        timestamp: new Date().toISOString()
-      }, 500)
+        error: 'Failed to generate unique provider ID after multiple attempts'
+      }
     }
 
     // ========================================================================
@@ -123,34 +387,31 @@ adminOnboardingRouter.post('/onboard-provider', async (c) => {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `).bind(
       providerId,
-      body.company_name, // provider_name same as company_name
+      body.company_name,
       body.company_name,
       body.contact_name,
       body.contact_email,
       body.contact_phone,
-      1, // is_active
-      body.rate_limit || 5000, // Default 5000 requests/hour
+      1,
+      body.rate_limit || 5000,
       body.admin_email,
       new Date().toISOString()
     ).run()
 
     if (!providerResult.success) {
-      return c.json({
+      return {
         success: false,
-        error: 'Failed to create provider record',
-        timestamp: new Date().toISOString()
-      }, 500)
+        error: 'Failed to create provider record'
+      }
     }
 
     // ========================================================================
     // STEP 3: Generate Webhook ID
     // ========================================================================
-    // Use first webhook type as primary type for webhook ID generation
     const primaryWebhookType = body.webhook_types[0]
     let webhookId = generateWebhookId(body.webhook_name, webhookRegion, primaryWebhookType)
     collisionAttempts = 0
 
-    // Check for webhook ID collisions
     while (collisionAttempts < maxAttempts) {
       const existing = await db.prepare(`
         SELECT webhook_id FROM webhook_configs WHERE webhook_id = ?
@@ -163,16 +424,11 @@ adminOnboardingRouter.post('/onboard-provider', async (c) => {
     }
 
     if (collisionAttempts >= maxAttempts) {
-      // Rollback provider creation
-      await db.prepare(`
-        DELETE FROM lead_source_providers WHERE provider_id = ?
-      `).bind(providerId).run()
-
-      return c.json({
+      await db.prepare(`DELETE FROM lead_source_providers WHERE provider_id = ?`).bind(providerId).run()
+      return {
         success: false,
-        error: 'Failed to generate unique webhook ID after multiple attempts',
-        timestamp: new Date().toISOString()
-      }, 500)
+        error: 'Failed to generate unique webhook ID after multiple attempts'
+      }
     }
 
     // ========================================================================
@@ -188,46 +444,38 @@ adminOnboardingRouter.post('/onboard-provider', async (c) => {
       webhookId,
       body.webhook_name,
       `Webhook for ${body.company_name} - ${body.webhook_types.join(', ')} leads`,
-      primaryWebhookType, // Store primary type in lead_type field
-      1, // is_active
-      0, // forwarding_enabled
-      'first-match', // forward_mode
+      primaryWebhookType,
+      1,
+      0,
+      'first-match',
       body.admin_email
     ).run()
 
     if (!webhookResult.success) {
-      // Rollback provider creation
-      await db.prepare(`
-        DELETE FROM lead_source_providers WHERE provider_id = ?
-      `).bind(providerId).run()
-
-      return c.json({
+      await db.prepare(`DELETE FROM lead_source_providers WHERE provider_id = ?`).bind(providerId).run()
+      return {
         success: false,
-        error: 'Failed to create webhook record',
-        timestamp: new Date().toISOString()
-      }, 500)
+        error: 'Failed to create webhook record'
+      }
     }
 
     // ========================================================================
-    // STEP 5: Link Provider to Webhook
+    // STEP 5: Link provider to webhook
     // ========================================================================
     await db.prepare(`
-      UPDATE lead_source_providers
-      SET allowed_webhooks = ?,
-          updated_at = CURRENT_TIMESTAMP
-      WHERE provider_id = ?
-    `).bind(JSON.stringify([webhookId]), providerId).run()
+      INSERT INTO webhook_provider_mapping (webhook_id, provider_id, created_at)
+      VALUES (?, ?, CURRENT_TIMESTAMP)
+    `).bind(webhookId, providerId).run()
 
     // ========================================================================
-    // STEP 6: Create Onboarding Audit Log
+    // STEP 6: Log onboarding event
     // ========================================================================
     await db.prepare(`
-      INSERT INTO admin_onboarding_log (
+      INSERT INTO admin_onboarding_events (
         provider_id, webhook_id, admin_email, admin_name,
         company_name, contact_name, contact_email, contact_phone,
-        webhook_name, webhook_type, webhook_region,
-        created_at, materials_viewed, materials_downloaded, email_copied
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 0, 0, 0)
+        webhook_name, webhook_type, webhook_region, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     `).bind(
       providerId,
       webhookId,
@@ -238,24 +486,18 @@ adminOnboardingRouter.post('/onboard-provider', async (c) => {
       body.contact_email,
       body.contact_phone,
       body.webhook_name,
-      body.webhook_types.join(', '), // Store all types as comma-separated string
+      body.webhook_types.join(', '),
       webhookRegion
     ).run()
 
-    // ========================================================================
-    // STEP 7: Generate Webhook URL
-    // ========================================================================
     const webhookUrl = `https://api.homeprojectpartners.com/webhook/${webhookId}`
 
-    // ========================================================================
-    // STEP 8: Return Success with Onboarding Data
-    // ========================================================================
-    return c.json({
+    return {
       success: true,
-      message: 'Provider and webhook created successfully',
       data: {
         provider: {
           provider_id: providerId,
+          provider_name: body.company_name,
           company_name: body.company_name,
           contact_name: body.contact_name,
           contact_email: body.contact_email,
@@ -267,8 +509,8 @@ adminOnboardingRouter.post('/onboard-provider', async (c) => {
           webhook_id: webhookId,
           webhook_url: webhookUrl,
           webhook_name: body.webhook_name,
-          webhook_types: body.webhook_types, // Return all types
-          webhook_type: primaryWebhookType, // Primary type used for ID
+          webhook_types: body.webhook_types,
+          webhook_type: primaryWebhookType,
           webhook_region: webhookRegion,
           is_active: true
         },
@@ -276,7 +518,43 @@ adminOnboardingRouter.post('/onboard-provider', async (c) => {
           created_by: body.admin_email,
           created_at: new Date().toISOString()
         }
-      },
+      }
+    }
+  } catch (error) {
+    console.error('Error in createProviderAndWebhook:', error)
+    return {
+      success: false,
+      error: 'Internal error creating provider and webhook',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }
+  }
+}
+
+// ============================================================================
+// POST /admin/onboard-provider
+// One-step provider + webhook creation with onboarding materials
+// ============================================================================
+adminOnboardingRouter.post('/onboard-provider', async (c) => {
+  try {
+    const db = c.env.LEADS_DB
+    const body = await c.req.json()
+
+    // Use the helper function to create provider and webhook
+    const result = await createProviderAndWebhook(db, body)
+
+    if (!result.success) {
+      return c.json({
+        success: false,
+        error: result.error,
+        timestamp: new Date().toISOString()
+      }, 400)
+    }
+
+    // Return success with the data from helper function
+    return c.json({
+      success: true,
+      message: 'Provider and webhook created successfully',
+      data: result.data,
       timestamp: new Date().toISOString()
     })
 
