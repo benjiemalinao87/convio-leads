@@ -12,6 +12,7 @@ import { appointmentsRouter } from './routes/appointments'
 import { routingRulesRouter } from './routes/routing-rules'
 import { providersRouter } from './routes/providers'
 import { leadForwardingRouter } from './routes/lead-forwarding'
+import { adminOnboardingRouter } from './routes/admin-onboarding'
 import authRouter from './routes/auth'
 import { requestValidation } from './middleware/validation'
 import { errorHandler } from './middleware/error-handler'
@@ -73,6 +74,7 @@ app.route('/conversions', conversionsRouter)
 app.route('/appointments', appointmentsRouter)
 app.route('/routing-rules', routingRulesRouter)
 app.route('/providers', providersRouter)
+app.route('/admin', adminOnboardingRouter)
 app.route('/auth', authRouter)
 
 // Root endpoint

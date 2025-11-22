@@ -16,6 +16,7 @@ import Documentation from "./pages/Documentation";
 import DocumentationSelection from "./pages/DocumentationSelection";
 import Appointments from "./pages/Appointments";
 import MermaidTest from "./pages/MermaidTest";
+import AdminOnboarding from "./pages/AdminOnboarding";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -116,6 +117,9 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+
+            {/* Public admin onboarding portal */}
+            <Route path="/admin/onboarding" element={<AdminOnboarding />} />
 
             {/* Catch-all route */}
             <Route path="*" element={<NotFound />} />
