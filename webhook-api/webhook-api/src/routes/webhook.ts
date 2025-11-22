@@ -532,6 +532,7 @@ webhook.post('/:webhookId', async (c) => {
             contactId,
             normalizedLead.productid,
             normalizedLead.zip || normalizedLead.zipCode || normalizedLead.zip_code,
+            normalizedLead.state,
             normalizedPayload // Forward with normalized phone
           )
 

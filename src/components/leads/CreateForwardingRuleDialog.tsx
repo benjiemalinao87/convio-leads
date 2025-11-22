@@ -44,6 +44,7 @@ interface FormData {
   target_webhook_url: string;
   product_types: string[];
   zip_codes: string[];
+  states: string[];
   priority: number;
   forward_enabled: boolean;
   notes: string;
@@ -64,6 +65,15 @@ const PRODUCT_TYPES = [
   'Insurance',
 ];
 
+// US States
+const US_STATES = [
+  'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA',
+  'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD',
+  'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ',
+  'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC',
+  'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY'
+];
+
 export function CreateForwardingRuleDialog({ webhookId, open, onOpenChange, onSuccess }: CreateForwardingRuleDialogProps) {
   const [loading, setLoading] = useState(false);
   const [csvFile, setCsvFile] = useState<File | null>(null);
@@ -77,6 +87,7 @@ export function CreateForwardingRuleDialog({ webhookId, open, onOpenChange, onSu
     target_webhook_url: '',
     product_types: [],
     zip_codes: [],
+    states: ['*'], // Default to all states
     priority: 1,
     forward_enabled: true,
     notes: '',
@@ -84,6 +95,7 @@ export function CreateForwardingRuleDialog({ webhookId, open, onOpenChange, onSu
 
   const [newProductType, setNewProductType] = useState('');
   const [newZipCode, setNewZipCode] = useState('');
+  const [newState, setNewState] = useState('');
   const [zipCodesText, setZipCodesText] = useState('');
 
   // Quick action: Create catch-all rule template
@@ -92,12 +104,13 @@ export function CreateForwardingRuleDialog({ webhookId, open, onOpenChange, onSu
       ...prev,
       product_types: ['*'],
       zip_codes: ['*'],
+      states: ['*'],
       priority: 999,
       notes: 'Catch-all fallback for new markets and unlisted zip codes'
     }));
     toast({
       title: "Catch-All Template Applied",
-      description: "Rule configured to match all products and zip codes. Set priority 999 as fallback.",
+      description: "Rule configured to match all products, zip codes, and states. Set priority 999 as fallback.",
     });
   };
 
@@ -182,6 +195,29 @@ export function CreateForwardingRuleDialog({ webhookId, open, onOpenChange, onSu
         variant: "destructive",
       });
     }
+  };
+
+  const handleAddState = (state: string) => {
+    if (state && !formData.states.includes(state)) {
+      // Remove wildcard if adding specific states
+      const updatedStates = formData.states.includes('*')
+        ? [state]
+        : [...formData.states, state];
+      setFormData(prev => ({
+        ...prev,
+        states: updatedStates
+      }));
+    }
+    setNewState('');
+  };
+
+  const handleRemoveState = (state: string) => {
+    const updatedStates = formData.states.filter(s => s !== state);
+    // If no states left, default back to wildcard
+    setFormData(prev => ({
+      ...prev,
+      states: updatedStates.length > 0 ? updatedStates : ['*']
+    }));
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -564,6 +600,53 @@ export function CreateForwardingRuleDialog({ webhookId, open, onOpenChange, onSu
                         zip
                       )}
                       <button onClick={() => handleRemoveZipCode(zip)} className="ml-1 hover:text-destructive" title="Remove zip code">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* States Section */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-foreground">States (Optional)</h3>
+            <div className="flex gap-2">
+              <Select value={newState} onValueChange={handleAddState}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue placeholder="Select states or leave as wildcard..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {US_STATES.map(state => (
+                    <SelectItem key={state} value={state} disabled={formData.states.includes(state) && formData.states[0] !== '*'}>
+                      {state}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {formData.states.length > 0 && (
+              <div>
+                <p className="text-sm text-muted-foreground mb-2">
+                  {formData.states.includes('*')
+                    ? 'Matching all states (wildcard)'
+                    : `Matching ${formData.states.length} state${formData.states.length !== 1 ? 's' : ''}`}
+                </p>
+                <div className="flex flex-wrap gap-1 max-h-32 overflow-y-auto border rounded p-2">
+                  {formData.states.map(state => (
+                    <Badge
+                      key={state}
+                      variant={state === '*' ? 'default' : 'outline'}
+                      className={`gap-1 font-mono text-xs ${state === '*' ? 'bg-blue-600 hover:bg-blue-700' : ''}`}
+                    >
+                      {state === '*' ? (
+                        <><Zap className="h-3 w-3" /> All States (Wildcard)</>
+                      ) : (
+                        state
+                      )}
+                      <button onClick={() => handleRemoveState(state)} className="ml-1 hover:text-destructive" title="Remove state">
                         <X className="h-3 w-3" />
                       </button>
                     </Badge>

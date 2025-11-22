@@ -16,6 +16,7 @@ interface ForwardingRule {
   target_webhook_url: string
   product_types: string
   zip_codes: string
+  states: string
   priority: number
   is_active: number
   forward_enabled: number
@@ -35,6 +36,7 @@ interface ForwardingResult {
  * @param contactId - Contact ID associated with the lead
  * @param productId - Product type from lead (e.g., "Solar", "HVAC")
  * @param zipCode - Zip code from lead
+ * @param state - State from lead (e.g., "CA", "NY", "TX")
  * @param originalPayload - The complete JSON payload received
  * @returns ForwardingResult with success status and count
  */
@@ -45,6 +47,7 @@ export async function checkAndForwardLead(
   contactId: number,
   productId: string | undefined,
   zipCode: string | undefined,
+  state: string | undefined,
   originalPayload: any
 ): Promise<ForwardingResult> {
   const result: ForwardingResult = {
@@ -90,6 +93,7 @@ export async function checkAndForwardLead(
       try {
         const productTypes = JSON.parse(rule.product_types)
         const zipCodes = JSON.parse(rule.zip_codes)
+        const states = JSON.parse(rule.states)
 
         // Check criteria match with wildcard support
         // Wildcard "*" matches everything (useful for catch-all rules)
@@ -101,16 +105,23 @@ export async function checkAndForwardLead(
         const zipMatch = zipCodes.includes("*") ||
           (zipCode && zipCodes.includes(zipCode))
 
-        // Both criteria must match (AND logic)
-        if (productMatch && zipMatch) {
-          const matchType = productTypes.includes("*") && zipCodes.includes("*")
+        const stateMatch = states.includes("*") ||
+          (state && states.some((s: string) =>
+            s.toUpperCase() === state.toUpperCase()
+          ))
+
+        // All criteria must match (AND logic: product AND zip AND state)
+        if (productMatch && zipMatch && stateMatch) {
+          const matchType = productTypes.includes("*") && zipCodes.includes("*") && states.includes("*")
             ? 'catch-all'
             : productTypes.includes("*")
             ? 'product-catchall'
             : zipCodes.includes("*")
             ? 'zip-catchall'
+            : states.includes("*")
+            ? 'state-catchall'
             : 'exact'
-          console.log(`Rule ${rule.id} matched (${matchType}) for lead ${leadId}: product=${productId}, zip=${zipCode}`)
+          console.log(`Rule ${rule.id} matched (${matchType}) for lead ${leadId}: product=${productId}, zip=${zipCode}, state=${state}`)
 
           // Forward lead to target webhook
           const forwardSuccess = await forwardLeadToWebhook(
@@ -120,7 +131,8 @@ export async function checkAndForwardLead(
             contactId,
             originalPayload,
             productId,
-            zipCode
+            zipCode,
+            state
           )
 
           if (forwardSuccess) {
@@ -143,7 +155,7 @@ export async function checkAndForwardLead(
             console.log(`Forward mode is 'all-matches' - continuing to evaluate remaining rules`)
           }
         } else {
-          console.log(`Rule ${rule.id} did not match: product_match=${productMatch}, zip_match=${zipMatch}`)
+          console.log(`Rule ${rule.id} did not match: product_match=${productMatch}, zip_match=${zipMatch}, state_match=${stateMatch}`)
         }
       } catch (ruleError) {
         console.error(`Error processing rule ${rule.id}:`, ruleError)
@@ -173,6 +185,7 @@ export async function checkAndForwardLead(
  * @param payload - Original JSON payload
  * @param matchedProduct - Product that matched the rule
  * @param matchedZip - Zip code that matched the rule
+ * @param matchedState - State that matched the rule
  * @returns boolean indicating success
  */
 async function forwardLeadToWebhook(
@@ -182,7 +195,8 @@ async function forwardLeadToWebhook(
   contactId: number,
   payload: any,
   matchedProduct: string | undefined,
-  matchedZip: string | undefined
+  matchedZip: string | undefined,
+  matchedState: string | undefined
 ): Promise<boolean> {
   try {
     console.log(`Forwarding lead ${leadId} to ${rule.target_webhook_url}`)
@@ -197,6 +211,7 @@ async function forwardLeadToWebhook(
         rule_id: rule.id,
         matched_product: matchedProduct,
         matched_zip: matchedZip,
+        matched_state: matchedState,
         forwarded_at: new Date().toISOString()
       }
     }
@@ -223,8 +238,8 @@ async function forwardLeadToWebhook(
         lead_id, contact_id, rule_id,
         source_webhook_id, target_webhook_id, target_webhook_url,
         forwarded_at, forward_status, http_status_code, response_body,
-        matched_product, matched_zip, payload
-      ) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?)
+        matched_product, matched_zip, matched_state, payload
+      ) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       leadId,
       contactId,
@@ -237,6 +252,7 @@ async function forwardLeadToWebhook(
       responseBody.substring(0, 1000), // Limit response body size
       matchedProduct || null,
       matchedZip || null,
+      matchedState || null,
       JSON.stringify(payload).substring(0, 10000) // Limit payload size
     ).run()
 
@@ -259,8 +275,8 @@ async function forwardLeadToWebhook(
           lead_id, contact_id, rule_id,
           source_webhook_id, target_webhook_id, target_webhook_url,
           forwarded_at, forward_status, error_message,
-          matched_product, matched_zip, payload
-        ) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 'failed', ?, ?, ?, ?)
+          matched_product, matched_zip, matched_state, payload
+        ) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 'failed', ?, ?, ?, ?, ?)
       `).bind(
         leadId,
         contactId,
@@ -271,6 +287,7 @@ async function forwardLeadToWebhook(
         error instanceof Error ? error.message : 'Unknown error',
         matchedProduct || null,
         matchedZip || null,
+        matchedState || null,
         JSON.stringify(payload).substring(0, 10000)
       ).run()
     } catch (logError) {
