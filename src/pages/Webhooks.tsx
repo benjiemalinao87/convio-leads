@@ -27,6 +27,7 @@ import ApiDocumentation from '@/components/ApiDocumentation';
 import SoftDeleteDialog from '@/components/webhooks/SoftDeleteDialog';
 import SoftDeletedWebhooksPanel from '@/components/webhooks/SoftDeletedWebhooksPanel';
 import { ForwardingManagementDialog } from '@/components/leads/ForwardingManagementDialog';
+import { WebhookActivityLog } from '@/components/webhooks/WebhookActivityLog';
 
 // API Webhook interface
 interface APIWebhook {
@@ -436,11 +437,14 @@ export default function Webhooks() {
                 variant="outline"
                 size="sm"
                 onClick={() => handleManageForwarding(webhook)}
-                className="w-full"
+                className="w-full mb-3"
               >
                 <Share2 className="w-4 h-4 mr-2" />
                 Manage Lead Forwarding
               </Button>
+
+              {/* Activity Log */}
+              <WebhookActivityLog webhookId={webhook.id} />
             </Card>
           ))}
         </div>
