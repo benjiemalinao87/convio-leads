@@ -112,6 +112,12 @@ export default function AdminOnboarding() {
   const [loading, setLoading] = useState(false);
   const [onboardingData, setOnboardingData] = useState<OnboardingResponse | null>(null);
 
+  // Verification flow state
+  const [verificationStep, setVerificationStep] = useState<'form' | 'verify' | 'complete'>('form');
+  const [verificationCode, setVerificationCode] = useState('');
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [expiresAt, setExpiresAt] = useState<Date | null>(null);
+
   const [formData, setFormData] = useState<FormData>({
     company_name: '',
     contact_name: '',
@@ -218,14 +224,14 @@ export default function AdminOnboarding() {
     return true;
   };
 
-  const handleGenerateMaterials = async () => {
+  // Step 1: Request verification code (sent to Slack)
+  const handleRequestVerification = async () => {
     if (!validateForm()) return;
 
     setLoading(true);
 
     try {
-      // Call onboarding API
-      const response = await fetch('https://api.homeprojectpartners.com/admin/onboard-provider', {
+      const response = await fetch('https://api.homeprojectpartners.com/admin/request-verification', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -236,7 +242,70 @@ export default function AdminOnboarding() {
       const data = await response.json();
 
       if (!data.success) {
-        throw new Error(data.error || 'Failed to create provider');
+        throw new Error(data.error || 'Failed to request verification');
+      }
+
+      // Store session ID and expiration
+      setSessionId(data.session_id);
+      setExpiresAt(new Date(Date.now() + data.expires_in * 1000)); // expires_in is in seconds
+      setVerificationStep('verify');
+
+      toast({
+        title: 'Verification Code Sent!',
+        description: 'Check Slack channel #provider-code-generation for your 6-digit code',
+      });
+
+    } catch (error) {
+      console.error('Error requesting verification:', error);
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to request verification',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Step 2: Verify code and create provider
+  const handleVerifyAndCreate = async () => {
+    if (!verificationCode || verificationCode.length !== 6) {
+      toast({
+        title: 'Invalid Code',
+        description: 'Please enter the 6-digit code from Slack',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!sessionId) {
+      toast({
+        title: 'Session Error',
+        description: 'No active verification session. Please start over.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // Verify code and create provider
+      const response = await fetch('https://api.homeprojectpartners.com/admin/verify-and-create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          session_id: sessionId,
+          verification_code: verificationCode,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to verify and create provider');
       }
 
       // Fetch onboarding materials
@@ -259,10 +328,12 @@ export default function AdminOnboarding() {
         contact_name: formData.contact_name,
         contact_email: formData.contact_email,
         webhook_name: formData.webhook_name,
-        webhook_type: formData.webhook_types.join(', '), // Join multiple types for display
+        webhook_type: formData.webhook_types.join(', '),
         email_template: materialsData.email_template,
         setup_guide_html: materialsData.setup_guide_html,
       });
+
+      setVerificationStep('complete');
 
       toast({
         title: 'Success!',
@@ -270,10 +341,10 @@ export default function AdminOnboarding() {
       });
 
     } catch (error) {
-      console.error('Error generating materials:', error);
+      console.error('Error verifying and creating:', error);
       toast({
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to generate materials',
+        title: 'Verification Failed',
+        description: error instanceof Error ? error.message : 'Failed to verify code',
         variant: 'destructive',
       });
     } finally {
@@ -295,6 +366,17 @@ export default function AdminOnboarding() {
       rate_limit: 5000,
     });
     setOnboardingData(null);
+    setVerificationStep('form');
+    setVerificationCode('');
+    setSessionId(null);
+    setExpiresAt(null);
+  };
+
+  const handleBackToForm = () => {
+    setVerificationStep('form');
+    setVerificationCode('');
+    setSessionId(null);
+    setExpiresAt(null);
   };
 
   return (
@@ -502,35 +584,123 @@ export default function AdminOnboarding() {
               </div>
             </div>
 
-            <div className="flex gap-3 pt-4">
-              {!onboardingData ? (
-                <>
-                  <Button
-                    onClick={handleGenerateMaterials}
-                    disabled={loading}
-                    className="flex-1"
-                  >
-                    {loading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Generating...
-                      </>
-                    ) : (
-                      <>
-                        <Mail className="mr-2 h-4 w-4" />
-                        Generate Materials
-                      </>
-                    )}
-                  </Button>
+            {/* Verification Step UI */}
+            {verificationStep === 'verify' && !onboardingData && (
+              <div className="border-t pt-6 mt-6">
+                <div className="bg-blue-50 dark:bg-blue-950 p-4 rounded-lg border border-blue-200 dark:border-blue-800 mb-4">
+                  <div className="flex items-start gap-3">
+                    <Mail className="h-5 w-5 text-blue-600 mt-0.5" />
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-1">
+                        Verification Code Sent!
+                      </h3>
+                      <p className="text-sm text-blue-800 dark:text-blue-200">
+                        Check Slack channel <span className="font-mono bg-blue-100 dark:bg-blue-900 px-1 rounded">#provider-code-generation</span> for your 6-digit verification code.
+                      </p>
+                      {expiresAt && (
+                        <p className="text-xs text-blue-700 dark:text-blue-300 mt-2">
+                          ⏰ Code expires at {expiresAt.toLocaleTimeString()}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="verification_code">Enter Verification Code</Label>
+                    <Input
+                      id="verification_code"
+                      type="text"
+                      placeholder="000000"
+                      maxLength={6}
+                      value={verificationCode}
+                      onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, ''))}
+                      className="text-center text-2xl tracking-widest font-mono"
+                      disabled={loading}
+                      autoFocus
+                    />
+                    <p className="text-xs text-muted-foreground text-center">
+                      Enter the 6-digit code from Slack
+                    </p>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <Button
+                      onClick={handleVerifyAndCreate}
+                      disabled={loading || verificationCode.length !== 6}
+                      className="flex-1"
+                    >
+                      {loading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Verifying...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 className="mr-2 h-4 w-4" />
+                          Verify & Create Provider
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      onClick={handleBackToForm}
+                      variant="outline"
+                      disabled={loading}
+                    >
+                      Back
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Form Submission Buttons */}
+            {verificationStep === 'form' && (
+              <div className="flex gap-3 pt-4">
+                {!onboardingData ? (
+                  <>
+                    <Button
+                      onClick={handleRequestVerification}
+                      disabled={loading}
+                      className="flex-1"
+                    >
+                      {loading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Sending Code...
+                        </>
+                      ) : (
+                        <>
+                          <Mail className="mr-2 h-4 w-4" />
+                          Send Verification Code
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      onClick={handleClearForm}
+                      variant="outline"
+                      disabled={loading}
+                    >
+                      Clear
+                    </Button>
+                  </>
+                ) : (
                   <Button
                     onClick={handleClearForm}
                     variant="outline"
-                    disabled={loading}
+                    className="flex-1"
                   >
-                    Clear
+                    <CheckCircle2 className="mr-2 h-4 w-4" />
+                    Create Another Provider
                   </Button>
-                </>
-              ) : (
+                )}
+              </div>
+            )}
+
+            {/* Completion State */}
+            {verificationStep === 'complete' && onboardingData && (
+              <div className="flex gap-3 pt-4">
                 <Button
                   onClick={handleClearForm}
                   variant="outline"
@@ -539,8 +709,8 @@ export default function AdminOnboarding() {
                   <CheckCircle2 className="mr-2 h-4 w-4" />
                   Create Another Provider
                 </Button>
-              )}
-            </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
