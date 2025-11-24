@@ -6,6 +6,8 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
+import { KPICard } from '@/components/dashboard/KPICard';
+import { PageHeader } from '@/components/dashboard/PageHeader';
 import {
   LineChart,
   Line,
@@ -497,17 +499,13 @@ export default function Analytics() {
 
   return (
     <Layout>
-      <div className="space-y-8">
+      <div className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold gradient-text">Analytics</h1>
-            <p className="text-muted-foreground mt-1">
-              Deep insights into lead performance and conversion patterns
-            </p>
-          </div>
-
-          <div className="flex items-center gap-4">
+        <PageHeader
+          title="Analytics"
+          description="Deep insights into lead performance and conversion patterns"
+          actions={
+            <div className="flex items-center gap-4">
             <Select value={timeRange} onValueChange={setTimeRange}>
               <SelectTrigger className="w-[120px]">
                 <Calendar className="h-4 w-4 mr-2" />
@@ -567,7 +565,8 @@ export default function Analytics() {
               Export
             </Button>
           </div>
-        </div>
+          }
+        />
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -587,7 +586,7 @@ export default function Analytics() {
           </TabsList>
 
           {/* Overview Tab */}
-          <TabsContent value="overview" className="space-y-8">
+          <TabsContent value="overview" className="space-y-6">
             {isLoadingAnalytics && !analytics ? (
               <div className="flex items-center justify-center min-h-screen">
                 <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -595,65 +594,48 @@ export default function Analytics() {
             ) : analytics ? (
             <>
             {/* KPI Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <Card className="glass-card p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-2 bg-primary/10 rounded-lg">
-                    <Users className="h-5 w-5 text-primary" />
-                  </div>
-                  <Badge variant="outline" className="text-xs">
-                    +{analytics.growth_rate || 0}%
-                  </Badge>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-2xl font-bold">{analytics.total_leads?.toLocaleString() || 0}</p>
-                  <p className="text-xs text-muted-foreground">Total Leads</p>
-                </div>
-              </Card>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <KPICard
+                title="Total Leads"
+                value={analytics.total_leads?.toLocaleString() || '0'}
+                subtitle={`${analytics.growth_rate || 0}% growth rate`}
+                icon={Users}
+                iconColor="text-blue-600"
+                trend={{ value: analytics.growth_rate || 0, isPositive: (analytics.growth_rate || 0) > 0 }}
+              />
 
-              <Card className="glass-card p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-2 bg-success/10 rounded-lg">
-                    <Target className="h-5 w-5 text-success" />
-                  </div>
-                  <TrendingUp className="h-4 w-4 text-success" />
-                </div>
-                <div className="space-y-1">
-                  <p className="text-2xl font-bold">{analytics.total_appointments?.toLocaleString() || 0}</p>
-                  <p className="text-xs text-muted-foreground">Appointments</p>
-                </div>
-              </Card>
+              <KPICard
+                title="Appointments"
+                value={analytics.total_appointments?.toLocaleString() || '0'}
+                subtitle="Total scheduled appointments"
+                icon={Target}
+                iconColor="text-green-600"
+                trend={{ value: 0, isPositive: true }}
+              />
 
-              <Card className="glass-card p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-2 bg-accent/10 rounded-lg">
-                    <DollarSign className="h-5 w-5 text-accent" />
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-2xl font-bold">{analytics.conversion_rate?.toFixed(1) || 0}%</p>
-                  <p className="text-xs text-muted-foreground">Conversion Rate</p>
-                </div>
-              </Card>
+              <KPICard
+                title="Conversion Rate"
+                value={`${analytics.conversion_rate?.toFixed(1) || 0}%`}
+                subtitle="Overall conversion performance"
+                icon={DollarSign}
+                iconColor="text-emerald-600"
+                trend={{ value: analytics.conversion_rate || 0, isPositive: (analytics.conversion_rate || 0) > 0 }}
+              />
 
-              <Card className="glass-card p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-2 bg-blue-500/10 rounded-lg">
-                    <Clock className="h-5 w-5 text-blue-500" />
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-2xl font-bold">{analytics.avg_response_time || 0}h</p>
-                  <p className="text-xs text-muted-foreground">Avg Response</p>
-                </div>
-              </Card>
+              <KPICard
+                title="Avg Response"
+                value={`${analytics.avg_response_time || 0}h`}
+                subtitle="Average response time"
+                icon={Clock}
+                iconColor="text-purple-600"
+              />
             </div>
 
             {/* Charts */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {/* Lead Trends */}
-              <Card className="glass-card p-6">
-                <h3 className="text-lg font-semibold mb-4">Lead Trends</h3>
+              <Card className="bg-card rounded-xl border border-border p-6">
+                <h3 className="text-lg font-semibold mb-4 text-foreground">Lead Trends</h3>
                 <ResponsiveContainer width="100%" height={300}>
                   <AreaChart data={analytics.leads_over_time || []}>
                     <defs>
@@ -680,8 +662,8 @@ export default function Analytics() {
               </Card>
 
               {/* Source Distribution */}
-              <Card className="glass-card p-6">
-                <h3 className="text-lg font-semibold mb-4">Lead Sources</h3>
+              <Card className="bg-card rounded-xl border border-border p-6">
+                <h3 className="text-lg font-semibold mb-4 text-foreground">Lead Sources</h3>
                 <ResponsiveContainer width="100%" height={300}>
                   <PieChart>
                     <Pie
@@ -706,7 +688,7 @@ export default function Analytics() {
             {/* Additional Charts */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Conversion Funnel */}
-              <Card className="glass-card p-6">
+              <Card className="bg-card rounded-xl border border-border p-6">
                 <h3 className="text-lg font-semibold mb-4">Conversion Funnel</h3>
                 <div className="space-y-4">
                   {conversionFunnelData.map((stage, index) => (
@@ -732,7 +714,7 @@ export default function Analytics() {
               </Card>
 
               {/* Hourly Activity */}
-              <Card className="glass-card p-6">
+              <Card className="bg-card rounded-xl border border-border p-6">
                 <h3 className="text-lg font-semibold mb-4">Hourly Activity</h3>
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={hourlyData}>
@@ -757,7 +739,7 @@ export default function Analytics() {
           </TabsContent>
 
           {/* Conversions Tab */}
-          <TabsContent value="conversions" className="space-y-8">
+          <TabsContent value="conversions" className="space-y-6">
             {isLoadingConversions && !conversionAnalytics ? (
               <div className="flex items-center justify-center min-h-screen">
                 <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -765,81 +747,59 @@ export default function Analytics() {
             ) : (
               <>
                 {/* KPI Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-                  <Card className="glass-card p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="p-2 bg-primary/10 rounded-lg">
-                        <Target className="h-5 w-5 text-primary" />
-                      </div>
-                      <Badge variant="outline" className="text-xs">
-                        +{conversionAnalytics?.summary.conversion_rate || 0}%
-                      </Badge>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-2xl font-bold">{conversionAnalytics?.summary.total_conversions || 0}</p>
-                      <p className="text-xs text-muted-foreground">Total Conversions</p>
-                    </div>
-                  </Card>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                  <KPICard
+                    title="Total Conversions"
+                    value={conversionAnalytics?.summary.total_conversions || 0}
+                    subtitle={`${conversionAnalytics?.summary.conversion_rate || 0}% conversion rate`}
+                    icon={Target}
+                    iconColor="text-blue-600"
+                    trend={{ 
+                      value: parseFloat(conversionAnalytics?.summary.conversion_rate || '0'), 
+                      isPositive: parseFloat(conversionAnalytics?.summary.conversion_rate || '0') > 0 
+                    }}
+                  />
 
-                  <Card className="glass-card p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="p-2 bg-success/10 rounded-lg">
-                        <DollarSign className="h-5 w-5 text-success" />
-                      </div>
-                      {conversionAnalytics && conversionAnalytics.summary.total_value > 0 && (
-                        <ArrowUpRight className="h-4 w-4 text-success" />
-                      )}
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-2xl font-bold">
-                        {formatCurrency(conversionAnalytics?.summary.total_value || 0)}
-                      </p>
-                      <p className="text-xs text-muted-foreground">Total Revenue</p>
-                    </div>
-                  </Card>
+                  <KPICard
+                    title="Total Revenue"
+                    value={formatCurrency(conversionAnalytics?.summary.total_value || 0)}
+                    subtitle="Total revenue generated"
+                    icon={DollarSign}
+                    iconColor="text-green-600"
+                    trend={{ 
+                      value: conversionAnalytics && conversionAnalytics.summary.total_value > 0 ? 1 : 0, 
+                      isPositive: conversionAnalytics ? conversionAnalytics.summary.total_value > 0 : false 
+                    }}
+                  />
 
-                  <Card className="glass-card p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="p-2 bg-accent/10 rounded-lg">
-                        <TrendingUp className="h-5 w-5 text-accent" />
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-2xl font-bold">
-                        {formatCurrency(conversionAnalytics?.summary.average_value || 0)}
-                      </p>
-                      <p className="text-xs text-muted-foreground">Avg. Deal Size</p>
-                    </div>
-                  </Card>
+                  <KPICard
+                    title="Avg. Deal Size"
+                    value={formatCurrency(conversionAnalytics?.summary.average_value || 0)}
+                    subtitle="Average deal value"
+                    icon={TrendingUp}
+                    iconColor="text-emerald-600"
+                  />
 
-                  <Card className="glass-card p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="p-2 bg-blue-500/10 rounded-lg">
-                        <Users className="h-5 w-5 text-blue-500" />
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-2xl font-bold">{conversionAnalytics?.summary.unique_contacts || 0}</p>
-                      <p className="text-xs text-muted-foreground">Unique Contacts</p>
-                    </div>
-                  </Card>
+                  <KPICard
+                    title="Unique Contacts"
+                    value={conversionAnalytics?.summary.unique_contacts || 0}
+                    subtitle="Unique contacts converted"
+                    icon={Users}
+                    iconColor="text-purple-600"
+                  />
 
-                  <Card className="glass-card p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="p-2 bg-purple-500/10 rounded-lg">
-                        <Activity className="h-5 w-5 text-purple-500" />
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-2xl font-bold">{conversionAnalytics?.summary.active_workspaces || 0}</p>
-                      <p className="text-xs text-muted-foreground">Active Teams</p>
-                    </div>
-                  </Card>
+                  <KPICard
+                    title="Active Teams"
+                    value={conversionAnalytics?.summary.active_workspaces || 0}
+                    subtitle="Active workspaces"
+                    icon={Activity}
+                    iconColor="text-orange-600"
+                  />
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   {/* Conversion Funnel */}
-                  <Card className="glass-card p-6">
+                  <Card className="bg-card rounded-xl border border-border p-6">
                     <div className="flex items-center justify-between mb-6">
                       <h3 className="text-lg font-semibold">Conversion Funnel</h3>
                       <BarChart3 className="h-5 w-5 text-muted-foreground" />
@@ -886,7 +846,7 @@ export default function Analytics() {
                   </Card>
 
                   {/* Conversion by Type */}
-                  <Card className="glass-card p-6">
+                  <Card className="bg-card rounded-xl border border-border p-6">
                     <div className="flex items-center justify-between mb-6">
                       <h3 className="text-lg font-semibold">By Type</h3>
                       <Filter className="h-5 w-5 text-muted-foreground" />
@@ -919,7 +879,7 @@ export default function Analytics() {
                 </div>
 
                 {/* Workspace Performance Table */}
-                <Card className="glass-card p-6">
+                <Card className="bg-card rounded-xl border border-border p-6">
                   <div className="flex items-center justify-between mb-6">
                     <h3 className="text-lg font-semibold">Workspace Performance</h3>
                     <Badge variant="outline">{conversionAnalytics?.by_workspace.length || 0} Active</Badge>
@@ -975,7 +935,7 @@ export default function Analytics() {
                 </Card>
 
                 {/* Recent Conversions Feed */}
-                <Card className="glass-card p-6">
+                <Card className="bg-card rounded-xl border border-border p-6">
                   <div className="flex items-center justify-between mb-6">
                     <h3 className="text-lg font-semibold">Recent Conversions</h3>
                     <Badge className="animate-pulse" variant="default">Live</Badge>
@@ -1018,7 +978,7 @@ export default function Analytics() {
           </TabsContent>
 
           {/* Providers Tab */}
-          <TabsContent value="providers" className="space-y-8">
+          <TabsContent value="providers" className="space-y-6">
             {isLoadingProviders && providerPerformance.length === 0 ? (
               <div className="flex items-center justify-center min-h-screen">
                 <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -1026,70 +986,47 @@ export default function Analytics() {
             ) : (
               <>
                 {/* Provider Summary KPIs */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                  <Card className="glass-card p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="p-2 bg-primary/10 rounded-lg">
-                        <Users className="h-5 w-5 text-primary" />
-                      </div>
-                      <Badge variant="outline" className="text-xs">
-                        Active
-                      </Badge>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-2xl font-bold">{providers.filter(p => p.is_active).length}</p>
-                      <p className="text-xs text-muted-foreground">Active Providers</p>
-                    </div>
-                  </Card>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <KPICard
+                    title="Active Providers"
+                    value={providers.filter(p => p.is_active).length}
+                    subtitle={`${providers.length} total providers`}
+                    icon={Users}
+                    iconColor="text-blue-600"
+                  />
 
-                  <Card className="glass-card p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="p-2 bg-success/10 rounded-lg">
-                        <Target className="h-5 w-5 text-success" />
-                      </div>
-                      <TrendingUp className="h-4 w-4 text-success" />
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-2xl font-bold">
-                        {providerPerformance.reduce((sum, p) => sum + p.total_leads, 0).toLocaleString()}
-                      </p>
-                      <p className="text-xs text-muted-foreground">Total Leads</p>
-                    </div>
-                  </Card>
+                  <KPICard
+                    title="Total Leads"
+                    value={providerPerformance.reduce((sum, p) => sum + p.total_leads, 0).toLocaleString()}
+                    subtitle="Across all providers"
+                    icon={Target}
+                    iconColor="text-green-600"
+                    trend={{ value: 0, isPositive: true }}
+                  />
 
-                  <Card className="glass-card p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="p-2 bg-accent/10 rounded-lg">
-                        <DollarSign className="h-5 w-5 text-accent" />
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-2xl font-bold">
-                        {formatCurrency(providerPerformance.reduce((sum, p) => sum + p.total_revenue, 0))}
-                      </p>
-                      <p className="text-xs text-muted-foreground">Total Revenue</p>
-                    </div>
-                  </Card>
+                  <KPICard
+                    title="Total Revenue"
+                    value={formatCurrency(providerPerformance.reduce((sum, p) => sum + p.total_revenue, 0))}
+                    subtitle="Total revenue generated"
+                    icon={DollarSign}
+                    iconColor="text-emerald-600"
+                  />
 
-                  <Card className="glass-card p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="p-2 bg-blue-500/10 rounded-lg">
-                        <Activity className="h-5 w-5 text-blue-500" />
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-2xl font-bold">
-                        {providerPerformance.length > 0
-                          ? (providerPerformance.reduce((sum, p) => sum + p.conversion_rate, 0) / providerPerformance.length).toFixed(1)
-                          : 0}%
-                      </p>
-                      <p className="text-xs text-muted-foreground">Avg Conversion</p>
-                    </div>
-                  </Card>
+                  <KPICard
+                    title="Avg Conversion"
+                    value={`${
+                      providerPerformance.length > 0
+                        ? (providerPerformance.reduce((sum, p) => sum + p.conversion_rate, 0) / providerPerformance.length).toFixed(1)
+                        : 0
+                    }%`}
+                    subtitle="Average conversion rate"
+                    icon={Activity}
+                    iconColor="text-purple-600"
+                  />
                 </div>
 
                 {/* Provider Performance Leaderboard */}
-                <Card className="glass-card p-6">
+                <Card className="bg-card rounded-xl border border-border p-6">
                   <div className="flex items-center justify-between mb-6">
                     <h3 className="text-lg font-semibold">Provider Performance Leaderboard</h3>
                     <Badge variant="outline">{providerPerformance.length} Providers</Badge>
@@ -1161,9 +1098,9 @@ export default function Analytics() {
                 </Card>
 
                 {/* Charts Row */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   {/* Conversion Rate Comparison */}
-                  <Card className="glass-card p-6">
+                  <Card className="bg-card rounded-xl border border-border p-6">
                     <h3 className="text-lg font-semibold mb-4">Conversion Rate Comparison</h3>
                     <ResponsiveContainer width="100%" height={300}>
                       <BarChart data={providerPerformance.slice(0, 10)}>
@@ -1184,7 +1121,7 @@ export default function Analytics() {
                   </Card>
 
                   {/* Revenue Attribution */}
-                  <Card className="glass-card p-6">
+                  <Card className="bg-card rounded-xl border border-border p-6">
                     <h3 className="text-lg font-semibold mb-4">Revenue Attribution</h3>
                     <ResponsiveContainer width="100%" height={300}>
                       <PieChart>
@@ -1213,7 +1150,7 @@ export default function Analytics() {
                 </div>
 
                 {/* Performance Trends */}
-                <Card className="glass-card p-6">
+                <Card className="bg-card rounded-xl border border-border p-6">
                   <h3 className="text-lg font-semibold mb-4">Performance Trends</h3>
                   <ResponsiveContainer width="100%" height={300}>
                     <LineChart data={providerPerformance.slice(0, 6)}>

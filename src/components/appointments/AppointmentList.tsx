@@ -49,9 +49,9 @@ interface Appointment {
   service_type: string;
   customer_zip: string;
   estimated_value: number;
-  matched_workspace_id: string;
+  matched_workspace_id: string | null;
   routing_method: string;
-  workspace_name: string;
+  workspace_name: string | null;
   forward_status: string;
   created_at: string;
 }
@@ -263,11 +263,14 @@ export function AppointmentList({ appointments, loading, onRefresh }: Appointmen
                       <div className="flex items-center gap-2">
                         <Building className="h-4 w-4 text-muted-foreground" />
                         <span className="text-sm font-medium">
-                          {appointment.workspace_name}
+                          {appointment.workspace_name || appointment.matched_workspace_id || 'Unrouted'}
                         </span>
                       </div>
-                      <Badge variant="outline" className="text-xs">
-                        {appointment.routing_method}
+                      <Badge 
+                        variant={appointment.matched_workspace_id ? "outline" : "secondary"} 
+                        className="text-xs"
+                      >
+                        {appointment.routing_method || 'unrouted'}
                       </Badge>
                     </div>
                   </TableCell>
@@ -295,10 +298,14 @@ export function AppointmentList({ appointments, loading, onRefresh }: Appointmen
                       <DropdownMenuContent align="end" className="w-48">
                         <DropdownMenuItem
                           onClick={() => handleForwardAppointment(appointment.id)}
-                          disabled={forwarding === appointment.id}
+                          disabled={forwarding === appointment.id || !appointment.matched_workspace_id}
                         >
                           <Send className="h-4 w-4 mr-2" />
-                          {forwarding === appointment.id ? 'Forwarding...' : 'Forward to Client'}
+                          {forwarding === appointment.id 
+                            ? 'Forwarding...' 
+                            : !appointment.matched_workspace_id 
+                            ? 'No Workspace (Cannot Forward)'
+                            : 'Forward to Client'}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem>

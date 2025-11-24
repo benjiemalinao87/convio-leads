@@ -5,14 +5,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import {
   Table,
   TableBody,
@@ -40,10 +32,7 @@ import {
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import {
-  Settings,
-  Webhook,
   Building,
-  Link,
   CheckCircle,
   XCircle,
   RefreshCw,
@@ -54,10 +43,18 @@ import {
   Trash2,
   Plus,
   Copy,
-  Key
+  Key,
+  LayoutGrid,
+  List,
+  Calendar,
+  Clock,
+  CheckCircle2
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { CreateWorkspaceDialog } from './CreateWorkspaceDialog';
+import { PageHeader } from '@/components/dashboard/PageHeader';
+import { cn } from '@/lib/utils';
 
 interface Workspace {
   id: string;
@@ -65,6 +62,10 @@ interface Workspace {
   outbound_webhook_url?: string;
   webhook_active: boolean;
   api_key?: string;
+  total_appointments?: number;
+  pending_appointments?: number;
+  confirmed_appointments?: number;
+  completed_appointments?: number;
 }
 
 interface AppointmentRoutingManagerProps {
@@ -77,7 +78,50 @@ export function AppointmentRoutingManager({ onRefresh }: AppointmentRoutingManag
   const [updating, setUpdating] = useState<string | null>(null);
   const [testingWebhook, setTestingWebhook] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const { toast } = useToast();
+
+  // Fetch appointment statistics for a workspace
+  const fetchWorkspaceAppointmentStats = async (workspaceId: string) => {
+    try {
+      const response = await fetch(`https://api.homeprojectpartners.com/appointments?workspace_id=${workspaceId}&limit=1`);
+      const data = await response.json();
+
+      if (data.success) {
+        // Get total count from pagination
+        const total = data.pagination?.total || 0;
+
+        // Fetch appointments by status for breakdown
+        const [pendingRes, confirmedRes, completedRes] = await Promise.all([
+          fetch(`https://api.homeprojectpartners.com/appointments?workspace_id=${workspaceId}&status=pending&limit=1`),
+          fetch(`https://api.homeprojectpartners.com/appointments?workspace_id=${workspaceId}&status=confirmed&limit=1`),
+          fetch(`https://api.homeprojectpartners.com/appointments?workspace_id=${workspaceId}&status=completed&limit=1`)
+        ]);
+
+        const [pendingData, confirmedData, completedData] = await Promise.all([
+          pendingRes.json(),
+          confirmedRes.json(),
+          completedRes.json()
+        ]);
+
+        return {
+          total_appointments: total,
+          pending_appointments: pendingData.pagination?.total || 0,
+          confirmed_appointments: confirmedData.pagination?.total || 0,
+          completed_appointments: completedData.pagination?.total || 0,
+        };
+      }
+    } catch (error) {
+      console.error(`Error fetching appointment stats for workspace ${workspaceId}:`, error);
+    }
+    return {
+      total_appointments: 0,
+      pending_appointments: 0,
+      confirmed_appointments: 0,
+      completed_appointments: 0,
+    };
+  };
 
   // Fetch workspaces from API
   const fetchWorkspaces = async () => {
@@ -87,7 +131,17 @@ export function AppointmentRoutingManager({ onRefresh }: AppointmentRoutingManag
       const data = await response.json();
 
       if (data.success) {
-        setWorkspaces(data.workspaces || []);
+        const workspaces = data.workspaces || [];
+        
+        // Fetch appointment statistics for each workspace
+        const workspacesWithStats = await Promise.all(
+          workspaces.map(async (workspace: Workspace) => {
+            const stats = await fetchWorkspaceAppointmentStats(workspace.id);
+            return { ...workspace, ...stats };
+          })
+        );
+
+        setWorkspaces(workspacesWithStats);
       } else {
         toast({
           title: "Error",
@@ -308,7 +362,7 @@ export function AppointmentRoutingManager({ onRefresh }: AppointmentRoutingManag
     return (
       <div className="flex items-center justify-center py-12">
         <RefreshCw className="h-6 w-6 animate-spin mr-2" />
-        <span>Loading workspace settings...</span>
+        <span>Loading workspaces...</span>
       </div>
     );
   }
@@ -316,17 +370,29 @@ export function AppointmentRoutingManager({ onRefresh }: AppointmentRoutingManag
   return (
     <div className="space-y-6">
       {/* Header */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Settings className="h-5 w-5" />
-            Appointment Routing Settings
-          </CardTitle>
-          <CardDescription>
-            Configure webhook endpoints for forwarding appointments to client systems
-          </CardDescription>
-        </CardHeader>
-      </Card>
+      <PageHeader
+        title="Workspaces"
+        description="Manage workspaces and configure webhook endpoints for appointment forwarding"
+        actions={
+          <div className="flex gap-2">
+            <Button
+              onClick={fetchWorkspaces}
+              disabled={loading}
+              variant="outline"
+            >
+              <RefreshCw className={cn("h-4 w-4 mr-2", loading && "animate-spin")} />
+              Refresh
+            </Button>
+            <Button
+              onClick={() => setIsCreateDialogOpen(true)}
+              className="flex items-center gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              Create Workspace
+            </Button>
+          </div>
+        }
+      />
 
       {/* Information Alert */}
       <Alert>
@@ -338,147 +404,111 @@ export function AppointmentRoutingManager({ onRefresh }: AppointmentRoutingManag
         </AlertDescription>
       </Alert>
 
-      {/* Workspace Settings */}
-      <div className="space-y-4">
-        {workspaces.map((workspace) => (
-          <Card key={workspace.id}>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Building className="h-5 w-5 text-muted-foreground" />
-                  <CardTitle className="text-lg">{workspace.name}</CardTitle>
+      {/* View Toggle */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-foreground">Workspace List</h2>
+        <div className="flex items-center gap-2">
+          <Button
+            variant={viewMode === 'card' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('card')}
+            className="flex items-center gap-2"
+          >
+            <LayoutGrid className="h-4 w-4" />
+            Cards
+          </Button>
+          <Button
+            variant={viewMode === 'table' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('table')}
+            className="flex items-center gap-2"
+          >
+            <List className="h-4 w-4" />
+            Table
+          </Button>
+        </div>
+      </div>
+
+      {/* Card View */}
+      {viewMode === 'card' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+          {workspaces.map((workspace) => (
+            <Card key={workspace.id} className="bg-card rounded-xl border border-border p-4 transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-base font-semibold text-foreground mb-0.5 truncate">{workspace.name}</h3>
+                  <p className="text-xs text-muted-foreground font-mono truncate">{workspace.id}</p>
+                </div>
+                <div className="flex items-center gap-1.5 ml-2">
                   {getStatusBadge(workspace)}
                 </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleTestWebhook(workspace.id, workspace.outbound_webhook_url || '')}
-                    disabled={!workspace.outbound_webhook_url || testingWebhook === workspace.id}
-                  >
-                    {testingWebhook === workspace.id ? (
-                      <>
-                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                        Testing...
-                      </>
-                    ) : (
-                      <>
-                        <ExternalLink className="h-4 w-4 mr-2" />
-                        Test Webhook
-                      </>
-                    )}
-                  </Button>
+              </div>
 
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="outline" size="sm">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-48">
-                      <DropdownMenuItem>
-                        <Plus className="h-4 w-4 mr-2" />
-                        Create Routing Rule
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <DropdownMenuItem
-                            className="text-red-600"
-                            onSelect={(e) => e.preventDefault()}
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Delete Workspace
-                          </DropdownMenuItem>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Delete Workspace</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Are you sure you want to delete "{workspace.name}"? This action cannot be undone.
-                              <br /><br />
-                              <strong>Note:</strong> Workspaces with active routing rules or appointments cannot be deleted.
-                              You must first delete all routing rules and ensure no appointments are assigned to this workspace.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => handleDeleteWorkspace(workspace.id, workspace.name)}
-                              disabled={deleting === workspace.id}
-                              className="bg-red-600 hover:bg-red-700"
-                            >
-                              {deleting === workspace.id ? 'Deleting...' : 'Delete Workspace'}
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+              {/* Appointment Stats */}
+              <div className="grid grid-cols-4 gap-2 mb-3">
+                <div className="text-center p-2 rounded-lg bg-muted/50">
+                  <Calendar className="w-3.5 h-3.5 text-primary mx-auto mb-1" />
+                  <p className="text-xs font-semibold text-foreground">{workspace.total_appointments || 0}</p>
+                  <p className="text-[10px] text-muted-foreground">Total</p>
+                </div>
+                <div className="text-center p-2 rounded-lg bg-muted/50">
+                  <Clock className="w-3.5 h-3.5 text-warning mx-auto mb-1" />
+                  <p className="text-xs font-semibold text-foreground">{workspace.pending_appointments || 0}</p>
+                  <p className="text-[10px] text-muted-foreground">Pending</p>
+                </div>
+                <div className="text-center p-2 rounded-lg bg-muted/50">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-success mx-auto mb-1" />
+                  <p className="text-xs font-semibold text-foreground">{workspace.confirmed_appointments || 0}</p>
+                  <p className="text-[10px] text-muted-foreground">Confirmed</p>
+                </div>
+                <div className="text-center p-2 rounded-lg bg-muted/50">
+                  <CheckCircle className="w-3.5 h-3.5 text-emerald-600 mx-auto mb-1" />
+                  <p className="text-xs font-semibold text-foreground">{workspace.completed_appointments || 0}</p>
+                  <p className="text-[10px] text-muted-foreground">Completed</p>
                 </div>
               </div>
-            </CardHeader>
 
-            <CardContent className="space-y-4">
-              {/* API Key Section */}
+              {/* API Key */}
               {workspace.api_key && (
-                <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg border">
-                  <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <Key className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <Label className="text-sm font-medium">API Key</Label>
-                      </div>
-                      <code className="text-xs font-mono text-muted-foreground truncate block max-w-md">
-                        {workspace.api_key}
-                      </code>
-                    </div>
+                <div className="border border-border/50 rounded-lg p-2 bg-secondary/20 mb-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <Label className="text-[10px] font-medium text-muted-foreground">API Key</Label>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => copyApiKey(workspace.api_key!, workspace.name)}
+                      className="h-5 w-5 p-0"
+                    >
+                      <Copy className="w-3 h-3" />
+                    </Button>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => copyApiKey(workspace.api_key!, workspace.name)}
-                    className="h-8 px-3 flex-shrink-0"
-                  >
-                    <Copy className="h-3 w-3 mr-1" />
-                    Copy
-                  </Button>
+                  <code className="text-[10px] font-mono text-foreground break-all bg-background/50 p-1 rounded border line-clamp-1">
+                    {workspace.api_key}
+                  </code>
                 </div>
               )}
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="md:col-span-2 space-y-2">
-                  <Label htmlFor={`webhook-url-${workspace.id}`}>
-                    Outbound Webhook URL
-                  </Label>
-                  <div className="flex gap-2">
-                    <Input
-                      id={`webhook-url-${workspace.id}`}
-                      type="url"
-                      placeholder="https://your-client-system.com/webhook/appointments"
-                      value={workspace.outbound_webhook_url || ''}
-                      onChange={(e) => {
-                        setWorkspaces(prev =>
-                          prev.map(w =>
-                            w.id === workspace.id
-                              ? { ...w, outbound_webhook_url: e.target.value }
-                              : w
-                          )
-                        );
-                      }}
-                    />
-                  </div>
-                  {workspace.outbound_webhook_url && (
-                    <p className="text-xs text-muted-foreground">
-                      Appointments routed to this workspace will be forwarded to this URL
-                    </p>
-                  )}
-                </div>
-
-                <div className="space-y-4">
+              {/* Webhook URL */}
+              <div className="border border-border/50 rounded-lg p-2 bg-secondary/20 mb-3">
+                <Label className="text-[10px] font-medium text-muted-foreground mb-1 block">Webhook URL</Label>
+                <Input
+                  type="url"
+                  placeholder="https://..."
+                  value={workspace.outbound_webhook_url || ''}
+                  onChange={(e) => {
+                    setWorkspaces(prev =>
+                      prev.map(w =>
+                        w.id === workspace.id
+                          ? { ...w, outbound_webhook_url: e.target.value }
+                          : w
+                      )
+                    );
+                  }}
+                  className="h-7 text-xs mb-2"
+                />
+                <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
                     <Switch
-                      id={`webhook-active-${workspace.id}`}
                       checked={workspace.webhook_active}
                       onCheckedChange={(checked) => {
                         setWorkspaces(prev =>
@@ -490,87 +520,321 @@ export function AppointmentRoutingManager({ onRefresh }: AppointmentRoutingManag
                         );
                       }}
                       disabled={!workspace.outbound_webhook_url}
+                      className="data-[state=checked]:bg-primary scale-75"
                     />
-                    <Label htmlFor={`webhook-active-${workspace.id}`}>
-                      Active
-                    </Label>
+                    <Label className="text-xs">Active</Label>
                   </div>
-
                   <Button
-                    onClick={() =>
-                      handleUpdateWebhook(
-                        workspace.id,
-                        workspace.outbound_webhook_url || '',
-                        workspace.webhook_active
-                      )
-                    }
-                    disabled={updating === workspace.id}
+                    variant="ghost"
                     size="sm"
-                    className="w-full"
+                    onClick={() => handleTestWebhook(workspace.id, workspace.outbound_webhook_url || '')}
+                    disabled={!workspace.outbound_webhook_url || testingWebhook === workspace.id}
+                    className="h-6 px-2 text-xs"
                   >
-                    {updating === workspace.id ? (
-                      <>
-                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                        Updating...
-                      </>
+                    {testingWebhook === workspace.id ? (
+                      <RefreshCw className="h-3 w-3 animate-spin" />
                     ) : (
-                      'Update Settings'
+                      <ExternalLink className="h-3 w-3" />
                     )}
                   </Button>
                 </div>
               </div>
 
-              {!workspace.outbound_webhook_url && (
-                <Alert className="border-yellow-200 bg-yellow-50">
-                  <AlertTriangle className="h-4 w-4 text-yellow-600" />
-                  <AlertDescription className="text-yellow-600">
-                    No webhook URL configured. Appointments routed to this workspace will not be forwarded.
-                  </AlertDescription>
-                </Alert>
-              )}
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+              {/* Action Buttons */}
+              <div className="flex gap-2">
+                <Button
+                  onClick={() =>
+                    handleUpdateWebhook(
+                      workspace.id,
+                      workspace.outbound_webhook_url || '',
+                      workspace.webhook_active
+                    )
+                  }
+                  disabled={updating === workspace.id}
+                  size="sm"
+                  className="flex-1 h-8 text-xs"
+                >
+                  {updating === workspace.id ? (
+                    <>
+                      <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                      Updating...
+                    </>
+                  ) : (
+                    'Update'
+                  )}
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <DropdownMenuItem
+                          className="text-red-600"
+                          onSelect={(e) => e.preventDefault()}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete Workspace
+                        </DropdownMenuItem>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete Workspace</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Are you sure you want to delete "{workspace.name}"? This action cannot be undone.
+                            <br /><br />
+                            <strong>Note:</strong> Workspaces with active routing rules or appointments cannot be deleted.
+                            You must first delete all routing rules and ensure no appointments are assigned to this workspace.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => handleDeleteWorkspace(workspace.id, workspace.name)}
+                            disabled={deleting === workspace.id}
+                            className="bg-red-600 hover:bg-red-700"
+                          >
+                            {deleting === workspace.id ? 'Deleting...' : 'Delete Workspace'}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
 
-      {/* Webhook Payload Information */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Webhook className="h-5 w-5" />
-            Webhook Payload Format
-          </CardTitle>
-          <CardDescription>
-            This is the JSON structure that will be sent to your webhook endpoints
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="bg-gray-900 border border-gray-700 p-4 rounded-lg font-mono text-sm overflow-x-auto">
-            <pre className="text-gray-300">{`{
-  "appointment_id": 123,
-  "customer_name": "John Doe",
-  "customer_phone": "555-123-4567",
-  "customer_email": "john@example.com",
-  "service_type": "Solar",
-  "customer_zip": "90210",
-  "appointment_date": "2024-10-01T14:00:00Z",
-  "estimated_value": 25000,
-  "notes": "Customer interested in rooftop solar installation",
-  "routing_method": "auto",
-  "matched_at": "2024-01-15T10:30:00Z",
-  "workspace_id": "default_workspace"
-}`}</pre>
+      {/* Table View */}
+      {viewMode === 'table' && (
+        <Card className="bg-card rounded-xl border border-border">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[200px]">Workspace</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Appointments</TableHead>
+                  <TableHead>Webhook URL</TableHead>
+                  <TableHead>API Key</TableHead>
+                  <TableHead className="text-right w-[150px]">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {workspaces.map((workspace) => (
+                  <TableRow key={workspace.id}>
+                    <TableCell>
+                      <div>
+                        <div className="font-medium">{workspace.name}</div>
+                        <div className="text-xs text-muted-foreground font-mono">{workspace.id}</div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {getStatusBadge(workspace)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex flex-col items-end gap-1">
+                        <div className="flex items-center gap-3">
+                          <div className="text-center">
+                            <p className="text-xs font-semibold text-foreground">{workspace.total_appointments || 0}</p>
+                            <p className="text-[10px] text-muted-foreground">Total</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-xs font-semibold text-foreground">{workspace.pending_appointments || 0}</p>
+                            <p className="text-[10px] text-muted-foreground">Pending</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-xs font-semibold text-foreground">{workspace.confirmed_appointments || 0}</p>
+                            <p className="text-[10px] text-muted-foreground">Confirmed</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-xs font-semibold text-foreground">{workspace.completed_appointments || 0}</p>
+                            <p className="text-[10px] text-muted-foreground">Done</p>
+                          </div>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="space-y-2">
+                        <Input
+                          type="url"
+                          placeholder="https://..."
+                          value={workspace.outbound_webhook_url || ''}
+                          onChange={(e) => {
+                            setWorkspaces(prev =>
+                              prev.map(w =>
+                                w.id === workspace.id
+                                  ? { ...w, outbound_webhook_url: e.target.value }
+                                  : w
+                              )
+                            );
+                          }}
+                          className="h-8 text-xs"
+                        />
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={workspace.webhook_active}
+                            onCheckedChange={(checked) => {
+                              setWorkspaces(prev =>
+                                prev.map(w =>
+                                  w.id === workspace.id
+                                    ? { ...w, webhook_active: checked }
+                                    : w
+                                )
+                              );
+                            }}
+                            disabled={!workspace.outbound_webhook_url}
+                            className="data-[state=checked]:bg-primary scale-75"
+                          />
+                          <Label className="text-xs">Active</Label>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleTestWebhook(workspace.id, workspace.outbound_webhook_url || '')}
+                            disabled={!workspace.outbound_webhook_url || testingWebhook === workspace.id}
+                            className="h-6 px-2 text-xs"
+                          >
+                            {testingWebhook === workspace.id ? (
+                              <RefreshCw className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <ExternalLink className="h-3 w-3" />
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {workspace.api_key ? (
+                        <div className="flex items-center gap-2">
+                          <code className="text-xs font-mono text-muted-foreground truncate max-w-[200px]">
+                            {workspace.api_key}
+                          </code>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => copyApiKey(workspace.api_key!, workspace.name)}
+                            className="h-6 w-6 p-0"
+                          >
+                            <Copy className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">No API key</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          onClick={() =>
+                            handleUpdateWebhook(
+                              workspace.id,
+                              workspace.outbound_webhook_url || '',
+                              workspace.webhook_active
+                            )
+                          }
+                          disabled={updating === workspace.id}
+                          size="sm"
+                          className="h-8 text-xs"
+                        >
+                          {updating === workspace.id ? (
+                            <>
+                              <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                              Updating...
+                            </>
+                          ) : (
+                            'Update'
+                          )}
+                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-48">
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <DropdownMenuItem
+                                  className="text-red-600"
+                                  onSelect={(e) => e.preventDefault()}
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Delete Workspace
+                                </DropdownMenuItem>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Delete Workspace</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Are you sure you want to delete "{workspace.name}"? This action cannot be undone.
+                                    <br /><br />
+                                    <strong>Note:</strong> Workspaces with active routing rules or appointments cannot be deleted.
+                                    You must first delete all routing rules and ensure no appointments are assigned to this workspace.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() => handleDeleteWorkspace(workspace.id, workspace.name)}
+                                    disabled={deleting === workspace.id}
+                                    className="bg-red-600 hover:bg-red-700"
+                                  >
+                                    {deleting === workspace.id ? 'Deleting...' : 'Delete Workspace'}
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {workspaces.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                      No workspaces found. Create your first workspace to get started.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
           </div>
-          <div className="mt-4 text-sm text-muted-foreground">
-            <p><strong>Headers sent:</strong></p>
-            <ul className="list-disc list-inside mt-2 space-y-1">
-              <li><code>Content-Type: application/json</code></li>
-              <li><code>User-Agent: Convio-Appointment-Router/1.0</code></li>
-              <li><code>X-Webhook-Source: appointment-routing</code></li>
-            </ul>
+        </Card>
+      )}
+
+      {/* Empty State */}
+      {!loading && workspaces.length === 0 && (
+        <Card className="bg-card rounded-xl border border-border p-12 text-center">
+          <div className="mx-auto w-24 h-24 bg-gradient-primary rounded-full flex items-center justify-center mb-4">
+            <Building className="w-12 h-12 text-primary-foreground" />
           </div>
-        </CardContent>
-      </Card>
+          <h3 className="text-lg font-semibold text-foreground mb-2">No Workspaces Configured</h3>
+          <p className="text-muted-foreground mb-6">
+            Create your first workspace to start routing appointments to client systems.
+          </p>
+          <Button
+            onClick={() => setIsCreateDialogOpen(true)}
+            className="bg-gradient-primary hover:bg-primary/90"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Create First Workspace
+          </Button>
+        </Card>
+      )}
+
+      {/* Create Workspace Dialog */}
+      <CreateWorkspaceDialog
+        open={isCreateDialogOpen}
+        onOpenChange={setIsCreateDialogOpen}
+        onSuccess={fetchWorkspaces}
+      />
+
     </div>
   );
 }

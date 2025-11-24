@@ -1,6 +1,10 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Layout } from '@/components/dashboard/Layout';
+import { PageHeader } from '@/components/dashboard/PageHeader';
+import { LoadingSkeleton, TableSkeleton } from '@/components/dashboard/LoadingSkeleton';
+import { EmptyState } from '@/components/dashboard/EmptyState';
+import { KPICard } from '@/components/dashboard/KPICard';
 import { LeadsTable } from '@/components/leads/LeadsTable';
 import { LeadsFiltersComponent, LeadsFilters } from '@/components/leads/LeadsFilters';
 import { LeadDetailsDialog } from '@/components/leads/LeadDetailsDialog';
@@ -333,24 +337,27 @@ const Leads = () => {
 
   return (
     <Layout>
-      <div className="space-y-6">
+      <div className="space-y-8">
         {/* Header with refresh button */}
-        <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold">Leads Management</h1>
-          <Button
-            onClick={fetchLeads}
-            disabled={isLoading}
-            variant="outline"
-          >
-            <RefreshCw className={cn("h-4 w-4 mr-2", isLoading && "animate-spin")} />
-            {isLoading ? 'Loading...' : 'Refresh'}
-          </Button>
-        </div>
+        <PageHeader
+          title="Leads Management"
+          description="Manage and track all your leads and contacts"
+          actions={
+            <Button
+              onClick={fetchLeads}
+              disabled={isLoading}
+              variant="outline"
+            >
+              <RefreshCw className={cn("h-4 w-4 mr-2", isLoading && "animate-spin")} />
+              {isLoading ? 'Loading...' : 'Refresh'}
+            </Button>
+          }
+        />
 
         {/* Error state */}
         {error && (
           <Card className="bg-destructive/10 border-destructive">
-            <CardContent className="pt-6">
+            <CardContent className="pt-7">
               <p className="text-destructive">Error: {error}</p>
               <Button onClick={fetchLeads} className="mt-2" size="sm">
                 Retry
@@ -361,61 +368,42 @@ const Leads = () => {
 
         {/* KPI Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="bg-gradient-card border-border/50">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Contacts & Leads</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{kpis.totalContacts}</div>
-              <p className="text-xs text-muted-foreground">
-                {kpis.totalLeads} total leads
-              </p>
-            </CardContent>
-          </Card>
+          <KPICard
+            title="Contacts & Leads"
+            value={kpis.totalContacts}
+            subtitle={`${kpis.totalLeads} total leads`}
+            icon={Users}
+            iconColor="text-blue-600"
+          />
 
-          <Card className="bg-gradient-card border-border/50">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Pipeline Value</CardTitle>
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(kpis.totalValue)}</div>
-              <p className="text-xs text-muted-foreground">
-                Avg: {formatCurrency(kpis.averageDealSize)}
-              </p>
-            </CardContent>
-          </Card>
+          <KPICard
+            title="Pipeline Value"
+            value={formatCurrency(kpis.totalValue)}
+            subtitle={`Avg: ${formatCurrency(kpis.averageDealSize)}`}
+            icon={DollarSign}
+            iconColor="text-green-600"
+          />
 
-          <Card className="bg-gradient-card border-border/50">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Conversion Rate</CardTitle>
-              <Target className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{kpis.conversionRate.toFixed(1)}%</div>
-              <p className="text-xs text-muted-foreground">
-                {kpis.wonDeals} deals won
-              </p>
-            </CardContent>
-          </Card>
+          <KPICard
+            title="Conversion Rate"
+            value={`${kpis.conversionRate.toFixed(1)}%`}
+            subtitle={`${kpis.wonDeals} deals won`}
+            icon={Target}
+            iconColor="text-emerald-600"
+            trend={{ value: kpis.conversionRate, isPositive: kpis.conversionRate > 0 }}
+          />
 
-          <Card className="bg-gradient-card border-border/50">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Active Deals</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{kpis.activeLeads}</div>
-              <p className="text-xs text-muted-foreground">
-                In pipeline
-              </p>
-            </CardContent>
-          </Card>
+          <KPICard
+            title="Active Deals"
+            value={kpis.activeLeads}
+            subtitle="In pipeline"
+            icon={TrendingUp}
+            iconColor="text-purple-600"
+          />
         </div>
 
         {/* Filters */}
-        <Card className="bg-gradient-card border-border/50">
+        <Card className="bg-card rounded-xl border border-border">
           <CardContent className="pt-6">
             <LeadsFiltersComponent
               filters={filters}
@@ -427,7 +415,7 @@ const Leads = () => {
         </Card>
 
         {/* Contacts Table */}
-        <Card className="bg-gradient-card border-border/50">
+        <Card className="bg-card rounded-xl border border-border">
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
               <span>All Contacts</span>
@@ -443,17 +431,17 @@ const Leads = () => {
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <div className="space-y-4">
-                {[...Array(5)].map((_, i) => (
-                  <div key={i} className="animate-pulse flex space-x-4 p-4">
-                    <div className="rounded-full bg-gray-300 h-10 w-10"></div>
-                    <div className="flex-1 space-y-2 py-1">
-                      <div className="h-4 bg-gray-300 rounded w-3/4"></div>
-                      <div className="h-4 bg-gray-300 rounded w-1/2"></div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <TableSkeleton />
+            ) : filteredContacts.length === 0 ? (
+              <EmptyState
+                icon={Users}
+                title="No contacts found"
+                description={
+                  filters.search || filters.status || filters.source || filters.webhook || filters.assignedTo
+                    ? "Try adjusting your filters to see more results"
+                    : "Get started by creating your first contact or lead"
+                }
+              />
             ) : (
               <LeadsTable
                 leads={filteredContacts}

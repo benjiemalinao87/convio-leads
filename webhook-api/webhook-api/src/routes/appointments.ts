@@ -16,17 +16,20 @@ interface AppointmentRequest {
   workspace_id?: string
 
   // Optional: Link to existing lead instead of creating new one
+  // If provided, ALL customer info (name, phone, email, service_type, zip) will be fetched from lead record
+  // Only lead_id, appointment_date, estimated_value, and appointment_notes are needed
   lead_id?: number
 
-  // Customer information
-  customer_name: string
-  customer_phone: string
+  // Customer information (ONLY required if lead_id NOT provided)
+  // If lead_id is provided, these fields are IGNORED - data comes from lead record
+  customer_name?: string
+  customer_phone?: string
   customer_email?: string
-  service_type: string      // Product: Kitchen, Bath, Solar, etc.
-  customer_zip: string
+  service_type?: string      // Product: Kitchen, Bath, Solar, etc. (ONLY used if lead_id not provided)
+  customer_zip?: string      // ONLY used if lead_id not provided
 
   // Appointment details
-  appointment_date: string  // ISO format
+  appointment_date: string  // ISO format (always required)
   appointment_time?: string
   appointment_duration?: number // minutes
   appointment_type?: string
@@ -252,57 +255,45 @@ appointmentsRouter.post('/receive', async (c) => {
     const db = c.env.LEADS_DB
     const body = await c.req.json<AppointmentRequest>()
 
-    // Validate required fields
-    if (!body.customer_name || !body.customer_phone || !body.service_type ||
-        !body.customer_zip || !body.appointment_date) {
+    // Validate appointment_date (always required)
+    if (!body.appointment_date) {
       return c.json({
         success: false,
-        error: 'Missing required fields',
-        required: ['customer_name', 'customer_phone', 'service_type', 'customer_zip', 'appointment_date'],
+        error: 'Missing required field: appointment_date',
         timestamp: new Date().toISOString()
       }, 400)
     }
 
-    // Normalize phone number
-    const normalizedPhone = normalizePhoneNumber(body.customer_phone)
-    if (!normalizedPhone) {
-      return c.json({
-        success: false,
-        error: 'Invalid phone number format',
-        timestamp: new Date().toISOString()
-      }, 400)
-    }
+    // If lead_id is provided, fetch lead data and use it for routing
+    // Otherwise, require all customer fields
+    let leadData: any = null
+    let serviceType: string
+    let customerZip: string
+    let customerName: string
+    let customerPhone: string
+    let customerEmail: string | null
+    let contactId: number | undefined
+    let normalizedPhone: string
 
-    // Find matching workspace
-    const matchedWorkspaceId = await findMatchingWorkspace(
-      db,
-      body.service_type,
-      body.customer_zip,
-      body.workspace_id
-    )
-
-    if (!matchedWorkspaceId) {
-      return c.json({
-        success: false,
-        error: 'No matching workspace found',
-        criteria: {
-          service_type: body.service_type,
-          customer_zip: body.customer_zip,
-          provided_workspace_id: body.workspace_id
-        },
-        timestamp: new Date().toISOString()
-      }, 404)
-    }
-
-    // Determine contact: if lead_id provided, find contact that owns the lead; otherwise find by phone
-    let contactId: number
     if (body.lead_id) {
-      // Find contact that owns the specified lead
-      const leadOwner = await db.prepare(`
-        SELECT contact_id FROM leads WHERE id = ?
+      // Fetch lead with contact info - use ONLY this data, ignore request body customer fields
+      leadData = await db.prepare(`
+        SELECT 
+          l.id,
+          l.contact_id,
+          l.zip_code,
+          l.productid,
+          l.state,
+          c.first_name,
+          c.last_name,
+          c.email,
+          c.phone
+        FROM leads l
+        LEFT JOIN contacts c ON l.contact_id = c.id
+        WHERE l.id = ?
       `).bind(body.lead_id).first()
 
-      if (!leadOwner) {
+      if (!leadData) {
         return c.json({
           success: false,
           error: 'Invalid lead_id: Lead not found',
@@ -311,8 +302,112 @@ appointmentsRouter.post('/receive', async (c) => {
         }, 400)
       }
 
-      contactId = leadOwner.contact_id as number
+      // Use ONLY lead data for routing - no fallbacks to request body
+      serviceType = leadData.productid || ''
+      customerZip = leadData.zip_code || ''
+      customerName = `${leadData.first_name || ''} ${leadData.last_name || ''}`.trim()
+      customerPhone = leadData.phone || ''
+      customerEmail = leadData.email || null
+      contactId = leadData.contact_id as number
+
+      // Validate that lead has required routing data (productid and zip_code)
+      if (!serviceType) {
+        return c.json({
+          success: false,
+          error: 'Lead record missing required routing data: productid',
+          lead_id: body.lead_id,
+          note: 'Lead must have a productid (service_type) for routing to work',
+          timestamp: new Date().toISOString()
+        }, 400)
+      }
+
+      if (!customerZip) {
+        return c.json({
+          success: false,
+          error: 'Lead record missing required routing data: zip_code',
+          lead_id: body.lead_id,
+          note: 'Lead must have a zip_code for routing to work',
+          timestamp: new Date().toISOString()
+        }, 400)
+      }
+
+      // Normalize phone from lead
+      const normalizedPhoneResult = normalizePhoneNumber(customerPhone)
+      if (!normalizedPhoneResult) {
+        return c.json({
+          success: false,
+          error: 'Invalid phone number format in lead record',
+          lead_id: body.lead_id,
+          phone_in_record: customerPhone,
+          timestamp: new Date().toISOString()
+        }, 400)
+      }
+      normalizedPhone = normalizedPhoneResult
+
+      // Validate contact exists
+      if (!contactId) {
+        return c.json({
+          success: false,
+          error: 'Lead record missing contact_id',
+          lead_id: body.lead_id,
+          note: 'Lead must be linked to a contact',
+          timestamp: new Date().toISOString()
+        }, 400)
+      }
+
     } else {
+      // No lead_id provided - require all customer fields
+      if (!body.customer_name || !body.customer_phone || !body.service_type || !body.customer_zip) {
+        return c.json({
+          success: false,
+          error: 'Missing required fields',
+          required: ['customer_name', 'customer_phone', 'service_type', 'customer_zip', 'appointment_date'],
+          note: 'If lead_id is provided, only lead_id and appointment_date are required. All customer info is fetched from the lead record.',
+          example_with_lead_id: {
+            lead_id: 4971027880,
+            appointment_date: '2025-10-01T14:00:00Z',
+            estimated_value: 25000,
+            appointment_notes: 'Optional notes'
+          },
+          timestamp: new Date().toISOString()
+        }, 400)
+      }
+
+      serviceType = body.service_type
+      customerZip = body.customer_zip
+      customerName = body.customer_name
+      customerPhone = body.customer_phone
+      customerEmail = body.customer_email || null
+
+      // Normalize phone number
+      const normalizedPhoneResult = normalizePhoneNumber(customerPhone)
+      if (!normalizedPhoneResult) {
+        return c.json({
+          success: false,
+          error: 'Invalid phone number format',
+          timestamp: new Date().toISOString()
+        }, 400)
+      }
+      normalizedPhone = normalizedPhoneResult
+    }
+
+    // Find matching workspace using lead data or request data
+    const matchedWorkspaceId = await findMatchingWorkspace(
+      db,
+      serviceType,
+      customerZip,
+      body.workspace_id
+    )
+
+    // Note: We still create the appointment even if no workspace matches
+    // This allows appointments to be displayed in the UI and manually routed later
+    const routingMethod = matchedWorkspaceId 
+      ? (body.workspace_id ? 'priority' : 'auto')
+      : 'unrouted'
+
+    // Determine contact: if lead_id provided, use contact from lead; otherwise find by phone
+    // Note: contactId is already set above if body.lead_id was provided
+    if (!body.lead_id) {
       // Find existing contact by phone number (across all webhooks) or create new one
       const existingContact = await db.prepare(`
         SELECT id, webhook_id, first_name, last_name
@@ -326,8 +421,9 @@ appointmentsRouter.post('/receive', async (c) => {
         contactId = existingContact.id as number
       } else {
         // Create new contact
+        // Use matchedWorkspaceId if available, otherwise use null (will be set later when routed)
         const newContactId = await generateContactId()
-        const [firstName, ...lastNameParts] = body.customer_name.split(' ')
+        const [firstName, ...lastNameParts] = customerName.split(' ')
         const lastName = lastNameParts.join(' ') || ''
 
         await db.prepare(`
@@ -337,17 +433,29 @@ appointmentsRouter.post('/receive', async (c) => {
           ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         `).bind(
           newContactId,
-          matchedWorkspaceId,
+          matchedWorkspaceId || null, // Allow null if no workspace matched
           normalizedPhone,
           firstName,
           lastName,
-          body.customer_email || null,
-          body.customer_zip
+          customerEmail,
+          customerZip
         ).run()
 
         contactId = newContactId
       }
     }
+    
+    // Ensure contactId is set (TypeScript definite assignment)
+    if (contactId === undefined) {
+      return c.json({
+        success: false,
+        error: 'Failed to determine contact',
+        timestamp: new Date().toISOString()
+      }, 500)
+    }
+    
+    // TypeScript now knows contactId is a number
+    const finalContactId: number = contactId
 
     // Use existing lead if provided, otherwise create new lead for this appointment
     let leadId: number
@@ -362,7 +470,7 @@ appointmentsRouter.post('/receive', async (c) => {
     } else {
       // Create new lead for this appointment
       leadId = await generateLeadId()
-      const [firstName, ...lastNameParts] = body.customer_name.split(' ')
+      const [firstName, ...lastNameParts] = customerName.split(' ')
       const lastName = lastNameParts.join(' ') || ''
 
       await db.prepare(`
@@ -372,18 +480,18 @@ appointmentsRouter.post('/receive', async (c) => {
           zip_code, source, productid,
           created_at, updated_at, status
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)
-      `).bind(
+      `      ).bind(
         leadId,
-        contactId,
-        matchedWorkspaceId,
+        finalContactId,
+        matchedWorkspaceId || null, // Allow null if no workspace matched
         'appointment',
         firstName,
         lastName,
-        body.customer_email || null,
+        customerEmail,
         normalizedPhone,
-        body.customer_zip,
+        customerZip,
         'appointment-service',
-        body.service_type,
+        serviceType,
         'scheduled'
       ).run()
     }
@@ -398,23 +506,23 @@ appointmentsRouter.post('/receive', async (c) => {
         matched_workspace_id, routing_method, raw_payload,
         created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-    `).bind(
+    `    ).bind(
       leadId,
-      contactId,
+      finalContactId,
       body.appointment_type || 'consultation',
       body.appointment_date,
       body.appointment_duration || 60,
       'scheduled',
       body.appointment_notes || null,
       body.appointment_notes || null,
-      body.customer_name,
-      body.customer_phone,
-      body.customer_email || null,
-      body.service_type,
-      body.customer_zip,
+      customerName,
+      customerPhone,
+      customerEmail,
+      serviceType,
+      customerZip,
       body.estimated_value || null,
-      matchedWorkspaceId,
-      body.workspace_id ? 'priority' : 'auto',
+      matchedWorkspaceId || null, // Allow null if no workspace matched
+      routingMethod,
       JSON.stringify(body)
     ).run()
 
@@ -429,18 +537,23 @@ appointmentsRouter.post('/receive', async (c) => {
     `).bind(
       appointmentId,
       'created',
-      JSON.stringify({
-        message: `Appointment created and routed to workspace ${matchedWorkspaceId}`,
-        routing_method: body.workspace_id ? 'priority' : 'auto',
-        service_type: body.service_type,
-        customer_zip: body.customer_zip
-      }),
+        JSON.stringify({
+          message: matchedWorkspaceId 
+            ? `Appointment created and routed to workspace ${matchedWorkspaceId}`
+            : `Appointment created but no matching workspace found (service: ${serviceType}, zip: ${customerZip})`,
+          routing_method: routingMethod,
+          service_type: serviceType,
+          customer_zip: customerZip,
+          matched_workspace_id: matchedWorkspaceId || null,
+          data_source: body.lead_id ? 'lead_record' : 'request_payload'
+        }),
       'appointment-routing-system'
     ).run()
 
-    // Forward to client webhook with proper status tracking
-    try {
-      const forwardResult = await forwardAppointmentToClient(db, appointmentId as number, matchedWorkspaceId)
+    // Forward to client webhook only if workspace was matched
+    if (matchedWorkspaceId) {
+      try {
+        const forwardResult = await forwardAppointmentToClient(db, appointmentId as number, matchedWorkspaceId)
 
       // Update appointment with forward status
       await db.prepare(`
@@ -454,47 +567,65 @@ appointmentsRouter.post('/receive', async (c) => {
         appointmentId
       ).run()
 
-      // Log forwarding event
+        // Log forwarding event
+        await db.prepare(`
+          INSERT INTO appointment_events (
+            appointment_id, event_type, event_data, created_by, created_at
+          ) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+        `).bind(
+          appointmentId,
+          forwardResult.success ? 'appointment_forwarded_success' : 'appointment_forwarded_failed',
+          JSON.stringify({
+            workspace_id: matchedWorkspaceId,
+            success: forwardResult.success,
+            response: forwardResult.response || forwardResult.error
+          }),
+          'appointment-routing-system'
+        ).run()
+
+      } catch (error) {
+        console.error('Error forwarding appointment:', error)
+
+        // Log forwarding failure
+        await db.prepare(`
+          UPDATE appointments
+          SET forward_status = 'failed', forward_attempts = forward_attempts + 1,
+              forward_response = ?, updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `).bind(
+          `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          appointmentId
+        ).run()
+
+        // Log error event
+        await db.prepare(`
+          INSERT INTO appointment_events (
+            appointment_id, event_type, event_data, created_by, created_at
+          ) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+        `).bind(
+          appointmentId,
+          'appointment_forwarding_error',
+          JSON.stringify({
+            workspace_id: matchedWorkspaceId,
+            error: error instanceof Error ? error.message : 'Unknown error'
+          }),
+          'appointment-routing-system'
+        ).run()
+      }
+    } else {
+      // Log that appointment was created but not routed
       await db.prepare(`
         INSERT INTO appointment_events (
           appointment_id, event_type, event_data, created_by, created_at
         ) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
       `).bind(
         appointmentId,
-        forwardResult.success ? 'appointment_forwarded_success' : 'appointment_forwarded_failed',
+        'appointment_unrouted',
         JSON.stringify({
-          workspace_id: matchedWorkspaceId,
-          success: forwardResult.success,
-          response: forwardResult.response || forwardResult.error
-        }),
-        'appointment-routing-system'
-      ).run()
-
-    } catch (error) {
-      console.error('Error forwarding appointment:', error)
-
-      // Log forwarding failure
-      await db.prepare(`
-        UPDATE appointments
-        SET forward_status = 'failed', forward_attempts = forward_attempts + 1,
-            forward_response = ?, updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `).bind(
-        `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        appointmentId
-      ).run()
-
-      // Log error event
-      await db.prepare(`
-        INSERT INTO appointment_events (
-          appointment_id, event_type, event_data, created_by, created_at
-        ) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-      `).bind(
-        appointmentId,
-        'appointment_forwarding_error',
-        JSON.stringify({
-          workspace_id: matchedWorkspaceId,
-          error: error instanceof Error ? error.message : 'Unknown error'
+          message: 'Appointment created but no matching workspace found',
+          service_type: serviceType,
+          customer_zip: customerZip,
+          note: 'Appointment can be manually routed later'
         }),
         'appointment-routing-system'
       ).run()
@@ -502,13 +633,21 @@ appointmentsRouter.post('/receive', async (c) => {
 
     return c.json({
       success: true,
-      message: 'Appointment received and routed successfully',
+      message: matchedWorkspaceId 
+        ? 'Appointment received and routed successfully'
+        : 'Appointment received but no matching workspace found. Appointment can be manually routed later.',
       appointment_id: appointmentId,
-      contact_id: contactId,
+      contact_id: finalContactId,
       lead_id: leadId,
-      matched_workspace_id: matchedWorkspaceId,
-      routing_method: body.workspace_id ? 'priority' : 'auto',
+      matched_workspace_id: matchedWorkspaceId || null,
+      routing_method: routingMethod,
+      routing_status: matchedWorkspaceId ? 'routed' : 'unrouted',
       appointment_date: body.appointment_date,
+      criteria: {
+        service_type: serviceType,
+        customer_zip: customerZip,
+        source: body.lead_id ? 'lead_record' : 'request_payload'
+      },
       timestamp: new Date().toISOString()
     })
 

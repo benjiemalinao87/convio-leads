@@ -1,17 +1,35 @@
 import { ReactNode } from 'react';
-import { TopNavbar } from './TopNavbar';
+import { SidebarLayout } from './SidebarLayout';
+// import { TopNavbarLayout } from './TopNavbarLayout'; // Uncomment to rollback
 
 interface LayoutProps {
   children: ReactNode;
+  className?: string;
+  maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | 'full';
 }
 
-export function Layout({ children }: LayoutProps) {
+/**
+ * Main Layout Component
+ * 
+ * Currently uses SidebarLayout (new sidebar design).
+ * 
+ * To rollback to top navbar layout:
+ * 1. Comment out SidebarLayout import
+ * 2. Uncomment TopNavbarLayout import
+ * 3. Change <SidebarLayout> to <TopNavbarLayout> below
+ */
+export function Layout({ children, className, maxWidth = '2xl' }: LayoutProps) {
+  // Using new SidebarLayout
   return (
-    <div className="min-h-screen bg-background">
-      <TopNavbar />
-      <main className="container mx-auto px-4 py-6 md:px-6 md:py-8">
+    <SidebarLayout className={className} maxWidth={maxWidth}>
         {children}
-      </main>
-    </div>
+    </SidebarLayout>
   );
+
+  // To rollback, uncomment below and comment out above:
+  // return (
+  //   <TopNavbarLayout className={className} maxWidth={maxWidth}>
+  //     {children}
+  //   </TopNavbarLayout>
+  // );
 }

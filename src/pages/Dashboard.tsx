@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { KPICard } from '@/components/dashboard/KPICard';
+import { PageHeader } from '@/components/dashboard/PageHeader';
+import { LoadingSkeleton, KPISkeleton } from '@/components/dashboard/LoadingSkeleton';
 import {
   Users,
   Calendar,
@@ -158,21 +160,12 @@ export default function Dashboard() {
   if (isLoading) {
     return (
       <div className="space-y-8">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold gradient-text">Dashboard Overview</h1>
-            <p className="text-muted-foreground mt-1">Loading dashboard data...</p>
-          </div>
-          <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {[...Array(4)].map((_, i) => (
-            <Card key={i} className="glass-card p-6 animate-pulse">
-              <div className="h-4 bg-muted rounded w-1/2 mb-2"></div>
-              <div className="h-8 bg-muted rounded w-3/4"></div>
-            </Card>
-          ))}
-        </div>
+        <PageHeader
+          title="Dashboard Overview"
+          description="Loading dashboard data..."
+        />
+        <KPISkeleton count={4} />
+        <LoadingSkeleton variant="card" count={2} />
       </div>
     );
   }
@@ -180,17 +173,17 @@ export default function Dashboard() {
   if (error) {
     return (
       <div className="space-y-8">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold gradient-text">Dashboard Overview</h1>
-            <p className="text-muted-foreground mt-1">Error loading dashboard data</p>
-          </div>
+        <PageHeader
+          title="Dashboard Overview"
+          description="Error loading dashboard data"
+          actions={
           <Button onClick={fetchDashboardData} variant="outline">
             <RefreshCw className="h-4 w-4 mr-2" />
             Retry
           </Button>
-        </div>
-        <Card className="glass-card p-6 text-center">
+          }
+        />
+        <Card className="glass-card p-7 text-center">
           <p className="text-destructive mb-4">{error}</p>
           <Button onClick={fetchDashboardData}>
             Try Again
@@ -206,58 +199,64 @@ export default function Dashboard() {
   const totalAppointments = getTotalAppointments();
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold gradient-text">Dashboard Overview</h1>
-          <p className="text-muted-foreground mt-1">
-            Track your lead performance and conversion metrics
-          </p>
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="text-sm text-muted-foreground">
+      <PageHeader
+        title="Dashboard Overview"
+        description="Track your lead performance and conversion metrics"
+        actions={
+          <>
+            <div className="hidden sm:block text-sm text-muted-foreground">
             Last updated: {new Date().toLocaleDateString()}
           </div>
           <Button onClick={fetchDashboardData} variant="outline" size="sm" disabled={isLoading}>
             <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <KPICard
           title="Total Leads"
           value={statistics?.total_leads?.toLocaleString() || '0'}
+          subtitle={`${statistics?.days_active || 0} days active`}
           icon={Users}
+          iconColor="text-blue-600"
           trend={{ value: statistics?.total_leads || 0 > 0 ? 8.2 : 0, isPositive: true }}
         />
         <KPICard
           title="Appointments Set"
           value={totalAppointments.toLocaleString()}
+          subtitle={`${statistics?.status_breakdown?.qualified || 0} qualified, ${statistics?.status_breakdown?.converted || 0} converted`}
           icon={Calendar}
+          iconColor="text-green-600"
           trend={{ value: totalAppointments > 0 ? 12.5 : 0, isPositive: true }}
         />
         <KPICard
           title="Conversion Rate"
           value={`${statistics?.conversion_rate || 0}%`}
+          subtitle="Overall conversion performance"
           icon={TrendingUp}
+          iconColor="text-emerald-600"
           trend={{ value: statistics?.conversion_rate || 0, isPositive: (statistics?.conversion_rate || 0) > 0 }}
         />
         <KPICard
           title="Active Webhooks"
           value={webhooks.filter(w => w.total_leads > 0).length.toString()}
+          subtitle={`${webhooks.length} total webhooks`}
           icon={Activity}
+          iconColor="text-purple-600"
           trend={{ value: webhooks.length, isPositive: true }}
         />
       </div>
 
       {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Leads by Source */}
-        <Card className="glass-card p-6">
+        <Card className="bg-card rounded-xl border border-border p-6">
           <h3 className="text-lg font-semibold mb-4 text-foreground">Leads by Source</h3>
           <div className="space-y-4">
             {leadsBySource.length > 0 ? leadsBySource.map((source, index) => (
@@ -285,7 +284,7 @@ export default function Dashboard() {
         </Card>
 
         {/* Recent Performance */}
-        <Card className="glass-card p-6">
+        <Card className="bg-card rounded-xl border border-border p-6">
           <h3 className="text-lg font-semibold mb-4 text-foreground">Recent Activity</h3>
           <div className="space-y-3">
             {dailyActivity.length > 0 ? dailyActivity.map((day) => (
@@ -319,9 +318,9 @@ export default function Dashboard() {
       </div>
 
       {/* Webhook Overview */}
-      <Card className="glass-card p-6">
-        <h3 className="text-lg font-semibold mb-6 text-foreground">Webhook Performance</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <Card className="bg-card rounded-xl border border-border p-6">
+        <h3 className="text-lg font-semibold mb-4 text-foreground">Webhook Performance</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {webhooks.map((webhook) => (
             <div key={webhook.id} className="p-4 rounded-lg border border-border/50 bg-secondary/20">
               <div className="flex items-center justify-between mb-3">

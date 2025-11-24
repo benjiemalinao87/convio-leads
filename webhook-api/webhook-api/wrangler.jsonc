@@ -27,7 +27,7 @@
 	"vars": {
 		"ENVIRONMENT": "development",
 		"API_VERSION": "1.0.0",
-		"LOGIN_USERNAME": "CHAU",
+		"LOGIN_USERNAME": "buyerfound_dominate_leadselling!",
 		"LOGIN_PASSWORD": "leadSelling101#12!"
 	},
 	/**
@@ -42,7 +42,9 @@
 	/**
 	 * Smart Placement for optimal performance
 	 */
-	"placement": { "mode": "smart" },
+	"placement": {
+		"mode": "smart"
+	},
 	/**
 	 * D1 Database binding
 	 */
@@ -95,6 +97,8 @@
 	 * Cron triggers for fallback deletion processing
 	 */
 	"triggers": {
-		"crons": ["0 * * * *"]
+		"crons": [
+			"0 * * * *"
+		]
 	}
 }

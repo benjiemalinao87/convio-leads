@@ -40,6 +40,7 @@ app.use('*', cors({
     'https://homeprojectpartners.com',
     'https://api.homeprojectpartners.com',
     'https://dash.homeprojectpartners.com',
+    'https://app.buyerfound.ai',
     'http://localhost:5173',
     'http://localhost:3000',
     'http://localhost:8080',

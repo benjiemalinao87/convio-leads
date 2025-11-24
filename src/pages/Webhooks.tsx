@@ -8,6 +8,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
   Plus,
   Copy,
   ExternalLink,
@@ -19,7 +27,10 @@ import {
   Trash2,
   FileText,
   RotateCcw,
-  Share2
+  Share2,
+  LayoutGrid,
+  List,
+  Activity
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -27,7 +38,9 @@ import ApiDocumentation from '@/components/ApiDocumentation';
 import SoftDeleteDialog from '@/components/webhooks/SoftDeleteDialog';
 import SoftDeletedWebhooksPanel from '@/components/webhooks/SoftDeletedWebhooksPanel';
 import { ForwardingManagementDialog } from '@/components/leads/ForwardingManagementDialog';
-import { WebhookActivityLog } from '@/components/webhooks/WebhookActivityLog';
+import { WebhookActivityLogModal } from '@/components/webhooks/WebhookActivityLogModal';
+import { KPICard } from '@/components/dashboard/KPICard';
+import { PageHeader } from '@/components/dashboard/PageHeader';
 
 // API Webhook interface
 interface APIWebhook {
@@ -75,7 +88,10 @@ export default function Webhooks() {
   const [isForwardingDialogOpen, setIsForwardingDialogOpen] = useState(false);
   const [selectedWebhookForDeletion, setSelectedWebhookForDeletion] = useState<WebhookWithStats | null>(null);
   const [selectedWebhookForForwarding, setSelectedWebhookForForwarding] = useState<WebhookWithStats | null>(null);
+  const [selectedWebhookForActivity, setSelectedWebhookForActivity] = useState<WebhookWithStats | null>(null);
+  const [isActivityLogOpen, setIsActivityLogOpen] = useState(false);
   const [newWebhookName, setNewWebhookName] = useState('');
+  const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
   const { toast } = useToast();
 
   const API_BASE = 'https://api.homeprojectpartners.com';
@@ -275,51 +291,88 @@ export default function Webhooks() {
     }
   };
 
+  // Calculate summary statistics
+  const totalLeads = webhooks.reduce((sum, w) => sum + w.total_leads, 0);
+  const totalRevenue = webhooks.reduce((sum, w) => sum + w.total_revenue, 0);
+  const avgConversionRate = webhooks.length > 0 
+    ? webhooks.reduce((sum, w) => sum + w.conversion_rate, 0) / webhooks.length 
+    : 0;
+  const activeWebhooks = webhooks.filter(w => w.enabled && w.status === 'active').length;
+
   return (
     <Layout>
-      <div className="space-y-8">
+      <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold gradient-text">Webhooks</h1>
-            <p className="text-muted-foreground mt-1">
-              Manage your webhook endpoints for automated lead collection
-            </p>
-          </div>
-          
-          <div className="flex gap-2">
-            <Button
-              onClick={() => setIsDeletedWebhooksPanelOpen(true)}
-              variant="outline"
-              className="flex items-center gap-2"
-            >
-              <RotateCcw className="h-4 w-4" />
-              View Deleted
-            </Button>
-            <Button
-              onClick={() => setIsApiDocOpen(true)}
-              variant="outline"
-              className="flex items-center gap-2"
-            >
-              <FileText className="h-4 w-4" />
-              API Documentation
-            </Button>
-            <Button
-              onClick={fetchWebhooks}
-              disabled={isLoading}
-              variant="outline"
-            >
-              <RefreshCw className={cn("h-4 w-4 mr-2", isLoading && "animate-spin")} />
-              {isLoading ? 'Loading...' : 'Refresh'}
-            </Button>
-            <Button
-              onClick={() => setIsCreateDialogOpen(true)}
-              className="flex items-center gap-2"
-            >
-              <Plus className="h-4 w-4" />
-              Add Webhook
-            </Button>
-          </div>
+        <PageHeader
+          title="Webhooks"
+          description="Manage your webhook endpoints for automated lead collection"
+          actions={
+            <div className="flex gap-2">
+              <Button
+                onClick={() => setIsDeletedWebhooksPanelOpen(true)}
+                variant="outline"
+                className="flex items-center gap-2"
+              >
+                <RotateCcw className="h-4 w-4" />
+                View Deleted
+              </Button>
+              <Button
+                onClick={() => setIsApiDocOpen(true)}
+                variant="outline"
+                className="flex items-center gap-2"
+              >
+                <FileText className="h-4 w-4" />
+                API Docs
+              </Button>
+              <Button
+                onClick={fetchWebhooks}
+                disabled={isLoading}
+                variant="outline"
+              >
+                <RefreshCw className={cn("h-4 w-4 mr-2", isLoading && "animate-spin")} />
+                Refresh
+              </Button>
+              <Button
+                onClick={() => setIsCreateDialogOpen(true)}
+                className="flex items-center gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                Add Webhook
+              </Button>
+            </div>
+          }
+        />
+
+        {/* Summary KPI Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <KPICard
+            title="Total Webhooks"
+            value={webhooks.length}
+            subtitle={`${activeWebhooks} active`}
+            icon={Activity}
+            iconColor="text-blue-600"
+          />
+          <KPICard
+            title="Total Leads"
+            value={totalLeads.toLocaleString()}
+            subtitle="Across all webhooks"
+            icon={Users}
+            iconColor="text-green-600"
+          />
+          <KPICard
+            title="Total Revenue"
+            value={`$${totalRevenue.toLocaleString()}`}
+            subtitle="Generated revenue"
+            icon={DollarSign}
+            iconColor="text-emerald-600"
+          />
+          <KPICard
+            title="Avg Conversion"
+            value={`${avgConversionRate.toFixed(1)}%`}
+            subtitle="Average conversion rate"
+            icon={TrendingUp}
+            iconColor="text-purple-600"
+          />
         </div>
 
         {/* Error state */}
@@ -334,124 +387,220 @@ export default function Webhooks() {
           </Card>
         )}
 
-        {/* Webhooks Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {webhooks.map((webhook) => (
-            <Card key={webhook.id} className="glass-card p-6 transition-all duration-300 hover:shadow-glow">
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <h3 className="text-lg font-semibold text-foreground mb-1">{webhook.name}</h3>
+        {/* View Toggle */}
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-foreground">Webhook List</h2>
+          <div className="flex items-center gap-2">
+            <Button
+              variant={viewMode === 'card' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setViewMode('card')}
+              className="flex items-center gap-2"
+            >
+              <LayoutGrid className="h-4 w-4" />
+              Cards
+            </Button>
+            <Button
+              variant={viewMode === 'table' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setViewMode('table')}
+              className="flex items-center gap-2"
+            >
+              <List className="h-4 w-4" />
+              Table
+            </Button>
+          </div>
+        </div>
+
+        {/* Card View */}
+        {viewMode === 'card' && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+            {webhooks.map((webhook) => (
+              <Card key={webhook.id} className="bg-card rounded-xl border border-border p-4 transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-base font-semibold text-foreground mb-0.5 truncate">{webhook.name}</h3>
                   <p className="text-xs text-muted-foreground">
-                    Created {new Date(webhook.created_at).toLocaleDateString()}
+                    {new Date(webhook.created_at).toLocaleDateString()}
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 ml-2">
                   <Badge variant={
                     webhook.status === 'active' ? "default" :
                     webhook.status === 'disabled' ? "destructive" : "secondary"
-                  }>
+                  } className="text-xs">
                     {webhook.status === 'active' ? "Active" :
                      webhook.status === 'disabled' ? "Disabled" : "New"}
                   </Badge>
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      checked={webhook.enabled}
-                      onCheckedChange={() => handleToggleWebhook(webhook.id, webhook.enabled)}
-                      disabled={isLoading}
-                      className="data-[state=checked]:bg-primary"
-                    />
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDeleteWebhook(webhook)}
-                      className="h-8 w-8 p-0 text-destructive hover:text-destructive-foreground hover:bg-destructive"
-                      title="Delete webhook"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
+                  <Switch
+                    checked={webhook.enabled}
+                    onCheckedChange={() => handleToggleWebhook(webhook.id, webhook.enabled)}
+                    disabled={isLoading}
+                    className="data-[state=checked]:bg-primary scale-75"
+                  />
                 </div>
               </div>
 
-              {/* Stats */}
-              <div className="grid grid-cols-2 gap-4 mb-6">
-                <div className="flex items-center space-x-2">
-                  <Users className="w-4 h-4 text-primary" />
-                  <div>
-                    <p className="text-sm text-muted-foreground">Leads</p>
-                    <p className="font-semibold text-foreground">{webhook.total_leads}</p>
-                  </div>
+              {/* Compact Stats */}
+              <div className="grid grid-cols-4 gap-2 mb-3">
+                <div className="text-center p-2 rounded-lg bg-muted/50">
+                  <Users className="w-3.5 h-3.5 text-primary mx-auto mb-1" />
+                  <p className="text-xs font-semibold text-foreground">{webhook.total_leads}</p>
+                  <p className="text-[10px] text-muted-foreground">Leads</p>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <TrendingUp className="w-4 h-4 text-success" />
-                  <div>
-                    <p className="text-sm text-muted-foreground">Conversion</p>
-                    <p className="font-semibold text-foreground">{webhook.conversion_rate}%</p>
-                  </div>
+                <div className="text-center p-2 rounded-lg bg-muted/50">
+                  <TrendingUp className="w-3.5 h-3.5 text-success mx-auto mb-1" />
+                  <p className="text-xs font-semibold text-foreground">{webhook.conversion_rate}%</p>
+                  <p className="text-[10px] text-muted-foreground">Conv</p>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <DollarSign className="w-4 h-4 text-warning" />
-                  <div>
-                    <p className="text-sm text-muted-foreground">Revenue</p>
-                    <p className="font-semibold text-foreground">${webhook.total_revenue.toLocaleString()}</p>
-                  </div>
+                <div className="text-center p-2 rounded-lg bg-muted/50">
+                  <DollarSign className="w-3.5 h-3.5 text-emerald-600 mx-auto mb-1" />
+                  <p className="text-xs font-semibold text-foreground">${(webhook.total_revenue / 1000).toFixed(0)}k</p>
+                  <p className="text-[10px] text-muted-foreground">Revenue</p>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <Calendar className="w-4 h-4 text-accent" />
-                  <div>
-                    <p className="text-sm text-muted-foreground">Avg. Time</p>
-                    <p className="font-semibold text-foreground">2.4 days</p>
-                  </div>
+                <div className="text-center p-2 rounded-lg bg-muted/50">
+                  <Activity className="w-3.5 h-3.5 text-purple-600 mx-auto mb-1" />
+                  <p className="text-xs font-semibold text-foreground">-</p>
+                  <p className="text-[10px] text-muted-foreground">Activity</p>
                 </div>
               </div>
 
-              {/* Webhook URL */}
-              <div className="border border-border/50 rounded-lg p-3 bg-secondary/20 mb-3">
-                <div className="flex items-center justify-between mb-2">
-                  <Label className="text-xs font-medium text-muted-foreground">Webhook URL</Label>
+              {/* Compact Webhook URL */}
+              <div className="border border-border/50 rounded-lg p-2 bg-secondary/20 mb-2">
+                <div className="flex items-center justify-between mb-1">
+                  <Label className="text-[10px] font-medium text-muted-foreground">Webhook URL</Label>
                   <div className="flex space-x-1">
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => copyWebhookUrl(webhook.webhook_url)}
-                      className="h-6 w-6 p-0"
+                      className="h-5 w-5 p-0"
                     >
                       <Copy className="w-3 h-3" />
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 w-6 p-0"
-                    >
-                      <ExternalLink className="w-3 h-3" />
-                    </Button>
                   </div>
                 </div>
-                <p className="text-xs font-mono text-foreground break-all bg-background/50 p-2 rounded border">
+                <p className="text-[10px] font-mono text-foreground truncate">
                   {webhook.webhook_url}
                 </p>
               </div>
 
-              {/* Manage Forwarding Button */}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleManageForwarding(webhook)}
-                className="w-full mb-3"
-              >
-                <Share2 className="w-4 h-4 mr-2" />
-                Manage Lead Forwarding
-              </Button>
-
-              {/* Activity Log */}
-              <WebhookActivityLog webhookId={webhook.id} />
+              {/* Compact Action Buttons */}
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleManageForwarding(webhook)}
+                  className="flex-1 h-8 text-xs"
+                >
+                  <Share2 className="w-3 h-3 mr-1.5" />
+                  Forwarding
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setSelectedWebhookForActivity(webhook);
+                    setIsActivityLogOpen(true);
+                  }}
+                  className="flex-1 h-8 text-xs"
+                >
+                  <Activity className="w-3 h-3 mr-1.5" />
+                  Activity
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleDeleteWebhook(webhook)}
+                  className="h-8 w-8 p-0 text-destructive hover:text-destructive-foreground hover:bg-destructive"
+                  title="Delete webhook"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </Button>
+              </div>
             </Card>
           ))}
-        </div>
+          </div>
+        )}
+
+        {/* Table View */}
+        {viewMode === 'table' && (
+          <Card className="bg-card rounded-xl border border-border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Leads</TableHead>
+                  <TableHead>Conversion</TableHead>
+                  <TableHead>Revenue</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {webhooks.map((webhook) => (
+                  <TableRow key={webhook.id}>
+                    <TableCell className="font-medium">{webhook.name}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={
+                          webhook.status === 'active' ? "default" :
+                          webhook.status === 'disabled' ? "destructive" : "secondary"
+                        }>
+                          {webhook.status === 'active' ? "Active" :
+                           webhook.status === 'disabled' ? "Disabled" : "New"}
+                        </Badge>
+                        <Switch
+                          checked={webhook.enabled}
+                          onCheckedChange={() => handleToggleWebhook(webhook.id, webhook.enabled)}
+                          disabled={isLoading}
+                          className="data-[state=checked]:bg-primary"
+                        />
+                      </div>
+                    </TableCell>
+                    <TableCell>{webhook.total_leads.toLocaleString()}</TableCell>
+                    <TableCell>{webhook.conversion_rate.toFixed(1)}%</TableCell>
+                    <TableCell>${webhook.total_revenue.toLocaleString()}</TableCell>
+                    <TableCell>{new Date(webhook.created_at).toLocaleDateString()}</TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => copyWebhookUrl(webhook.webhook_url)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleManageForwarding(webhook)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Share2 className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteWebhook(webhook)}
+                          className="h-8 w-8 p-0 text-destructive hover:text-destructive-foreground hover:bg-destructive"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Card>
+        )}
 
         {/* Empty State */}
         {!isLoading && webhooks.length === 0 && !error && (
-          <Card className="glass-card p-12 text-center">
+          <Card className="bg-card rounded-xl border border-border p-12 text-center">
             <div className="mx-auto w-24 h-24 bg-gradient-primary rounded-full flex items-center justify-center mb-4">
               <ExternalLink className="w-12 h-12 text-primary-foreground" />
             </div>
@@ -471,7 +620,7 @@ export default function Webhooks() {
 
         {/* Loading State */}
         {isLoading && webhooks.length === 0 && (
-          <Card className="glass-card p-12 text-center">
+          <Card className="bg-card rounded-xl border border-border p-12 text-center">
             <div className="mx-auto w-24 h-24 bg-gradient-primary rounded-full flex items-center justify-center mb-4">
               <RefreshCw className="w-12 h-12 text-primary-foreground animate-spin" />
             </div>
@@ -556,6 +705,21 @@ export default function Webhooks() {
               setIsForwardingDialogOpen(open);
               if (!open) {
                 setSelectedWebhookForForwarding(null);
+              }
+            }}
+          />
+        )}
+
+        {/* Activity Log Modal */}
+        {selectedWebhookForActivity && (
+          <WebhookActivityLogModal
+            webhookId={selectedWebhookForActivity.id}
+            webhookName={selectedWebhookForActivity.name}
+            open={isActivityLogOpen}
+            onOpenChange={(open) => {
+              setIsActivityLogOpen(open);
+              if (!open) {
+                setSelectedWebhookForActivity(null);
               }
             }}
           />

@@ -8,7 +8,72 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* Dashboard theme - Modern professional dark */
+    /* Light mode - Default theme */
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    /* Primary brand - Professional blue */
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 217 91% 70%;
+
+    /* Secondary - Light slate */
+    --secondary: 215 20% 85%;
+    --secondary-foreground: 222.2 84% 4.9%;
+
+    /* Muted backgrounds */
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    /* Accent - Success green */
+    --accent: 142 76% 36%;
+    --accent-foreground: 0 0% 100%;
+    --accent-glow: 142 76% 46%;
+
+    /* Status colors */
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 222.2 84% 4.9%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Border and inputs */
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 217 91% 60%;
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-glow)));
+    --gradient-success: linear-gradient(135deg, hsl(var(--success)), hsl(var(--accent-glow)));
+    --gradient-card: linear-gradient(145deg, hsl(0 0% 100%), hsl(210 40% 98%));
+    --gradient-hero: linear-gradient(135deg, hsl(210 40% 98%), hsl(215 20% 95%));
+
+    /* Shadows */
+    --shadow-glow: 0 8px 32px -8px hsl(var(--primary) / 0.3);
+    --shadow-card: 0 4px 24px -6px hsl(0 0% 0% / 0.1);
+    --shadow-success: 0 8px 32px -8px hsl(var(--success) / 0.3);
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    /* Dark mode - Modern professional dark */
     --background: 222 47% 6%;
     --foreground: 210 40% 98%;
 
@@ -60,69 +125,8 @@ All colors MUST be HSL.
     --shadow-card: 0 4px 24px -6px hsl(222 47% 2% / 0.4);
     --shadow-success: 0 8px 32px -8px hsl(var(--success) / 0.3);
 
-    --radius: 0.75rem;
-
-    --sidebar-background: 0 0% 98%;
-
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
-  }
-
-  .dark {
-    /* Dashboard theme - Modern professional dark (same as :root) */
-    --background: 222 47% 6%;
-    --foreground: 210 40% 98%;
-    --card: 224 44% 8%;
-    --card-foreground: 210 40% 98%;
-    --popover: 224 44% 8%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 217 91% 60%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 215 20% 15%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 215 20% 12%;
-    --muted-foreground: 215 20% 65%;
-    --accent: 142 76% 36%;
-    --accent-foreground: 210 40% 98%;
-    --border: 215 20% 20%;
-    --input: 215 20% 18%;
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
-  }
-
-  .light {
-    /* Light mode overrides if needed later */
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --secondary: 215 20% 85%;
-    --secondary-foreground: 222.2 84% 4.9%;
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
   }
 }
 
@@ -134,6 +138,8 @@ All colors MUST be HSL.
   body {
     @apply bg-background text-foreground font-sans antialiased;
     background: hsl(var(--background));
+    font-size: 16px;
+    line-height: 1.5;
   }
 
   /* Scrollbar styling */

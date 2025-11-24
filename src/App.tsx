@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { ThemeProvider } from "@/contexts/ThemeContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
@@ -17,6 +18,7 @@ import DocumentationSelection from "./pages/DocumentationSelection";
 import Appointments from "./pages/Appointments";
 import MermaidTest from "./pages/MermaidTest";
 import AdminOnboarding from "./pages/AdminOnboarding";
+import SidebarLayoutMockup from "./pages/SidebarLayoutMockup";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -27,8 +29,9 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <AuthProvider>
-          <Routes>
+        <ThemeProvider>
+          <AuthProvider>
+            <Routes>
             {/* Public route */}
             <Route path="/login" element={<Login />} />
 
@@ -117,6 +120,14 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/sidebar-mockup"
+              element={
+                <ProtectedRoute>
+                  <SidebarLayoutMockup />
+                </ProtectedRoute>
+              }
+            />
 
             {/* Public admin onboarding portal */}
             <Route path="/admin/onboarding" element={<AdminOnboarding />} />
@@ -124,7 +135,8 @@ const App = () => (
             {/* Catch-all route */}
             <Route path="*" element={<NotFound />} />
           </Routes>
-        </AuthProvider>
+          </AuthProvider>
+        </ThemeProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

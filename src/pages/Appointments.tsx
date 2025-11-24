@@ -18,8 +18,7 @@ import {
   Mail,
   DollarSign,
   Building,
-  Route,
-  Settings
+  Route
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -64,9 +63,9 @@ interface Appointment {
   service_type: string;
   customer_zip: string;
   estimated_value: number;
-  matched_workspace_id: string;
+  matched_workspace_id: string | null;
   routing_method: string;
-  workspace_name: string;
+  workspace_name: string | null;
   forward_status: string;
   created_at: string;
 }
@@ -210,9 +209,9 @@ const Appointments = () => {
               <Clock className="h-4 w-4" />
               History
             </TabsTrigger>
-            <TabsTrigger value="settings" className="flex items-center gap-2">
-              <Settings className="h-4 w-4" />
-              Settings
+            <TabsTrigger value="workspace" className="flex items-center gap-2">
+              <Building className="h-4 w-4" />
+              Workspace
             </TabsTrigger>
           </TabsList>
 
@@ -276,8 +275,8 @@ const Appointments = () => {
             <AppointmentHistory onRefresh={fetchAppointments} />
           </TabsContent>
 
-          {/* Settings Tab */}
-          <TabsContent value="settings" className="space-y-6">
+          {/* Workspace Tab */}
+          <TabsContent value="workspace" className="space-y-6">
             <AppointmentRoutingManager onRefresh={fetchRoutingRules} />
           </TabsContent>
         </Tabs>
