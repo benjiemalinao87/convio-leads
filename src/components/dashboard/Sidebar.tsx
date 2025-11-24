@@ -249,8 +249,12 @@ export function Sidebar({ isCollapsed, onToggleCollapse }: SidebarProps) {
                   </div>
                   {(!isCollapsed || mobileMenuOpen) && (
                     <div className="flex-1 min-w-0 ml-3 text-left">
-                      <p className="text-sm font-medium text-foreground truncate">{user || 'User'}</p>
-                      <p className="text-xs text-muted-foreground truncate">Administrator</p>
+                      <p className="text-sm font-medium text-foreground truncate">{user?.email || 'User'}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {user?.permission_type === 'admin' ? 'Administrator' : 
+                         user?.permission_type === 'dev' ? 'Developer' : 
+                         user?.permission_type === 'provider' ? 'Provider' : 'User'}
+                      </p>
                     </div>
                   )}
                 </Button>
@@ -259,8 +263,12 @@ export function Sidebar({ isCollapsed, onToggleCollapse }: SidebarProps) {
                 <DropdownMenuItem className="flex items-center space-x-2 cursor-default">
                   <UserIcon className="h-4 w-4" />
                   <div className="flex flex-col">
-                    <span className="text-sm font-medium">{user || 'User'}</span>
-                    <span className="text-xs text-muted-foreground">Administrator</span>
+                    <span className="text-sm font-medium">{user?.email || 'User'}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {user?.permission_type === 'admin' ? 'Administrator' : 
+                       user?.permission_type === 'dev' ? 'Developer' : 
+                       user?.permission_type === 'provider' ? 'Provider' : 'User'}
+                    </span>
                   </div>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />

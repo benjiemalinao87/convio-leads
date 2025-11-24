@@ -13,7 +13,9 @@ interface AnimatedLoginDoorProps {
 
 export default function AnimatedLoginDoor({ onLoginSuccess }: AnimatedLoginDoorProps) {
   const { login } = useAuth();
-  const [username, setUsername] = useState('');
+  const [loginType, setLoginType] = useState<'standard' | 'provider'>('standard');
+  const [email, setEmail] = useState('');
+  const [providerId, setProviderId] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -47,9 +49,15 @@ export default function AnimatedLoginDoor({ onLoginSuccess }: AnimatedLoginDoorP
     setIsLoading(true);
 
     try {
-      // Simple validation
-      if (!username.trim()) {
-        setError('Username is required');
+      // Validation
+      if (!email.trim()) {
+        setError('Email or username is required');
+        setIsLoading(false);
+        return;
+      }
+
+      if (loginType === 'provider' && !providerId.trim()) {
+        setError('Provider ID is required');
         setIsLoading(false);
         return;
       }
@@ -65,7 +73,11 @@ export default function AnimatedLoginDoor({ onLoginSuccess }: AnimatedLoginDoorP
 
       setTimeout(async () => {
         try {
-          await login(username.trim(), password);
+          await login(
+            email.trim(), 
+            password,
+            loginType === 'provider' ? providerId.trim() : undefined
+          );
           onLoginSuccess();
         } catch (loginError) {
           const errorMessage = loginError instanceof Error ? loginError.message : 'Authentication failed';
@@ -176,23 +188,79 @@ export default function AnimatedLoginDoor({ onLoginSuccess }: AnimatedLoginDoorP
                   </Alert>
                 )}
 
-                {/* Username Field */}
+                {/* Login Type Toggle */}
+                <div className="flex gap-2 p-1 bg-muted rounded-lg">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoginType('standard');
+                      setProviderId('');
+                      setError('');
+                    }}
+                    className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                      loginType === 'standard'
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    Admin/Dev
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoginType('provider');
+                      setError('');
+                    }}
+                    className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                      loginType === 'provider'
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    Provider
+                  </button>
+                </div>
+
+                {/* Provider ID Field (only for provider login) */}
+                {loginType === 'provider' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="providerId" className="text-sm font-medium text-foreground">
+                      Provider ID
+                    </Label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="providerId"
+                        type="text"
+                        placeholder="Enter your provider ID"
+                        value={providerId}
+                        onChange={(e) => setProviderId(e.target.value)}
+                        className="pl-10 h-11 bg-background/50 border-border/50 focus:border-primary focus:ring-1 focus:ring-primary/20"
+                        disabled={isLoading}
+                        autoComplete="off"
+                        autoFocus
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Email/Username Field */}
                 <div className="space-y-2">
-                  <Label htmlFor="username" className="text-sm font-medium text-foreground">
-                    Username
+                  <Label htmlFor="email" className="text-sm font-medium text-foreground">
+                    Email / Username
                   </Label>
                   <div className="relative">
                     <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                      id="username"
+                      id="email"
                       type="text"
-                      placeholder="Enter your username"
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
+                      placeholder="Enter your email or username"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
                       className="pl-10 h-11 bg-background/50 border-border/50 focus:border-primary focus:ring-1 focus:ring-primary/20"
                       disabled={isLoading}
                       autoComplete="username"
-                      autoFocus
+                      autoFocus={loginType === 'standard'}
                     />
                   </div>
                 </div>

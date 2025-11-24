@@ -1,9 +1,16 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
+export interface User {
+  id: number;
+  email: string;
+  permission_type: 'admin' | 'dev' | 'provider';
+  provider_id?: string;
+}
+
 interface AuthContextType {
   isAuthenticated: boolean;
-  user: string | null;
-  login: (username: string, password: string) => Promise<void>;
+  user: User | null;
+  login: (email: string, password: string, providerId?: string) => Promise<void>;
   logout: () => void;
   isLoading: boolean;
 }
@@ -24,7 +31,7 @@ interface AuthProviderProps {
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [user, setUser] = useState<string | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   // Check for existing session on app load
@@ -32,9 +39,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const checkAuthStatus = async () => {
       try {
         const storedToken = localStorage.getItem('convio-auth-token');
-        const storedUser = localStorage.getItem('convio-auth-user');
+        const storedUserJson = localStorage.getItem('convio-auth-user');
 
-        if (storedToken && storedUser) {
+        if (storedToken && storedUserJson) {
           // Verify token with backend
           const response = await fetch('https://api.homeprojectpartners.com/auth/verify', {
             method: 'POST',
@@ -46,9 +53,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
           const data = await response.json();
 
-          if (data.valid) {
-            setUser(storedUser);
+          if (data.valid && data.user) {
+            setUser(data.user);
             setIsAuthenticated(true);
+            // Update stored user in case it changed
+            localStorage.setItem('convio-auth-user', JSON.stringify(data.user));
           } else {
             // Token invalid or expired, clear storage
             localStorage.removeItem('convio-auth-token');
@@ -68,7 +77,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     checkAuthStatus();
   }, []);
 
-  const login = async (username: string, password: string): Promise<void> => {
+  const login = async (email: string, password: string, providerId?: string): Promise<void> => {
     try {
       // Call backend authentication API
       const response = await fetch('https://api.homeprojectpartners.com/auth/login', {
@@ -76,17 +85,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ 
+          email, 
+          password,
+          ...(providerId && { provider_id: providerId })
+        })
       });
 
       const data = await response.json();
 
-      if (data.success) {
+      if (data.success && data.user) {
         // Store token and user info
         localStorage.setItem('convio-auth-token', data.token);
-        localStorage.setItem('convio-auth-user', username);
+        localStorage.setItem('convio-auth-user', JSON.stringify(data.user));
 
-        setUser(username);
+        setUser(data.user);
         setIsAuthenticated(true);
       } else {
         throw new Error(data.error || 'Invalid credentials');
