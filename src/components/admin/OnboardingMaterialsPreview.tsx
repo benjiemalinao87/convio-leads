@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { Mail, FileText, Copy, Download, ExternalLink, Check } from 'lucide-react';
+import { Mail, FileText, Copy, Download, ExternalLink, Check, LogIn } from 'lucide-react';
 
 interface OnboardingMaterialsPreviewProps {
   data: {
@@ -147,6 +147,35 @@ export function OnboardingMaterialsPreview({ data }: OnboardingMaterialsPreviewP
               </Button>
             </div>
           </div>
+
+          {/* Provider Portal Login Instructions */}
+          <div className="mt-4 pt-4 border-t border-green-200 dark:border-green-800">
+            <div className="flex items-start gap-2">
+              <LogIn className="h-4 w-4 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-medium text-green-900 dark:text-green-100 mb-1">
+                  Provider Portal Access
+                </div>
+                <p className="text-xs text-green-700 dark:text-green-300 mb-2">
+                  {data.contact_name} can login to their provider portal using:
+                </p>
+                <ul className="text-xs text-green-700 dark:text-green-300 space-y-1 mb-3 ml-4 list-disc">
+                  <li><strong>Email:</strong> {data.contact_email}</li>
+                  <li><strong>Provider ID:</strong> {data.provider_id}</li>
+                  <li><strong>Password:</strong> {data.provider_id} (same as Provider ID)</li>
+                </ul>
+                <a
+                  href="https://app.buyerfound.ai/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs font-medium text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 underline"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  Login at https://app.buyerfound.ai/
+                </a>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Tabbed Content */}
@@ -276,6 +305,7 @@ export function OnboardingMaterialsPreview({ data }: OnboardingMaterialsPreviewP
           <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
             <li>Copy the email template and send it to {data.contact_email}</li>
             <li>Download or print the HTML setup guide for the provider</li>
+            <li>Provider can login to their portal at <a href="https://app.buyerfound.ai/" target="_blank" rel="noopener noreferrer" className="text-primary underline">https://app.buyerfound.ai/</a> using Provider ID and email</li>
             <li>Provider can test their integration immediately using the credentials</li>
             <li>Monitor lead submissions in the dashboard</li>
           </ol>

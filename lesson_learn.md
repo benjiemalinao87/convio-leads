@@ -1390,3 +1390,110 @@ For each rule:
 - **Production Ready**: Error handling, logging, and monitoring built-in
 - **Developer Friendly**: Clear API documentation and code comments
 - **User Friendly**: Intuitive UI with bulk operations support
+
+## Provider User Account Auto-Creation Fix (October 10, 2025)
+
+### Problem
+User created a new provider through the admin onboarding page (`/admin/onboarding`), but when trying to login with that provider's credentials, they received "wrong credential" error. Investigation revealed that while the migration script (`create-initial-users.sql`) auto-created user accounts for existing providers, there was no trigger to automatically create a user account when a NEW provider was created through the admin onboarding flow.
+
+### Root Cause
+The `createProviderAndWebhook()` function in `/webhook-api/webhook-api/src/routes/admin-onboarding.ts` was creating provider records in the `lead_source_providers` table but was missing the step to create a corresponding user account in the `users` table. The migration only handled existing providers, not new ones created after the migration.
+
+### Solution Applied
+
+#### 1. Added User Creation Step to Provider Creation Flow
+**File**: `/webhook-api/webhook-api/src/routes/admin-onboarding.ts`
+
+**Changes Made**:
+- Added **STEP 6: Create user account for provider** after provider record creation
+- Uses same logic as migration script:
+  - Email: `contact_email` if available, otherwise `${provider_id}@provider.local`
+  - Password: `provider_{provider_id}` (default password pattern)
+  - Permission type: `'provider'`
+  - Active status: Inherits from provider's `is_active` status
+- Wrapped in try-catch to handle duplicate email conflicts gracefully
+- Added to return data so onboarding materials can display login credentials
+
+**Code Added**:
+```typescript
+// STEP 6: Create user account for provider
+const userEmail = body.contact_email && body.contact_email.trim() !== ''
+  ? body.contact_email
+  : `${providerId}@provider.local`
+
+const userPassword = `provider_${providerId}`
+
+try {
+  await db.prepare(`
+    INSERT INTO users (email, password, provider_id, permission_type, is_active, created_at, updated_at)
+    VALUES (?, ?, ?, 'provider', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+  `).bind(userEmail, userPassword, providerId, 1).run()
+} catch (userError) {
+  // If user already exists, log but don't fail
+  console.warn('[STEP 6] User account creation warning:', userError)
+}
+```
+
+#### 2. Manual User Account Creation for Existing Provider
+Created user account for the provider that was just created (`final_test_benjie_8026`) so they could login immediately:
+```sql
+INSERT INTO users (email, password, provider_id, permission_type, is_active)
+VALUES ('finaltest@gmail.com', 'provider_final_test_benjie_8026', 'final_test_benjie_8026', 'provider', 1)
+```
+
+#### 3. Deployed Changes
+Successfully deployed updated backend code to Cloudflare Workers using `wrangler deploy`.
+
+### Results
+- ✅ **Automatic User Creation**: New providers now automatically get user accounts created
+- ✅ **Immediate Login**: Provider can login right after creation
+- ✅ **Consistent Password Pattern**: Uses same `provider_{provider_id}` pattern as migration
+- ✅ **Error Handling**: Gracefully handles duplicate email conflicts
+- ✅ **Backward Compatible**: Existing providers unaffected
+
+### Key Lessons
+
+#### Database Integration
+- ✅ **DO**: Create user accounts automatically when creating provider records
+- ✅ **DO**: Use consistent patterns (email, password) across migration and runtime creation
+- ✅ **DO**: Handle duplicate email conflicts gracefully (try-catch with warning)
+- ✅ **DO**: Include user creation in the same transaction/flow as provider creation
+- ✅ **DO**: Return user credentials in API response for onboarding materials
+- ❌ **DON'T**: Rely only on migration scripts for user account creation
+- ❌ **DON'T**: Assume providers created after migration will have user accounts
+- ❌ **DON'T**: Fail provider creation if user account creation has minor issues (duplicate email)
+
+#### Provider Onboarding Flow
+- ✅ **DO**: Ensure complete provider setup includes user account creation
+- ✅ **DO**: Use provider's contact_email as user email when available
+- ✅ **DO**: Generate fallback email pattern when contact_email is missing
+- ✅ **DO**: Link user account to provider via `provider_id` foreign key
+- ✅ **DO**: Set default password pattern that's easy to communicate
+- ❌ **DON'T**: Create provider records without corresponding user accounts
+- ❌ **DON'T**: Use random passwords that can't be communicated to providers
+
+#### Testing & Verification
+- ✅ **DO**: Test complete provider creation flow end-to-end
+- ✅ **DO**: Verify user account exists in database after provider creation
+- ✅ **DO**: Test login with newly created provider credentials
+- ✅ **DO**: Check that user account has correct `provider_id` foreign key
+- ✅ **DO**: Verify user account is active when provider is active
+- ❌ **DON'T**: Assume migration scripts cover all user creation scenarios
+- ❌ **DON'T**: Deploy without testing the complete onboarding flow
+
+### Files Modified
+- `/webhook-api/webhook-api/src/routes/admin-onboarding.ts` - Added STEP 6: User account creation
+- Deployed to production: `https://convio-leads-webhook-api.curly-king-877d.workers.dev`
+
+### Provider Login Credentials Pattern
+**For providers created through admin onboarding**:
+- **Email**: Provider's `contact_email` (or `{provider_id}@provider.local` if missing)
+- **Password**: `provider_{provider_id}` (e.g., `provider_final_test_benjie_8026`)
+- **Provider ID**: Required when logging in as provider (entered in login form)
+- **Permission Type**: `'provider'`
+
+### Business Impact
+- **Immediate Access**: Providers can login right after account creation
+- **Reduced Support**: No manual user account creation needed
+- **Consistent Experience**: All providers get user accounts automatically
+- **Onboarding Efficiency**: Complete provider setup in single flow

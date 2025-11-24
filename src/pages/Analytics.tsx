@@ -44,6 +44,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AnalyticsData } from '@/types/dashboard';
+import { useAuth } from '@/hooks/useAuth';
 
 // Extended analytics data type
 interface ExtendedAnalyticsData extends AnalyticsData {
@@ -163,6 +164,10 @@ interface Conversion {
 }
 
 export default function Analytics() {
+  const { user } = useAuth();
+  const isProvider = user?.permission_type === 'provider';
+  const providerId = user?.provider_id;
+  
   const [timeRange, setTimeRange] = useState('7d');
   const [selectedWorkspace, setSelectedWorkspace] = useState('all');
   const [activeTab, setActiveTab] = useState('overview');
@@ -195,10 +200,10 @@ export default function Analytics() {
       fetchAnalyticsData();
     } else if (activeTab === 'conversions') {
       fetchConversionData();
-    } else if (activeTab === 'providers') {
+    } else if (activeTab === 'providers' && !isProvider) {
       fetchProviderData();
     }
-  }, [activeTab, timeRange, selectedWorkspace, selectedProvider, refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeTab, timeRange, selectedWorkspace, selectedProvider, refreshKey, isProvider]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load workspaces and providers on component mount
   useEffect(() => {
@@ -227,7 +232,8 @@ export default function Analytics() {
     const params = new URLSearchParams({
       from_date: fromDate.toISOString(),
       to_date: new Date().toISOString(),
-      ...(selectedWorkspace !== 'all' && { workspace_id: selectedWorkspace })
+      ...(selectedWorkspace !== 'all' && { workspace_id: selectedWorkspace }),
+      ...(isProvider && providerId && { provider_id: providerId })
     });
 
     try {
@@ -307,7 +313,8 @@ export default function Analytics() {
     const params = new URLSearchParams({
       from_date: fromDate.toISOString(),
       to_date: new Date().toISOString(),
-      ...(selectedWorkspace !== 'all' && { workspace_id: selectedWorkspace })
+      ...(selectedWorkspace !== 'all' && { workspace_id: selectedWorkspace }),
+      ...(isProvider && providerId && { provider_id: providerId })
     });
 
     try {
@@ -360,7 +367,11 @@ export default function Analytics() {
     const toDateStr = `${(new Date().getMonth() + 1).toString().padStart(2, '0')}-${new Date().getDate().toString().padStart(2, '0')}-${new Date().getFullYear()}`;
 
     try {
-      const activeProviders = providers.filter(p => p.is_active);
+      // For providers, only fetch their own data
+      const activeProviders = isProvider && providerId
+        ? providers.filter(p => p.is_active && p.provider_id === providerId)
+        : providers.filter(p => p.is_active);
+      
       const providerPromises = activeProviders.map(async (provider) => {
         const params = new URLSearchParams({
           from: fromDateStr,
@@ -518,22 +529,24 @@ export default function Analytics() {
               </SelectContent>
             </Select>
 
-            <Select value={selectedWorkspace} onValueChange={setSelectedWorkspace}>
-              <SelectTrigger className="w-[150px]">
-                <Filter className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="All Workspaces" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Workspaces</SelectItem>
-                {workspaces.map((workspace) => (
-                  <SelectItem key={workspace.id} value={workspace.id}>
-                    {workspace.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {!isProvider && (
+              <Select value={selectedWorkspace} onValueChange={setSelectedWorkspace}>
+                <SelectTrigger className="w-[150px]">
+                  <Filter className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="All Workspaces" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Workspaces</SelectItem>
+                  {workspaces.map((workspace) => (
+                    <SelectItem key={workspace.id} value={workspace.id}>
+                      {workspace.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
 
-            {activeTab === 'providers' && (
+            {activeTab === 'providers' && !isProvider && (
               <Select value={selectedProvider} onValueChange={setSelectedProvider}>
                 <SelectTrigger className="w-[150px]">
                   <Users className="h-4 w-4 mr-2" />
@@ -570,7 +583,7 @@ export default function Analytics() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className={cn("grid w-full", isProvider ? "grid-cols-2" : "grid-cols-3")}>
             <TabsTrigger value="overview" className="flex items-center gap-2">
               <BarChart3 className="h-4 w-4" />
               Overview
@@ -579,10 +592,12 @@ export default function Analytics() {
               <Target className="h-4 w-4" />
               Conversions
             </TabsTrigger>
-            <TabsTrigger value="providers" className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Providers
-            </TabsTrigger>
+            {!isProvider && (
+              <TabsTrigger value="providers" className="flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                Providers
+              </TabsTrigger>
+            )}
           </TabsList>
 
           {/* Overview Tab */}
@@ -977,8 +992,9 @@ export default function Analytics() {
             )}
           </TabsContent>
 
-          {/* Providers Tab */}
-          <TabsContent value="providers" className="space-y-6">
+          {/* Providers Tab - Only visible to admin/dev */}
+          {!isProvider && (
+            <TabsContent value="providers" className="space-y-6">
             {isLoadingProviders && providerPerformance.length === 0 ? (
               <div className="flex items-center justify-center min-h-screen">
                 <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -1185,7 +1201,8 @@ export default function Analytics() {
                 </Card>
               </>
             )}
-          </TabsContent>
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     </Layout>

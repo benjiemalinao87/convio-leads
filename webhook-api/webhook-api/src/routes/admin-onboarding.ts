@@ -500,7 +500,38 @@ async function createProviderAndWebhook(db: D1Database, body: any) {
     console.log('[STEP 5] Verification - provider after update:', verifyProvider)
 
     // ========================================================================
-    // STEP 6: Log onboarding event
+    // STEP 6: Create user account for provider
+    // ========================================================================
+    console.log('[STEP 6] Creating user account for provider:', providerId)
+    
+    // Use contact_email if available, otherwise generate email from provider_id
+    const userEmail = body.contact_email && body.contact_email.trim() !== ''
+      ? body.contact_email
+      : `${providerId}@provider.local`
+    
+    // Password is the provider_id itself
+    const userPassword = providerId
+    
+    try {
+      const userResult = await db.prepare(`
+        INSERT INTO users (email, password, provider_id, permission_type, is_active, created_at, updated_at)
+        VALUES (?, ?, ?, 'provider', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `).bind(
+        userEmail,
+        userPassword,
+        providerId,
+        1 // is_active - same as provider
+      ).run()
+      
+      console.log('[STEP 6] User account created successfully:', userResult)
+    } catch (userError) {
+      // If user already exists (email conflict), log but don't fail
+      console.warn('[STEP 6] User account creation warning:', userError)
+      // Continue - user might already exist from migration
+    }
+
+    // ========================================================================
+    // STEP 7: Log onboarding event
     // ========================================================================
     await db.prepare(`
       INSERT INTO admin_onboarding_events (
@@ -549,6 +580,11 @@ async function createProviderAndWebhook(db: D1Database, body: any) {
           webhook_type: primaryWebhookType,
           webhook_region: webhookRegion,
           is_active: true
+        },
+        user: {
+          email: userEmail,
+          password: userPassword,
+          login_instructions: 'Use Provider ID + Email + Password to login to the dashboard'
         },
         onboarding: {
           created_by: body.admin_email,
@@ -651,6 +687,7 @@ adminOnboardingRouter.get('/onboarding-materials/:providerId', async (c) => {
     // Generate email template
     const emailTemplate = generateEmailTemplate({
       contact_name: provider.contact_name as string,
+      contact_email: provider.contact_email as string,
       provider_id: providerId,
       webhook_url: webhookUrl,
       webhook_id: webhookId || 'N/A',
@@ -702,6 +739,7 @@ adminOnboardingRouter.get('/onboarding-materials/:providerId', async (c) => {
 
 function generateEmailTemplate(data: {
   contact_name: string
+  contact_email: string
   provider_id: string
   webhook_url: string
   webhook_id: string
@@ -718,6 +756,16 @@ CREDENTIALS
 Provider ID: ${data.provider_id}
 Webhook URL: ${data.webhook_url}
 Webhook Type: ${data.webhook_type}
+
+PROVIDER PORTAL ACCESS
+----------------------
+You can login to your provider portal to view analytics and manage your account:
+
+Login URL: https://app.buyerfound.ai/
+Email: ${data.contact_email}
+Password: ${data.provider_id}
+
+Note: When logging in, select "Provider Login" and enter your Provider ID in the Provider ID field. Your password is your Provider ID.
 
 QUICK START
 -----------

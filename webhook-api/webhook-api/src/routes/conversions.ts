@@ -307,6 +307,7 @@ conversionsRouter.get('/', async (c) => {
 
     // Get query parameters
     const workspaceId = c.req.query('workspace_id')
+    const providerId = c.req.query('provider_id')
     const contactId = c.req.query('contact_id')
     const leadId = c.req.query('lead_id')
     const conversionType = c.req.query('conversion_type')
@@ -329,10 +330,24 @@ conversionsRouter.get('/', async (c) => {
       FROM conversions c
       LEFT JOIN contacts ct ON c.contact_id = ct.id
       LEFT JOIN workspaces w ON c.workspace_id = w.id
-      WHERE 1=1
     `
+    
+    // Add provider filtering if provider_id is provided
+    if (providerId) {
+      query += `
+        INNER JOIN leads l ON c.lead_id = l.id
+        INNER JOIN webhook_provider_mapping wpm ON l.webhook_id = wpm.webhook_id
+        WHERE wpm.provider_id = ?
+      `
+    } else {
+      query += ' WHERE 1=1'
+    }
 
     const params: any[] = []
+    
+    if (providerId) {
+      params.push(providerId)
+    }
 
     if (workspaceId) {
       query += ' AND c.workspace_id = ?'
@@ -381,9 +396,18 @@ conversionsRouter.get('/', async (c) => {
     const conversions = await db.prepare(query).bind(...params).all()
 
     // Get total count
-    let countQuery = `
-      SELECT COUNT(*) as total FROM conversions c WHERE 1=1
-    `
+    let countQuery = ''
+    if (providerId) {
+      countQuery = `
+        SELECT COUNT(*) as total 
+        FROM conversions c
+        INNER JOIN leads l ON c.lead_id = l.id
+        INNER JOIN webhook_provider_mapping wpm ON l.webhook_id = wpm.webhook_id
+        WHERE wpm.provider_id = ?
+      `
+    } else {
+      countQuery = `SELECT COUNT(*) as total FROM conversions c WHERE 1=1`
+    }
     const countParams = params.slice(0, -2) // Remove limit and offset
 
     if (workspaceId) countQuery += ' AND c.workspace_id = ?'
@@ -428,6 +452,7 @@ conversionsRouter.get('/analytics', async (c) => {
 
     // Get query parameters
     const workspaceId = c.req.query('workspace_id')
+    const providerId = c.req.query('provider_id')
     const fromDate = c.req.query('from_date') || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
     const toDate = c.req.query('to_date') || new Date().toISOString()
     const groupBy = c.req.query('group_by') || 'day' // day, week, month
@@ -438,15 +463,27 @@ conversionsRouter.get('/analytics', async (c) => {
         COUNT(*) as total_conversions,
         SUM(conversion_value) as total_value,
         AVG(conversion_value) as average_value,
-        COUNT(DISTINCT contact_id) as unique_contacts,
-        COUNT(DISTINCT workspace_id) as active_workspaces
-      FROM conversions
-      WHERE converted_at BETWEEN ? AND ?
+        COUNT(DISTINCT c.contact_id) as unique_contacts,
+        COUNT(DISTINCT c.workspace_id) as active_workspaces
+      FROM conversions c
     `
-    const summaryParams = [fromDate, toDate]
+    const summaryParams: any[] = []
+
+    // Add provider filtering if provider_id is provided
+    if (providerId) {
+      summaryQuery += `
+        INNER JOIN leads l ON c.lead_id = l.id
+        INNER JOIN webhook_provider_mapping wpm ON l.webhook_id = wpm.webhook_id
+        WHERE wpm.provider_id = ? AND c.converted_at BETWEEN ? AND ?
+      `
+      summaryParams.push(providerId, fromDate, toDate)
+    } else {
+      summaryQuery += ' WHERE c.converted_at BETWEEN ? AND ?'
+      summaryParams.push(fromDate, toDate)
+    }
 
     if (workspaceId) {
-      summaryQuery += ' AND workspace_id = ?'
+      summaryQuery += ' AND c.workspace_id = ?'
       summaryParams.push(workspaceId)
     }
 
@@ -455,17 +492,29 @@ conversionsRouter.get('/analytics', async (c) => {
     // Get conversions by type
     let byTypeQuery = `
       SELECT
-        conversion_type,
+        c.conversion_type,
         COUNT(*) as count,
-        SUM(conversion_value) as total_value,
-        AVG(conversion_value) as avg_value
-      FROM conversions
-      WHERE converted_at BETWEEN ? AND ?
+        SUM(c.conversion_value) as total_value,
+        AVG(c.conversion_value) as avg_value
+      FROM conversions c
     `
-    const byTypeParams = [fromDate, toDate]
+    const byTypeParams: any[] = []
+
+    // Add provider filtering if provider_id is provided
+    if (providerId) {
+      byTypeQuery += `
+        INNER JOIN leads l ON c.lead_id = l.id
+        INNER JOIN webhook_provider_mapping wpm ON l.webhook_id = wpm.webhook_id
+        WHERE wpm.provider_id = ? AND c.converted_at BETWEEN ? AND ?
+      `
+      byTypeParams.push(providerId, fromDate, toDate)
+    } else {
+      byTypeQuery += ' WHERE c.converted_at BETWEEN ? AND ?'
+      byTypeParams.push(fromDate, toDate)
+    }
 
     if (workspaceId) {
-      byTypeQuery += ' AND workspace_id = ?'
+      byTypeQuery += ' AND c.workspace_id = ?'
       byTypeParams.push(workspaceId)
     }
 
@@ -474,7 +523,7 @@ conversionsRouter.get('/analytics', async (c) => {
     const byType = await db.prepare(byTypeQuery).bind(...byTypeParams).all()
 
     // Get conversions by workspace
-    const byWorkspace = await db.prepare(`
+    let byWorkspaceQuery = `
       SELECT
         w.id as workspace_id,
         w.name as workspace_name,
@@ -485,56 +534,131 @@ conversionsRouter.get('/analytics', async (c) => {
       FROM workspaces w
       LEFT JOIN conversions c ON w.id = c.workspace_id
         AND c.converted_at BETWEEN ? AND ?
+    `
+    const byWorkspaceParams: any[] = [fromDate, toDate]
+    
+    if (providerId) {
+      byWorkspaceQuery += `
+        INNER JOIN leads l ON c.lead_id = l.id
+        INNER JOIN webhook_provider_mapping wpm ON l.webhook_id = wpm.webhook_id
+        AND wpm.provider_id = ?
+      `
+      byWorkspaceParams.push(providerId)
+    }
+    
+    byWorkspaceQuery += `
       GROUP BY w.id, w.name
       HAVING conversions > 0
       ORDER BY total_value DESC
-    `).bind(fromDate, toDate).all()
+    `
+    
+    const byWorkspace = await db.prepare(byWorkspaceQuery).bind(...byWorkspaceParams).all()
 
     // Get trend data based on groupBy parameter
     let trendQuery = ''
+    const trendParams: any[] = []
+    
     if (groupBy === 'day') {
-      trendQuery = `
-        SELECT
-          DATE(converted_at) as period,
-          COUNT(*) as conversions,
-          SUM(conversion_value) as total_value
-        FROM conversions
-        WHERE converted_at BETWEEN ? AND ?
-      `
+      if (providerId) {
+        trendQuery = `
+          SELECT
+            DATE(c.converted_at) as period,
+            COUNT(*) as conversions,
+            SUM(c.conversion_value) as total_value
+          FROM conversions c
+          INNER JOIN leads l ON c.lead_id = l.id
+          INNER JOIN webhook_provider_mapping wpm ON l.webhook_id = wpm.webhook_id
+          WHERE wpm.provider_id = ? AND c.converted_at BETWEEN ? AND ?
+        `
+        trendParams.push(providerId, fromDate, toDate)
+      } else {
+        trendQuery = `
+          SELECT
+            DATE(converted_at) as period,
+            COUNT(*) as conversions,
+            SUM(conversion_value) as total_value
+          FROM conversions
+          WHERE converted_at BETWEEN ? AND ?
+        `
+        trendParams.push(fromDate, toDate)
+      }
     } else if (groupBy === 'week') {
-      trendQuery = `
-        SELECT
-          strftime('%Y-W%W', converted_at) as period,
-          COUNT(*) as conversions,
-          SUM(conversion_value) as total_value
-        FROM conversions
-        WHERE converted_at BETWEEN ? AND ?
-      `
+      if (providerId) {
+        trendQuery = `
+          SELECT
+            strftime('%Y-W%W', c.converted_at) as period,
+            COUNT(*) as conversions,
+            SUM(c.conversion_value) as total_value
+          FROM conversions c
+          INNER JOIN leads l ON c.lead_id = l.id
+          INNER JOIN webhook_provider_mapping wpm ON l.webhook_id = wpm.webhook_id
+          WHERE wpm.provider_id = ? AND c.converted_at BETWEEN ? AND ?
+        `
+        trendParams.push(providerId, fromDate, toDate)
+      } else {
+        trendQuery = `
+          SELECT
+            strftime('%Y-W%W', converted_at) as period,
+            COUNT(*) as conversions,
+            SUM(conversion_value) as total_value
+          FROM conversions
+          WHERE converted_at BETWEEN ? AND ?
+        `
+        trendParams.push(fromDate, toDate)
+      }
     } else { // month
-      trendQuery = `
-        SELECT
-          strftime('%Y-%m', converted_at) as period,
-          COUNT(*) as conversions,
-          SUM(conversion_value) as total_value
-        FROM conversions
-        WHERE converted_at BETWEEN ? AND ?
-      `
+      if (providerId) {
+        trendQuery = `
+          SELECT
+            strftime('%Y-%m', c.converted_at) as period,
+            COUNT(*) as conversions,
+            SUM(c.conversion_value) as total_value
+          FROM conversions c
+          INNER JOIN leads l ON c.lead_id = l.id
+          INNER JOIN webhook_provider_mapping wpm ON l.webhook_id = wpm.webhook_id
+          WHERE wpm.provider_id = ? AND c.converted_at BETWEEN ? AND ?
+        `
+        trendParams.push(providerId, fromDate, toDate)
+      } else {
+        trendQuery = `
+          SELECT
+            strftime('%Y-%m', converted_at) as period,
+            COUNT(*) as conversions,
+            SUM(conversion_value) as total_value
+          FROM conversions
+          WHERE converted_at BETWEEN ? AND ?
+        `
+        trendParams.push(fromDate, toDate)
+      }
     }
 
-    const trendParams = [fromDate, toDate]
     if (workspaceId) {
-      trendQuery += ' AND workspace_id = ?'
+      if (providerId) {
+        trendQuery += ' AND c.workspace_id = ?'
+      } else {
+        trendQuery += ' AND workspace_id = ?'
+      }
       trendParams.push(workspaceId)
     }
     trendQuery += ' GROUP BY period ORDER BY period'
 
     const trends = await db.prepare(trendQuery).bind(...trendParams).all()
 
-    // Calculate conversion rate
-    const totalLeadsQuery = await db.prepare(`
-      SELECT COUNT(*) as total FROM leads
-      WHERE created_at BETWEEN ? AND ?
-    `).bind(fromDate, toDate).first()
+    // Calculate conversion rate - filter by provider if needed
+    let totalLeadsQuery
+    if (providerId) {
+      totalLeadsQuery = await db.prepare(`
+        SELECT COUNT(*) as total 
+        FROM leads l
+        INNER JOIN webhook_provider_mapping wpm ON l.webhook_id = wpm.webhook_id
+        WHERE wpm.provider_id = ? AND l.created_at BETWEEN ? AND ?
+      `).bind(providerId, fromDate, toDate).first()
+    } else {
+      totalLeadsQuery = await db.prepare(`
+        SELECT COUNT(*) as total FROM leads
+        WHERE created_at BETWEEN ? AND ?
+      `).bind(fromDate, toDate).first()
+    }
 
     const conversionRate = totalLeadsQuery?.total
       ? (((summary?.total_conversions as number) || 0) / (totalLeadsQuery.total as number)) * 100
@@ -579,6 +703,7 @@ conversionsRouter.get('/funnel', async (c) => {
     const db = c.env.LEADS_DB
 
     const workspaceId = c.req.query('workspace_id')
+    const providerId = c.req.query('provider_id')
     const fromDate = c.req.query('from_date') || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
     const toDate = c.req.query('to_date') || new Date().toISOString()
 
@@ -592,10 +717,22 @@ conversionsRouter.get('/funnel', async (c) => {
         COUNT(DISTINCT c.lead_id) as has_conversion_record
       FROM leads l
       LEFT JOIN conversions c ON l.id = c.lead_id
-      WHERE l.created_at BETWEEN ? AND ?
     `
+    
+    const params: any[] = []
+    
+    // Add provider filtering if provider_id is provided
+    if (providerId) {
+      funnelQuery += `
+        INNER JOIN webhook_provider_mapping wpm ON l.webhook_id = wpm.webhook_id
+        WHERE wpm.provider_id = ? AND l.created_at BETWEEN ? AND ?
+      `
+      params.push(providerId, fromDate, toDate)
+    } else {
+      funnelQuery += ' WHERE l.created_at BETWEEN ? AND ?'
+      params.push(fromDate, toDate)
+    }
 
-    const params = [fromDate, toDate]
     if (workspaceId) {
       funnelQuery += ' AND l.workspace_id = ?'
       params.push(workspaceId)

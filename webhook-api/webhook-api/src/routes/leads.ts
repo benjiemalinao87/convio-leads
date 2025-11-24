@@ -7,6 +7,7 @@ const leads = new Hono()
 // Get all leads with optional filtering
 leads.get('/', async (c) => {
   const webhookId = c.req.query('webhook_id')
+  const providerId = c.req.query('provider_id')
   const status = c.req.query('status')
   const fromDate = c.req.query('from_date')
   const toDate = c.req.query('to_date')
@@ -35,12 +36,21 @@ leads.get('/', async (c) => {
       }
 
       const leadDb = (c.env as any).LEADS_DB
-      const { results } = await leadDb.prepare(`
-        SELECT * FROM leads
-        WHERE contact_id = ?
-        ORDER BY created_at DESC
-        LIMIT ?
-      `).bind(contactIdNum, limit).all()
+      let contactQuery = 'SELECT l.* FROM leads l'
+      const contactParams: any[] = []
+      
+      if (providerId) {
+        contactQuery += ' INNER JOIN webhook_provider_mapping wpm ON l.webhook_id = wpm.webhook_id WHERE wpm.provider_id = ? AND l.contact_id = ?'
+        contactParams.push(providerId, contactIdNum)
+      } else {
+        contactQuery += ' WHERE l.contact_id = ?'
+        contactParams.push(contactIdNum)
+      }
+      
+      contactQuery += ' ORDER BY l.created_at DESC LIMIT ?'
+      contactParams.push(limit)
+      
+      const { results } = await leadDb.prepare(contactQuery).bind(...contactParams).all()
 
       return c.json({
         status: 'success',
@@ -48,6 +58,68 @@ leads.get('/', async (c) => {
         filters: {
           contact_id: contactIdNum,
           limit: limit
+        },
+        leads: results,
+        timestamp: new Date().toISOString()
+      })
+    }
+
+    // If provider_id is provided, filter by provider's webhooks
+    if (providerId) {
+      const leadDb = (c.env as any).LEADS_DB
+      
+      // Get webhook IDs for this provider
+      const { results: webhookMappings } = await leadDb.prepare(`
+        SELECT webhook_id FROM webhook_provider_mapping WHERE provider_id = ?
+      `).bind(providerId).all()
+      
+      const providerWebhookIds = webhookMappings.map((w: any) => w.webhook_id)
+      
+      if (providerWebhookIds.length === 0) {
+        return c.json({
+          status: 'success',
+          count: 0,
+          filters: { provider_id: providerId },
+          leads: [],
+          timestamp: new Date().toISOString()
+        })
+      }
+      
+      // Build query with provider webhook filter
+      let providerQuery = 'SELECT l.* FROM leads l WHERE l.webhook_id IN (' + providerWebhookIds.map(() => '?').join(',') + ')'
+      const providerParams: any[] = [...providerWebhookIds]
+      
+      if (status) {
+        providerQuery += ' AND l.status = ?'
+        providerParams.push(status)
+      }
+      if (webhookId && providerWebhookIds.includes(webhookId)) {
+        providerQuery += ' AND l.webhook_id = ?'
+        providerParams.push(webhookId)
+      }
+      if (fromDate) {
+        providerQuery += ' AND l.created_at >= ?'
+        providerParams.push(fromDate)
+      }
+      if (toDate) {
+        providerQuery += ' AND l.created_at <= ?'
+        providerParams.push(toDate)
+      }
+      
+      providerQuery += ' ORDER BY l.created_at DESC LIMIT ?'
+      providerParams.push(limit)
+      
+      const { results } = await leadDb.prepare(providerQuery).bind(...providerParams).all()
+      
+      return c.json({
+        status: 'success',
+        count: results.length,
+        filters: {
+          provider_id: providerId,
+          webhook_id: webhookId || null,
+          status: status || null,
+          from_date: fromDate || null,
+          to_date: toDate || null
         },
         leads: results,
         timestamp: new Date().toISOString()

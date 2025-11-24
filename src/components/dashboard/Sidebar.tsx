@@ -78,6 +78,31 @@ export function Sidebar({ isCollapsed, onToggleCollapse }: SidebarProps) {
   const { isDarkMode, toggleTheme } = useTheme();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  // Filter navigation based on user permission type
+  const getFilteredNavigation = () => {
+    if (user?.permission_type === 'provider') {
+      // Providers only see Analytics and Settings
+      return [
+        {
+          title: 'Analytics',
+          items: [
+            { name: 'Analytics', href: '/analytics', icon: TrendingUp, badge: null },
+          ]
+        },
+        {
+          title: 'Configuration',
+          items: [
+            { name: 'Settings', href: '/settings', icon: Settings, badge: null },
+          ]
+        },
+      ];
+    }
+    // Admin and Dev see all navigation
+    return navigationGroups;
+  };
+
+  const filteredNavigation = getFilteredNavigation();
+
   const handleLogout = async () => {
     try {
       await logout();
@@ -144,7 +169,7 @@ export function Sidebar({ isCollapsed, onToggleCollapse }: SidebarProps) {
           {/* Navigation */}
           <nav className="flex-1 px-4 py-3 overflow-y-auto">
             <div className="space-y-3">
-              {navigationGroups.map((group, groupIndex) => {
+              {filteredNavigation.map((group, groupIndex) => {
                 return (
                   <div key={group.title} className="space-y-1">
                     {/* Group Title (only show when not collapsed) */}
@@ -195,7 +220,7 @@ export function Sidebar({ isCollapsed, onToggleCollapse }: SidebarProps) {
                     </ul>
 
                     {/* Separator between groups (except last) */}
-                    {groupIndex < navigationGroups.length - 1 && (!isCollapsed || mobileMenuOpen) && (
+                    {groupIndex < filteredNavigation.length - 1 && (!isCollapsed || mobileMenuOpen) && (
                       <Separator className="my-2" />
                     )}
                   </div>

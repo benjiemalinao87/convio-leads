@@ -30,7 +30,7 @@ SELECT
     THEN contact_email
     ELSE provider_id || '@provider.local'
   END as email,
-  'provider_' || provider_id as password,  -- Default password: provider_{provider_id}
+      provider_id as password,  -- Password is the provider_id itself
   provider_id,
   'provider',
   is_active  -- Inherit active status from provider
