@@ -8,6 +8,7 @@ contacts.get('/', async (c) => {
   const webhookId = c.req.query('webhook_id')
   const limit = parseInt(c.req.query('limit') || '100')
   const includeParam = c.req.query('include') || 'basic'
+  const providerId = c.req.query('provider_id')
 
   if (!(c.env as any).LEADS_DB) {
     return c.json({
@@ -24,45 +25,54 @@ contacts.get('/', async (c) => {
   try {
     const db = (c.env as any).LEADS_DB
 
-    // Build WHERE clause for filtering
-    let whereClause = ''
+    // Build query with dynamic joins and where clause
+    let query = `
+      SELECT
+        c.id,
+        c.webhook_id,
+        c.phone,
+        c.first_name,
+        c.last_name,
+        c.email,
+        c.address,
+        c.address2,
+        c.city,
+        c.state,
+        c.zip_code,
+        c.created_at,
+        c.updated_at,
+        c.lifetime_value,
+        c.conversion_count,
+        c.qualification_score,
+        c.conversion_status,
+        c.converted_timestamp,
+        c.converted_by
+      FROM contacts c
+    `
+
     const params = []
+    const conditions = []
+
+    // If provider_id is provided, join with mapping table
+    if (providerId) {
+      query += ` INNER JOIN webhook_provider_mapping wpm ON c.webhook_id = wpm.webhook_id`
+      conditions.push('wpm.provider_id = ?')
+      params.push(providerId)
+    }
 
     if (webhookId) {
-      whereClause = 'WHERE webhook_id = ?'
+      conditions.push('c.webhook_id = ?')
       params.push(webhookId)
     }
 
-    // Fetch all contacts
-    const contactsQuery = `
-      SELECT
-        id,
-        webhook_id,
-        phone,
-        first_name,
-        last_name,
-        email,
-        address,
-        address2,
-        city,
-        state,
-        zip_code,
-        created_at,
-        updated_at,
-        lifetime_value,
-        conversion_count,
-        qualification_score,
-        conversion_status,
-        converted_timestamp,
-        converted_by
-      FROM contacts
-      ${whereClause}
-      ORDER BY created_at DESC
-      LIMIT ?
-    `
+    if (conditions.length > 0) {
+      query += ' WHERE ' + conditions.join(' AND ')
+    }
 
+    query += ' ORDER BY c.created_at DESC LIMIT ?'
     params.push(limit)
-    const contactsResults = await db.prepare(contactsQuery).bind(...params).all()
+
+    const contactsResults = await db.prepare(query).bind(...params).all()
     const contacts = contactsResults.results || []
 
     // If leads are requested, fetch them for each contact
@@ -337,7 +347,7 @@ contacts.get('/search/phone/:phoneNumber', async (c) => {
 
       if (workspaces.size > 0) {
         contactData.summary.primary_workspace = Array.from(workspaces.entries())
-          .sort(([,a], [,b]) => b - a)[0][0]
+          .sort(([, a], [, b]) => b - a)[0][0]
       }
     }
 

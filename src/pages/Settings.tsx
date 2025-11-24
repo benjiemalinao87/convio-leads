@@ -8,6 +8,7 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ProviderManagement } from '@/components/admin/ProviderManagement';
+import { useAuth } from '@/hooks/useAuth';
 import { 
   User, 
   Bell, 
@@ -22,11 +23,15 @@ import {
 } from 'lucide-react';
 
 const Settings = () => {
+  const { user } = useAuth();
+  const isProvider = user?.permission_type === 'provider';
+  const isAdminOrDev = user?.permission_type === 'admin' || user?.permission_type === 'dev';
+
   return (
     <Layout>
       <div className="space-y-6">
         <Tabs defaultValue="general" className="w-full">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className={`grid w-full ${isProvider ? 'grid-cols-3' : 'grid-cols-5'}`}>
             <TabsTrigger value="general">
               <User className="h-4 w-4 mr-2" />
               General
@@ -39,6 +44,8 @@ const Settings = () => {
               <Bell className="h-4 w-4 mr-2" />
               Notifications
             </TabsTrigger>
+            {isAdminOrDev && (
+              <>
             <TabsTrigger value="providers">
               <Users className="h-4 w-4 mr-2" />
               Providers
@@ -47,6 +54,8 @@ const Settings = () => {
               <Database className="h-4 w-4 mr-2" />
               API
             </TabsTrigger>
+              </>
+            )}
           </TabsList>
 
           <TabsContent value="general" className="space-y-6">
@@ -238,6 +247,8 @@ const Settings = () => {
             </Card>
           </TabsContent>
 
+          {isAdminOrDev && (
+            <>
           <TabsContent value="providers" className="space-y-6">
             <ProviderManagement />
           </TabsContent>
@@ -291,6 +302,8 @@ const Settings = () => {
               </CardContent>
             </Card>
           </TabsContent>
+            </>
+          )}
         </Tabs>
       </div>
     </Layout>

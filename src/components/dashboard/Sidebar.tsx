@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { 
-  BarChart3, 
-  Users, 
-  Settings, 
-  FolderOpen, 
+import {
+  BarChart3,
+  Users,
+  Settings,
+  FolderOpen,
   TrendingUp,
   Calendar,
   BookOpen,
@@ -81,8 +81,14 @@ export function Sidebar({ isCollapsed, onToggleCollapse }: SidebarProps) {
   // Filter navigation based on user permission type
   const getFilteredNavigation = () => {
     if (user?.permission_type === 'provider') {
-      // Providers only see Analytics and Settings
+      // Providers see Contacts, Analytics, and Settings
       return [
+        {
+          title: 'Leads & Contacts',
+          items: [
+            { name: 'Contacts', href: '/contacts', icon: Users, badge: null },
+          ]
+        },
         {
           title: 'Analytics',
           items: [
@@ -138,7 +144,7 @@ export function Sidebar({ isCollapsed, onToggleCollapse }: SidebarProps) {
               </div>
               {(!isCollapsed || mobileMenuOpen) && (
                 <div className="flex-1 min-w-0">
-                  <h1 className="text-lg font-bold gradient-text truncate">LeadManager</h1>
+                  <h1 className="text-lg font-bold gradient-text truncate">BuyerFound</h1>
                   <p className="text-xs text-muted-foreground truncate">Analytics Dashboard</p>
                 </div>
               )}
@@ -180,11 +186,11 @@ export function Sidebar({ isCollapsed, onToggleCollapse }: SidebarProps) {
                         </h3>
                       </div>
                     )}
-                    
+
                     {/* Group Items */}
                     <ul className="space-y-1">
                       {group.items.map((item) => {
-                        const isActive = location.pathname === item.href || 
+                        const isActive = location.pathname === item.href ||
                           (item.href !== '/' && location.pathname.startsWith(item.href));
                         return (
                           <li key={item.name}>
@@ -265,8 +271,8 @@ export function Sidebar({ isCollapsed, onToggleCollapse }: SidebarProps) {
             {/* User Menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button 
-                  variant="ghost" 
+                <Button
+                  variant="ghost"
                   className="w-full justify-start h-auto p-3 hover:bg-secondary/50"
                 >
                   <div className="h-10 w-10 rounded-full bg-gradient-success flex items-center justify-center shrink-0">
@@ -276,9 +282,9 @@ export function Sidebar({ isCollapsed, onToggleCollapse }: SidebarProps) {
                     <div className="flex-1 min-w-0 ml-3 text-left">
                       <p className="text-sm font-medium text-foreground truncate">{user?.email || 'User'}</p>
                       <p className="text-xs text-muted-foreground truncate">
-                        {user?.permission_type === 'admin' ? 'Administrator' : 
-                         user?.permission_type === 'dev' ? 'Developer' : 
-                         user?.permission_type === 'provider' ? 'Provider' : 'User'}
+                        {user?.permission_type === 'admin' ? 'Administrator' :
+                          user?.permission_type === 'dev' ? 'Developer' :
+                            user?.permission_type === 'provider' ? 'Provider' : 'User'}
                       </p>
                     </div>
                   )}
@@ -290,9 +296,9 @@ export function Sidebar({ isCollapsed, onToggleCollapse }: SidebarProps) {
                   <div className="flex flex-col">
                     <span className="text-sm font-medium">{user?.email || 'User'}</span>
                     <span className="text-xs text-muted-foreground">
-                      {user?.permission_type === 'admin' ? 'Administrator' : 
-                       user?.permission_type === 'dev' ? 'Developer' : 
-                       user?.permission_type === 'provider' ? 'Provider' : 'User'}
+                      {user?.permission_type === 'admin' ? 'Administrator' :
+                        user?.permission_type === 'dev' ? 'Developer' :
+                          user?.permission_type === 'provider' ? 'Provider' : 'User'}
                     </span>
                   </div>
                 </DropdownMenuItem>
@@ -309,7 +315,7 @@ export function Sidebar({ isCollapsed, onToggleCollapse }: SidebarProps) {
 
       {/* Mobile backdrop */}
       {mobileMenuOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-30 bg-background/80 backdrop-blur-sm md:hidden"
           onClick={() => setMobileMenuOpen(false)}
         />

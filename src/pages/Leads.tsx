@@ -13,6 +13,7 @@ import { Lead } from '@/data/leadsData';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { useAuth } from '@/hooks/useAuth';
 import {
   Plus,
   Users,
@@ -79,6 +80,10 @@ const convertAPILeadToLead = (apiLead: APILead): Lead => {
 
 const Leads = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isProvider = user?.permission_type === 'provider';
+  const providerId = user?.provider_id;
+  
   const [filters, setFilters] = useState<LeadsFilters>({
     search: '',
     status: '',
@@ -97,22 +102,35 @@ const Leads = () => {
 
   useEffect(() => {
     fetchLeads();
-  }, []);
+  }, [providerId]); // Refetch when providerId changes
 
   const fetchLeads = async () => {
     try {
       setIsLoading(true);
       setError(null);
 
+      // Build API URL with provider_id filter if user is a provider
+      const params = new URLSearchParams({
+        include: 'leads',
+        limit: '1000',
+        ...(isProvider && providerId && { provider_id: providerId })
+      });
+
       // Fetch all contacts with their associated leads
-      const response = await fetch(`${API_BASE}/contacts?include=leads&limit=1000`);
+      const response = await fetch(`${API_BASE}/contacts?${params}`);
 
       if (!response.ok) {
         throw new Error('Failed to fetch contacts');
       }
 
       const data = await response.json();
-      const contacts = data.contacts || [];
+      let contacts = data.contacts || [];
+
+      // For providers, filter out contacts that don't have any leads
+      // (leads are already filtered by provider_id in the backend)
+      if (isProvider) {
+        contacts = contacts.filter((contact: any) => contact.leads && contact.leads.length > 0);
+      }
 
       // Convert all leads from all contacts to our Lead format
       const allLeads: Lead[] = [];
@@ -129,8 +147,9 @@ const Leads = () => {
             }
             allLeads.push(convertedLead);
           });
-        } else {
-          // Create a "lead" entry for contacts without leads so they show up in the UI
+        } else if (!isProvider) {
+          // Only create synthetic "lead" entries for contacts without leads for admin/dev users
+          // Providers should only see contacts that have actual leads from their webhooks
           const contactAsLead: Lead = {
             id: `contact_${contact.id}`,
             contact_id: contact.id,

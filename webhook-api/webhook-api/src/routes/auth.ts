@@ -18,21 +18,21 @@ authRouter.post('/login', async (c) => {
     if (!c.env.LEADS_DB) {
       // Fallback to ENV-based auth during migration (should not be used in production)
       console.warn('⚠️ LEADS_DB not available, falling back to ENV-based auth')
-      const validUsername = c.env.LOGIN_USERNAME
-      const validPassword = c.env.LOGIN_PASSWORD
+    const validUsername = c.env.LOGIN_USERNAME
+    const validPassword = c.env.LOGIN_PASSWORD
 
       if (email === validUsername && password === validPassword) {
         const sessionToken = btoa(`${email}:${Date.now()}`)
-        return c.json({
-          success: true,
-          token: sessionToken,
+      return c.json({
+        success: true,
+        token: sessionToken,
           user: {
             email: email,
             permission_type: 'admin',
             id: 0
           }
-        })
-      } else {
+      })
+    } else {
         return c.json({
           success: false,
           error: 'Invalid credentials'

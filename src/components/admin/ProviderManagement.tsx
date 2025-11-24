@@ -44,6 +44,9 @@ interface CreateProviderData {
 const WEBHOOK_API_BASE = 'https://api.homeprojectpartners.com'
 
 export function ProviderManagement() {
+  const { user } = useAuth()
+  const isAdminOrDev = user?.permission_type === 'admin' || user?.permission_type === 'dev'
+  
   const [providers, setProviders] = useState<Provider[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -337,6 +340,7 @@ export function ProviderManagement() {
           </p>
         </div>
         
+        {isAdminOrDev && (
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>
             <Button>
@@ -445,6 +449,7 @@ export function ProviderManagement() {
             </div>
           </DialogContent>
         </Dialog>
+        )}
       </div>
 
       {error && (
@@ -514,16 +519,19 @@ export function ProviderManagement() {
                         <Badge variant={provider.is_active ? "default" : "secondary"}>
                           {provider.is_active ? "Active" : "Inactive"}
                         </Badge>
+                        {isAdminOrDev && (
                         <Switch
                           checked={provider.is_active}
                           onCheckedChange={() => toggleProviderStatus(provider)}
                         />
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>
                       {provider.last_used_at ? formatDate(provider.last_used_at) : 'Never'}
                     </TableCell>
                     <TableCell>
+                      {isAdminOrDev && (
                       <div className="flex items-center gap-2">
                         <Button
                           variant="ghost"
@@ -545,6 +553,7 @@ export function ProviderManagement() {
                           )}
                         </Button>
                       </div>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}

@@ -56,7 +56,7 @@ export function TopNavbar() {
             <BarChart3 className="h-5 w-5 text-primary-foreground" />
           </div>
           <div>
-            <h1 className="text-lg font-bold gradient-text">LeadManager</h1>
+            <h1 className="text-lg font-bold gradient-text">BuyerFound</h1>
             <p className="text-xs text-muted-foreground hidden sm:block">Analytics Dashboard</p>
           </div>
         </div>
@@ -97,7 +97,7 @@ export function TopNavbar() {
                     <User className="h-4 w-4 text-success-foreground" />
                   </div>
                   <div className="flex flex-col items-start">
-                    <span className="text-sm font-medium">{user || 'User'}</span>
+                    <span className="text-sm font-medium">{user?.email || 'User'}</span>
                     <span className="text-xs text-muted-foreground">Administrator</span>
                   </div>
                   <ChevronDown className="h-4 w-4 text-muted-foreground" />
@@ -107,7 +107,7 @@ export function TopNavbar() {
                 <DropdownMenuItem className="flex items-center space-x-2 cursor-default">
                   <User className="h-4 w-4" />
                   <div className="flex flex-col">
-                    <span className="text-sm font-medium">{user || 'User'}</span>
+                    <span className="text-sm font-medium">{user?.email || 'User'}</span>
                     <span className="text-xs text-muted-foreground">Administrator</span>
                   </div>
                 </DropdownMenuItem>
@@ -159,7 +159,7 @@ export function TopNavbar() {
                       <User className="h-4 w-4 text-success-foreground" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">{user || 'User'}</p>
+                      <p className="text-sm font-medium text-foreground truncate">{user?.email || 'User'}</p>
                       <p className="text-xs text-muted-foreground truncate">Administrator</p>
                     </div>
                   </div>

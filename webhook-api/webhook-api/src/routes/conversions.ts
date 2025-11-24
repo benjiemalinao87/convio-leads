@@ -475,7 +475,7 @@ conversionsRouter.get('/analytics', async (c) => {
         INNER JOIN leads l ON c.lead_id = l.id
         INNER JOIN webhook_provider_mapping wpm ON l.webhook_id = wpm.webhook_id
         WHERE wpm.provider_id = ? AND c.converted_at BETWEEN ? AND ?
-      `
+    `
       summaryParams.push(providerId, fromDate, toDate)
     } else {
       summaryQuery += ' WHERE c.converted_at BETWEEN ? AND ?'
@@ -506,7 +506,7 @@ conversionsRouter.get('/analytics', async (c) => {
         INNER JOIN leads l ON c.lead_id = l.id
         INNER JOIN webhook_provider_mapping wpm ON l.webhook_id = wpm.webhook_id
         WHERE wpm.provider_id = ? AND c.converted_at BETWEEN ? AND ?
-      `
+    `
       byTypeParams.push(providerId, fromDate, toDate)
     } else {
       byTypeQuery += ' WHERE c.converted_at BETWEEN ? AND ?'
@@ -572,14 +572,14 @@ conversionsRouter.get('/analytics', async (c) => {
         `
         trendParams.push(providerId, fromDate, toDate)
       } else {
-        trendQuery = `
-          SELECT
-            DATE(converted_at) as period,
-            COUNT(*) as conversions,
-            SUM(conversion_value) as total_value
-          FROM conversions
-          WHERE converted_at BETWEEN ? AND ?
-        `
+      trendQuery = `
+        SELECT
+          DATE(converted_at) as period,
+          COUNT(*) as conversions,
+          SUM(conversion_value) as total_value
+        FROM conversions
+        WHERE converted_at BETWEEN ? AND ?
+      `
         trendParams.push(fromDate, toDate)
       }
     } else if (groupBy === 'week') {
@@ -596,14 +596,14 @@ conversionsRouter.get('/analytics', async (c) => {
         `
         trendParams.push(providerId, fromDate, toDate)
       } else {
-        trendQuery = `
-          SELECT
-            strftime('%Y-W%W', converted_at) as period,
-            COUNT(*) as conversions,
-            SUM(conversion_value) as total_value
-          FROM conversions
-          WHERE converted_at BETWEEN ? AND ?
-        `
+      trendQuery = `
+        SELECT
+          strftime('%Y-W%W', converted_at) as period,
+          COUNT(*) as conversions,
+          SUM(conversion_value) as total_value
+        FROM conversions
+        WHERE converted_at BETWEEN ? AND ?
+      `
         trendParams.push(fromDate, toDate)
       }
     } else { // month
@@ -620,14 +620,14 @@ conversionsRouter.get('/analytics', async (c) => {
         `
         trendParams.push(providerId, fromDate, toDate)
       } else {
-        trendQuery = `
-          SELECT
-            strftime('%Y-%m', converted_at) as period,
-            COUNT(*) as conversions,
-            SUM(conversion_value) as total_value
-          FROM conversions
-          WHERE converted_at BETWEEN ? AND ?
-        `
+      trendQuery = `
+        SELECT
+          strftime('%Y-%m', converted_at) as period,
+          COUNT(*) as conversions,
+          SUM(conversion_value) as total_value
+        FROM conversions
+        WHERE converted_at BETWEEN ? AND ?
+      `
         trendParams.push(fromDate, toDate)
       }
     }
@@ -636,7 +636,7 @@ conversionsRouter.get('/analytics', async (c) => {
       if (providerId) {
         trendQuery += ' AND c.workspace_id = ?'
       } else {
-        trendQuery += ' AND workspace_id = ?'
+      trendQuery += ' AND workspace_id = ?'
       }
       trendParams.push(workspaceId)
     }
@@ -655,9 +655,9 @@ conversionsRouter.get('/analytics', async (c) => {
       `).bind(providerId, fromDate, toDate).first()
     } else {
       totalLeadsQuery = await db.prepare(`
-        SELECT COUNT(*) as total FROM leads
-        WHERE created_at BETWEEN ? AND ?
-      `).bind(fromDate, toDate).first()
+      SELECT COUNT(*) as total FROM leads
+      WHERE created_at BETWEEN ? AND ?
+    `).bind(fromDate, toDate).first()
     }
 
     const conversionRate = totalLeadsQuery?.total

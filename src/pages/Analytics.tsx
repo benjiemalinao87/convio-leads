@@ -167,7 +167,7 @@ export default function Analytics() {
   const { user } = useAuth();
   const isProvider = user?.permission_type === 'provider';
   const providerId = user?.provider_id;
-  
+
   const [timeRange, setTimeRange] = useState('7d');
   const [selectedWorkspace, setSelectedWorkspace] = useState('all');
   const [activeTab, setActiveTab] = useState('overview');
@@ -189,8 +189,8 @@ export default function Analytics() {
 
   // Analytics state
   const [analytics, setAnalytics] = useState<ExtendedAnalyticsData | null>(null);
-  const [workspaces, setWorkspaces] = useState<Array<{id: string; name: string}>>([]);
-  const [leadsData, setLeadsData] = useState<Array<{created_at: string; source?: string}>>([]);
+  const [workspaces, setWorkspaces] = useState<Array<{ id: string; name: string }>>([]);
+  const [leadsData, setLeadsData] = useState<Array<{ created_at: string; source?: string }>>([]);
   const [overviewFunnel, setOverviewFunnel] = useState<ConversionFunnel | null>(null);
   const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(false);
 
@@ -203,7 +203,7 @@ export default function Analytics() {
     } else if (activeTab === 'providers' && !isProvider) {
       fetchProviderData();
     }
-  }, [activeTab, timeRange, selectedWorkspace, selectedProvider, refreshKey, isProvider]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeTab, timeRange, selectedWorkspace, selectedProvider, refreshKey, isProvider, providerId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load workspaces and providers on component mount
   useEffect(() => {
@@ -230,10 +230,10 @@ export default function Analytics() {
     fromDate.setDate(fromDate.getDate() - parseInt(timeRange.replace('d', '')));
 
     const params = new URLSearchParams({
-      from_date: fromDate.toISOString(),
-      to_date: new Date().toISOString(),
       ...(selectedWorkspace !== 'all' && { workspace_id: selectedWorkspace }),
       ...(isProvider && providerId && { provider_id: providerId })
+      // Note: We don't add date filters here to include leads with null created_at
+      // The backend will handle date filtering if needed
     });
 
     try {
@@ -244,26 +244,9 @@ export default function Analytics() {
         fetch(`${API_BASE}/conversions/funnel?${params}`)
       ]);
 
-      if (overviewRes.ok) {
-        const data = await overviewRes.json();
-        // Transform data to match expected format
-        const transformedAnalytics: ExtendedAnalyticsData = {
-          total_leads: data.analytics?.summary?.unique_contacts || 0,
-          total_appointments: 0, // Will be calculated from appointments data
-          conversion_rate: parseFloat(data.analytics?.summary?.conversion_rate || '0'),
-          total_revenue: data.analytics?.summary?.total_value || 0,
-          avg_response_time: 2.4, // Default for now
-          growth_rate: 12.5, // Default for now
-          average_time_to_conversion: 2.4, // Default for now
-          leads_over_time: data.analytics?.trends?.map((trend: {period: string; conversions: number}) => ({
-            date: trend.period,
-            leads: trend.conversions,
-            appointments: Math.floor(trend.conversions * 0.15) // Estimate appointments as 15% of leads
-          })) || [],
-          leads_by_source: [] // Will populate from leads data
-        };
-        setAnalytics(transformedAnalytics);
-      }
+      // Process leads data first to get accurate count
+      let totalLeadsCount = 0;
+      let leadsBySourceData: Array<{ source: string; count: number; percentage: number }> = [];
 
       if (leadsRes.ok) {
         const leadsData = await leadsRes.json();
@@ -272,24 +255,39 @@ export default function Analytics() {
         // Process leads by source
         if (leadsData.leads) {
           const sourceMap = new Map<string, number>();
-          leadsData.leads.forEach((lead: {source?: string}) => {
+          leadsData.leads.forEach((lead: { source?: string }) => {
             const source = lead.source || 'Unknown';
             sourceMap.set(source, (sourceMap.get(source) || 0) + 1);
           });
 
-          const totalLeads = leadsData.leads.length;
-          const leadsBySource = Array.from(sourceMap.entries()).map(([source, count]) => ({
+          totalLeadsCount = leadsData.leads.length;
+          leadsBySourceData = Array.from(sourceMap.entries()).map(([source, count]) => ({
             source,
             count,
-            percentage: totalLeads > 0 ? (count / totalLeads) * 100 : 0
+            percentage: totalLeadsCount > 0 ? (count / totalLeadsCount) * 100 : 0
           }));
-
-          setAnalytics((prev: ExtendedAnalyticsData | null) => prev ? {
-            ...prev,
-            leads_by_source: leadsBySource,
-            total_leads: totalLeads
-          } : null);
         }
+      }
+
+      if (overviewRes.ok) {
+        const data = await overviewRes.json();
+        // Transform data to match expected format
+        const transformedAnalytics: ExtendedAnalyticsData = {
+          total_leads: totalLeadsCount, // Use actual leads count from leads API
+          total_appointments: 0, // Will be calculated from appointments data
+          conversion_rate: parseFloat(data.analytics?.summary?.conversion_rate || '0'),
+          total_revenue: data.analytics?.summary?.total_value || 0,
+          avg_response_time: 2.4, // Default for now
+          growth_rate: 12.5, // Default for now
+          average_time_to_conversion: 2.4, // Default for now
+          leads_over_time: data.analytics?.trends?.map((trend: { period: string; conversions: number }) => ({
+            date: trend.period,
+            leads: trend.conversions,
+            appointments: Math.floor(trend.conversions * 0.15) // Estimate appointments as 15% of leads
+          })) || [],
+          leads_by_source: leadsBySourceData // Use processed leads by source data
+        };
+        setAnalytics(transformedAnalytics);
       }
 
       // Handle funnel data
@@ -310,11 +308,15 @@ export default function Analytics() {
     const fromDate = new Date();
     fromDate.setDate(fromDate.getDate() - parseInt(timeRange.replace('d', '')));
 
+    // Build params - for provider users, don't filter by date to include all their leads
     const params = new URLSearchParams({
-      from_date: fromDate.toISOString(),
-      to_date: new Date().toISOString(),
       ...(selectedWorkspace !== 'all' && { workspace_id: selectedWorkspace }),
-      ...(isProvider && providerId && { provider_id: providerId })
+      ...(isProvider && providerId && { provider_id: providerId }),
+      // Only add date filters for non-provider users
+      ...(!isProvider && {
+        from_date: fromDate.toISOString(),
+        to_date: new Date().toISOString()
+      })
     });
 
     try {
@@ -371,7 +373,7 @@ export default function Analytics() {
       const activeProviders = isProvider && providerId
         ? providers.filter(p => p.is_active && p.provider_id === providerId)
         : providers.filter(p => p.is_active);
-      
+
       const providerPromises = activeProviders.map(async (provider) => {
         const params = new URLSearchParams({
           from: fromDateStr,
@@ -386,7 +388,7 @@ export default function Analytics() {
           const conversionRate = parseFloat(data.summary.conversion_rate);
           const trend: 'up' | 'down' | 'stable' =
             conversionRate > 15 ? 'up' :
-            conversionRate < 5 ? 'down' : 'stable';
+              conversionRate < 5 ? 'down' : 'stable';
 
           const performance: ProviderPerformance = {
             provider_id: provider.provider_id,
@@ -436,7 +438,7 @@ export default function Analytics() {
   const hourlyData = leadsData.length > 0 ? (() => {
     const hourlyStats = new Array(24).fill(0).map((_, i) => ({ hour: i, leads: 0, appointments: 0 }));
 
-    leadsData.forEach((lead: {created_at: string}) => {
+    leadsData.forEach((lead: { created_at: string }) => {
       if (lead.created_at) {
         const hour = new Date(lead.created_at).getHours();
         hourlyStats[hour].leads++;
@@ -457,7 +459,7 @@ export default function Analytics() {
     ];
   })() : [];
 
-  const revenueData = analytics?.leads_over_time?.map((day: {date: string; leads: number; appointments?: number}) => ({
+  const revenueData = analytics?.leads_over_time?.map((day: { date: string; leads: number; appointments?: number }) => ({
     ...day,
     revenue: (day.appointments || 0) * 850 + Math.random() * 200
   })) || [];
@@ -492,12 +494,12 @@ export default function Analytics() {
     }
   };
 
-  const CustomTooltip = ({ active, payload, label }: {active?: boolean; payload?: Array<{dataKey: string; value: number | string; color: string}>; label?: string}) => {
+  const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: Array<{ dataKey: string; value: number | string; color: string }>; label?: string }) => {
     if (active && payload && payload.length) {
       return (
         <div className="bg-card border border-border rounded-lg p-3 shadow-lg">
           <p className="text-sm font-medium text-foreground">{label}</p>
-          {payload.map((entry: {dataKey: string; value: number | string; color: string}, index: number) => (
+          {payload.map((entry: { dataKey: string; value: number | string; color: string }, index: number) => (
             <p key={index} className="text-sm" style={{ color: entry.color }}>
               {entry.dataKey}: {entry.value}
             </p>
@@ -517,67 +519,67 @@ export default function Analytics() {
           description="Deep insights into lead performance and conversion patterns"
           actions={
             <div className="flex items-center gap-4">
-            <Select value={timeRange} onValueChange={setTimeRange}>
-              <SelectTrigger className="w-[120px]">
-                <Calendar className="h-4 w-4 mr-2" />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="7d">Last 7 days</SelectItem>
-                <SelectItem value="30d">Last 30 days</SelectItem>
-                <SelectItem value="90d">Last 90 days</SelectItem>
-              </SelectContent>
-            </Select>
-
-            {!isProvider && (
-              <Select value={selectedWorkspace} onValueChange={setSelectedWorkspace}>
-                <SelectTrigger className="w-[150px]">
-                  <Filter className="h-4 w-4 mr-2" />
-                  <SelectValue placeholder="All Workspaces" />
+              <Select value={timeRange} onValueChange={setTimeRange}>
+                <SelectTrigger className="w-[120px]">
+                  <Calendar className="h-4 w-4 mr-2" />
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Workspaces</SelectItem>
-                  {workspaces.map((workspace) => (
-                    <SelectItem key={workspace.id} value={workspace.id}>
-                      {workspace.name}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="7d">Last 7 days</SelectItem>
+                  <SelectItem value="30d">Last 30 days</SelectItem>
+                  <SelectItem value="90d">Last 90 days</SelectItem>
                 </SelectContent>
               </Select>
-            )}
 
-            {activeTab === 'providers' && !isProvider && (
-              <Select value={selectedProvider} onValueChange={setSelectedProvider}>
-                <SelectTrigger className="w-[150px]">
-                  <Users className="h-4 w-4 mr-2" />
-                  <SelectValue placeholder="All Providers" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Providers</SelectItem>
-                  {providers.filter(p => p.is_active).map((provider) => (
-                    <SelectItem key={provider.provider_id} value={provider.provider_id}>
-                      {provider.provider_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+              {!isProvider && (
+                <Select value={selectedWorkspace} onValueChange={setSelectedWorkspace}>
+                  <SelectTrigger className="w-[150px]">
+                    <Filter className="h-4 w-4 mr-2" />
+                    <SelectValue placeholder="All Workspaces" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Workspaces</SelectItem>
+                    {workspaces.map((workspace) => (
+                      <SelectItem key={workspace.id} value={workspace.id}>
+                        {workspace.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
 
-            <Button
-              onClick={() => setRefreshKey(k => k + 1)}
-              variant="outline"
-              size="sm"
-              disabled={isLoadingConversions || isLoadingAnalytics || isLoadingProviders}
-            >
-              <RefreshCw className={cn("h-4 w-4 mr-2", (isLoadingConversions || isLoadingAnalytics || isLoadingProviders) && "animate-spin")} />
-              Refresh
-            </Button>
+              {activeTab === 'providers' && !isProvider && (
+                <Select value={selectedProvider} onValueChange={setSelectedProvider}>
+                  <SelectTrigger className="w-[150px]">
+                    <Users className="h-4 w-4 mr-2" />
+                    <SelectValue placeholder="All Providers" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Providers</SelectItem>
+                    {providers.filter(p => p.is_active).map((provider) => (
+                      <SelectItem key={provider.provider_id} value={provider.provider_id}>
+                        {provider.provider_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
 
-            <Button variant="outline" size="sm">
-              <Download className="h-4 w-4 mr-2" />
-              Export
-            </Button>
-          </div>
+              <Button
+                onClick={() => setRefreshKey(k => k + 1)}
+                variant="outline"
+                size="sm"
+                disabled={isLoadingConversions || isLoadingAnalytics || isLoadingProviders}
+              >
+                <RefreshCw className={cn("h-4 w-4 mr-2", (isLoadingConversions || isLoadingAnalytics || isLoadingProviders) && "animate-spin")} />
+                Refresh
+              </Button>
+
+              <Button variant="outline" size="sm">
+                <Download className="h-4 w-4 mr-2" />
+                Export
+              </Button>
+            </div>
           }
         />
 
@@ -607,144 +609,144 @@ export default function Analytics() {
                 <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
             ) : analytics ? (
-            <>
-            {/* KPI Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <KPICard
-                title="Total Leads"
-                value={analytics.total_leads?.toLocaleString() || '0'}
-                subtitle={`${analytics.growth_rate || 0}% growth rate`}
-                icon={Users}
-                iconColor="text-blue-600"
-                trend={{ value: analytics.growth_rate || 0, isPositive: (analytics.growth_rate || 0) > 0 }}
-              />
+              <>
+                {/* KPI Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <KPICard
+                    title="Total Leads"
+                    value={analytics.total_leads?.toLocaleString() || '0'}
+                    subtitle={`${analytics.growth_rate || 0}% growth rate`}
+                    icon={Users}
+                    iconColor="text-blue-600"
+                    trend={{ value: analytics.growth_rate || 0, isPositive: (analytics.growth_rate || 0) > 0 }}
+                  />
 
-              <KPICard
-                title="Appointments"
-                value={analytics.total_appointments?.toLocaleString() || '0'}
-                subtitle="Total scheduled appointments"
-                icon={Target}
-                iconColor="text-green-600"
-                trend={{ value: 0, isPositive: true }}
-              />
+                  <KPICard
+                    title="Appointments"
+                    value={analytics.total_appointments?.toLocaleString() || '0'}
+                    subtitle="Total scheduled appointments"
+                    icon={Target}
+                    iconColor="text-green-600"
+                    trend={{ value: 0, isPositive: true }}
+                  />
 
-              <KPICard
-                title="Conversion Rate"
-                value={`${analytics.conversion_rate?.toFixed(1) || 0}%`}
-                subtitle="Overall conversion performance"
-                icon={DollarSign}
-                iconColor="text-emerald-600"
-                trend={{ value: analytics.conversion_rate || 0, isPositive: (analytics.conversion_rate || 0) > 0 }}
-              />
+                  <KPICard
+                    title="Conversion Rate"
+                    value={`${analytics.conversion_rate?.toFixed(1) || 0}%`}
+                    subtitle="Overall conversion performance"
+                    icon={DollarSign}
+                    iconColor="text-emerald-600"
+                    trend={{ value: analytics.conversion_rate || 0, isPositive: (analytics.conversion_rate || 0) > 0 }}
+                  />
 
-              <KPICard
-                title="Avg Response"
-                value={`${analytics.avg_response_time || 0}h`}
-                subtitle="Average response time"
-                icon={Clock}
-                iconColor="text-purple-600"
-              />
-            </div>
-
-            {/* Charts */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {/* Lead Trends */}
-              <Card className="bg-card rounded-xl border border-border p-6">
-                <h3 className="text-lg font-semibold mb-4 text-foreground">Lead Trends</h3>
-                <ResponsiveContainer width="100%" height={300}>
-                  <AreaChart data={analytics.leads_over_time || []}>
-                    <defs>
-                      <linearGradient id="leadsGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="hsl(217, 91%, 60%)" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="hsl(217, 91%, 60%)" stopOpacity={0}/>
-                      </linearGradient>
-                      <linearGradient id="appointmentsGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="hsl(142, 76%, 36%)" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="hsl(142, 76%, 36%)" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(215, 20%, 25%)" />
-                    <XAxis dataKey="date" stroke="hsl(215, 20%, 65%)" />
-                    <YAxis stroke="hsl(215, 20%, 65%)" />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Legend />
-                    <Area type="monotone" dataKey="leads" stackId="1" stroke="hsl(217, 91%, 60%)"
-                          fill="url(#leadsGradient)" name="Leads" />
-                    <Area type="monotone" dataKey="appointments" stackId="2" stroke="hsl(142, 76%, 36%)"
-                          fill="url(#appointmentsGradient)" name="Appointments" />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </Card>
-
-              {/* Source Distribution */}
-              <Card className="bg-card rounded-xl border border-border p-6">
-                <h3 className="text-lg font-semibold mb-4 text-foreground">Lead Sources</h3>
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={analytics.leads_by_source || []}
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={100}
-                      fill="#8884d8"
-                      dataKey="count"
-                      label={({ source, percent }) => `${source} ${(percent * 100).toFixed(0)}%`}
-                    >
-                      {(analytics.leads_by_source || []).map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip content={<CustomTooltip />} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </Card>
-            </div>
-
-            {/* Additional Charts */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Conversion Funnel */}
-              <Card className="bg-card rounded-xl border border-border p-6">
-                <h3 className="text-lg font-semibold mb-4">Conversion Funnel</h3>
-                <div className="space-y-4">
-                  {conversionFunnelData.map((stage, index) => (
-                    <div key={stage.stage || stage.name || index} className="space-y-2">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="font-medium">{stage.stage || stage.name}</span>
-                        <span className="text-muted-foreground">{stage.count} ({typeof stage.percentage === 'number' ? stage.percentage.toFixed(1) : stage.percentage}%)</span>
-                      </div>
-                      <Progress
-                        value={stage.percentage}
-                        className="h-2"
-                        style={{
-                          '--progress-background': index === 0 ? 'rgb(59, 130, 246)' :
-                                                  index === 1 ? 'rgb(168, 85, 247)' :
-                                                  index === 2 ? 'rgb(251, 191, 36)' :
-                                                  index === 3 ? 'rgb(34, 197, 94)' :
-                                                  'rgb(239, 68, 68)'
-                        } as React.CSSProperties}
-                      />
-                    </div>
-                  ))}
+                  <KPICard
+                    title="Avg Response"
+                    value={`${analytics.avg_response_time || 0}h`}
+                    subtitle="Average response time"
+                    icon={Clock}
+                    iconColor="text-purple-600"
+                  />
                 </div>
-              </Card>
 
-              {/* Hourly Activity */}
-              <Card className="bg-card rounded-xl border border-border p-6">
-                <h3 className="text-lg font-semibold mb-4">Hourly Activity</h3>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={hourlyData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(215, 20%, 25%)" />
-                    <XAxis dataKey="hour" stroke="hsl(215, 20%, 65%)" />
-                    <YAxis stroke="hsl(215, 20%, 65%)" />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Legend />
-                    <Bar dataKey="leads" fill="hsl(217, 91%, 60%)" name="Leads" />
-                    <Bar dataKey="appointments" fill="hsl(142, 76%, 36%)" name="Appointments" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </Card>
-            </div>
-            </>
+                {/* Charts */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {/* Lead Trends */}
+                  <Card className="bg-card rounded-xl border border-border p-6">
+                    <h3 className="text-lg font-semibold mb-4 text-foreground">Lead Trends</h3>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <AreaChart data={analytics.leads_over_time || []}>
+                        <defs>
+                          <linearGradient id="leadsGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="hsl(217, 91%, 60%)" stopOpacity={0.3} />
+                            <stop offset="95%" stopColor="hsl(217, 91%, 60%)" stopOpacity={0} />
+                          </linearGradient>
+                          <linearGradient id="appointmentsGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="hsl(142, 76%, 36%)" stopOpacity={0.3} />
+                            <stop offset="95%" stopColor="hsl(142, 76%, 36%)" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(215, 20%, 25%)" />
+                        <XAxis dataKey="date" stroke="hsl(215, 20%, 65%)" />
+                        <YAxis stroke="hsl(215, 20%, 65%)" />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Legend />
+                        <Area type="monotone" dataKey="leads" stackId="1" stroke="hsl(217, 91%, 60%)"
+                          fill="url(#leadsGradient)" name="Leads" />
+                        <Area type="monotone" dataKey="appointments" stackId="2" stroke="hsl(142, 76%, 36%)"
+                          fill="url(#appointmentsGradient)" name="Appointments" />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </Card>
+
+                  {/* Source Distribution */}
+                  <Card className="bg-card rounded-xl border border-border p-6">
+                    <h3 className="text-lg font-semibold mb-4 text-foreground">Lead Sources</h3>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <PieChart>
+                        <Pie
+                          data={analytics.leads_by_source || []}
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={100}
+                          fill="#8884d8"
+                          dataKey="count"
+                          label={({ source, percent }) => `${source} ${(percent * 100).toFixed(0)}%`}
+                        >
+                          {(analytics.leads_by_source || []).map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip content={<CustomTooltip />} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </Card>
+                </div>
+
+                {/* Additional Charts */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Conversion Funnel */}
+                  <Card className="bg-card rounded-xl border border-border p-6">
+                    <h3 className="text-lg font-semibold mb-4">Conversion Funnel</h3>
+                    <div className="space-y-4">
+                      {conversionFunnelData.map((stage, index) => (
+                        <div key={stage.stage || stage.name || index} className="space-y-2">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="font-medium">{stage.stage || stage.name}</span>
+                            <span className="text-muted-foreground">{stage.count} ({typeof stage.percentage === 'number' ? stage.percentage.toFixed(1) : stage.percentage}%)</span>
+                          </div>
+                          <Progress
+                            value={stage.percentage}
+                            className="h-2"
+                            style={{
+                              '--progress-background': index === 0 ? 'rgb(59, 130, 246)' :
+                                index === 1 ? 'rgb(168, 85, 247)' :
+                                  index === 2 ? 'rgb(251, 191, 36)' :
+                                    index === 3 ? 'rgb(34, 197, 94)' :
+                                      'rgb(239, 68, 68)'
+                            } as React.CSSProperties}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+
+                  {/* Hourly Activity */}
+                  <Card className="bg-card rounded-xl border border-border p-6">
+                    <h3 className="text-lg font-semibold mb-4">Hourly Activity</h3>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart data={hourlyData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(215, 20%, 25%)" />
+                        <XAxis dataKey="hour" stroke="hsl(215, 20%, 65%)" />
+                        <YAxis stroke="hsl(215, 20%, 65%)" />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Legend />
+                        <Bar dataKey="leads" fill="hsl(217, 91%, 60%)" name="Leads" />
+                        <Bar dataKey="appointments" fill="hsl(142, 76%, 36%)" name="Appointments" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </Card>
+                </div>
+              </>
             ) : (
               <div className="text-center text-muted-foreground py-8">
                 <p className="text-sm">No analytics data available</p>
@@ -769,9 +771,9 @@ export default function Analytics() {
                     subtitle={`${conversionAnalytics?.summary.conversion_rate || 0}% conversion rate`}
                     icon={Target}
                     iconColor="text-blue-600"
-                    trend={{ 
-                      value: parseFloat(conversionAnalytics?.summary.conversion_rate || '0'), 
-                      isPositive: parseFloat(conversionAnalytics?.summary.conversion_rate || '0') > 0 
+                    trend={{
+                      value: parseFloat(conversionAnalytics?.summary.conversion_rate || '0'),
+                      isPositive: parseFloat(conversionAnalytics?.summary.conversion_rate || '0') > 0
                     }}
                   />
 
@@ -781,9 +783,9 @@ export default function Analytics() {
                     subtitle="Total revenue generated"
                     icon={DollarSign}
                     iconColor="text-green-600"
-                    trend={{ 
-                      value: conversionAnalytics && conversionAnalytics.summary.total_value > 0 ? 1 : 0, 
-                      isPositive: conversionAnalytics ? conversionAnalytics.summary.total_value > 0 : false 
+                    trend={{
+                      value: conversionAnalytics && conversionAnalytics.summary.total_value > 0 ? 1 : 0,
+                      isPositive: conversionAnalytics ? conversionAnalytics.summary.total_value > 0 : false
                     }}
                   />
 
@@ -834,18 +836,18 @@ export default function Analytics() {
                             className="h-2"
                             style={{
                               '--progress-background': index === 0 ? 'rgb(59, 130, 246)' :
-                                                      index === 1 ? 'rgb(168, 85, 247)' :
-                                                      index === 2 ? 'rgb(251, 191, 36)' :
-                                                      'rgb(34, 197, 94)'
+                                index === 1 ? 'rgb(168, 85, 247)' :
+                                  index === 2 ? 'rgb(251, 191, 36)' :
+                                    'rgb(34, 197, 94)'
                             } as React.CSSProperties}
                           />
                         </div>
                       )) || (
-                        <div className="text-center text-muted-foreground py-8">
-                          <p className="text-sm">No funnel data available</p>
-                          <p className="text-xs mt-2">Conversions will appear here as they are logged</p>
-                        </div>
-                      )}
+                          <div className="text-center text-muted-foreground py-8">
+                            <p className="text-sm">No funnel data available</p>
+                            <p className="text-xs mt-2">Conversions will appear here as they are logged</p>
+                          </div>
+                        )}
                     </div>
 
                     {conversionFunnel && (
@@ -885,10 +887,10 @@ export default function Analytics() {
                           </div>
                         </div>
                       )) || (
-                        <div className="text-center text-muted-foreground py-8">
-                          <p className="text-sm">No conversion type data available</p>
-                        </div>
-                      )}
+                          <div className="text-center text-muted-foreground py-8">
+                            <p className="text-sm">No conversion type data available</p>
+                          </div>
+                        )}
                     </div>
                   </Card>
                 </div>
@@ -938,12 +940,12 @@ export default function Analytics() {
                             </td>
                           </tr>
                         )) || (
-                          <tr>
-                            <td colSpan={6} className="text-center py-8 text-muted-foreground">
-                              No workspace data available
-                            </td>
-                          </tr>
-                        )}
+                            <tr>
+                              <td colSpan={6} className="text-center py-8 text-muted-foreground">
+                                No workspace data available
+                              </td>
+                            </tr>
+                          )}
                       </tbody>
                     </table>
                   </div>
@@ -995,131 +997,180 @@ export default function Analytics() {
           {/* Providers Tab - Only visible to admin/dev */}
           {!isProvider && (
             <TabsContent value="providers" className="space-y-6">
-            {isLoadingProviders && providerPerformance.length === 0 ? (
-              <div className="flex items-center justify-center min-h-screen">
-                <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
-              </div>
-            ) : (
-              <>
-                {/* Provider Summary KPIs */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <KPICard
-                    title="Active Providers"
-                    value={providers.filter(p => p.is_active).length}
-                    subtitle={`${providers.length} total providers`}
-                    icon={Users}
-                    iconColor="text-blue-600"
-                  />
-
-                  <KPICard
-                    title="Total Leads"
-                    value={providerPerformance.reduce((sum, p) => sum + p.total_leads, 0).toLocaleString()}
-                    subtitle="Across all providers"
-                    icon={Target}
-                    iconColor="text-green-600"
-                    trend={{ value: 0, isPositive: true }}
-                  />
-
-                  <KPICard
-                    title="Total Revenue"
-                    value={formatCurrency(providerPerformance.reduce((sum, p) => sum + p.total_revenue, 0))}
-                    subtitle="Total revenue generated"
-                    icon={DollarSign}
-                    iconColor="text-emerald-600"
-                  />
-
-                  <KPICard
-                    title="Avg Conversion"
-                    value={`${
-                      providerPerformance.length > 0
-                        ? (providerPerformance.reduce((sum, p) => sum + p.conversion_rate, 0) / providerPerformance.length).toFixed(1)
-                        : 0
-                    }%`}
-                    subtitle="Average conversion rate"
-                    icon={Activity}
-                    iconColor="text-purple-600"
-                  />
+              {isLoadingProviders && providerPerformance.length === 0 ? (
+                <div className="flex items-center justify-center min-h-screen">
+                  <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
                 </div>
+              ) : (
+                <>
+                  {/* Provider Summary KPIs */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <KPICard
+                      title="Active Providers"
+                      value={providers.filter(p => p.is_active).length}
+                      subtitle={`${providers.length} total providers`}
+                      icon={Users}
+                      iconColor="text-blue-600"
+                    />
 
-                {/* Provider Performance Leaderboard */}
-                <Card className="bg-card rounded-xl border border-border p-6">
-                  <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-lg font-semibold">Provider Performance Leaderboard</h3>
-                    <Badge variant="outline">{providerPerformance.length} Providers</Badge>
+                    <KPICard
+                      title="Total Leads"
+                      value={providerPerformance.reduce((sum, p) => sum + p.total_leads, 0).toLocaleString()}
+                      subtitle="Across all providers"
+                      icon={Target}
+                      iconColor="text-green-600"
+                      trend={{ value: 0, isPositive: true }}
+                    />
+
+                    <KPICard
+                      title="Total Revenue"
+                      value={formatCurrency(providerPerformance.reduce((sum, p) => sum + p.total_revenue, 0))}
+                      subtitle="Total revenue generated"
+                      icon={DollarSign}
+                      iconColor="text-emerald-600"
+                    />
+
+                    <KPICard
+                      title="Avg Conversion"
+                      value={`${providerPerformance.length > 0
+                          ? (providerPerformance.reduce((sum, p) => sum + p.conversion_rate, 0) / providerPerformance.length).toFixed(1)
+                          : 0
+                        }%`}
+                      subtitle="Average conversion rate"
+                      icon={Activity}
+                      iconColor="text-purple-600"
+                    />
                   </div>
 
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b">
-                          <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Rank</th>
-                          <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Provider</th>
-                          <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">Leads</th>
-                          <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">Appointments</th>
-                          <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">Conv. Rate</th>
-                          <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">Revenue</th>
-                          <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">Avg Deal</th>
-                          <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">Trend</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {providerPerformance.map((provider, index) => (
-                          <tr key={provider.provider_id} className="border-b hover:bg-secondary/20 transition-colors">
-                            <td className="py-3 px-4">
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm font-bold">#{index + 1}</span>
-                                {index < 3 && (
-                                  <div className={cn("text-xs px-1.5 py-0.5 rounded-full",
-                                    index === 0 ? "bg-yellow-500/20 text-yellow-600" :
-                                    index === 1 ? "bg-gray-400/20 text-gray-600" :
-                                    "bg-orange-500/20 text-orange-600"
-                                  )}>
-                                    {index === 0 ? "🥇" : index === 1 ? "🥈" : "🥉"}
-                                  </div>
-                                )}
-                              </div>
-                            </td>
-                            <td className="py-3 px-4">
-                              <div className="font-medium">{provider.provider_name}</div>
-                              <div className="text-xs text-muted-foreground">{provider.provider_id}</div>
-                            </td>
-                            <td className="text-right py-3 px-4 font-medium">{provider.total_leads.toLocaleString()}</td>
-                            <td className="text-right py-3 px-4 font-medium">{provider.total_appointments.toLocaleString()}</td>
-                            <td className="text-right py-3 px-4">
-                              <Badge variant={provider.conversion_rate > 15 ? "default" : provider.conversion_rate > 5 ? "secondary" : "destructive"}>
-                                {provider.conversion_rate.toFixed(1)}%
-                              </Badge>
-                            </td>
-                            <td className="text-right py-3 px-4 font-medium">{formatCurrency(provider.total_revenue)}</td>
-                            <td className="text-right py-3 px-4 text-muted-foreground">{formatCurrency(provider.avg_deal_size)}</td>
-                            <td className="text-right py-3 px-4">
-                              {provider.trend === 'up' && <TrendingUp className="h-4 w-4 text-success inline" />}
-                              {provider.trend === 'down' && <TrendingDown className="h-4 w-4 text-destructive inline" />}
-                              {provider.trend === 'stable' && <div className="w-4 h-4 bg-muted-foreground/30 rounded-full inline-block"></div>}
-                            </td>
-                          </tr>
-                        ))}
-
-                        {providerPerformance.length === 0 && (
-                          <tr>
-                            <td colSpan={8} className="text-center py-8 text-muted-foreground">
-                              <p className="text-sm">No provider data available</p>
-                              <p className="text-xs mt-2">Provider performance will appear here as data is processed</p>
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </Card>
-
-                {/* Charts Row */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  {/* Conversion Rate Comparison */}
+                  {/* Provider Performance Leaderboard */}
                   <Card className="bg-card rounded-xl border border-border p-6">
-                    <h3 className="text-lg font-semibold mb-4">Conversion Rate Comparison</h3>
+                    <div className="flex items-center justify-between mb-6">
+                      <h3 className="text-lg font-semibold">Provider Performance Leaderboard</h3>
+                      <Badge variant="outline">{providerPerformance.length} Providers</Badge>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b">
+                            <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Rank</th>
+                            <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Provider</th>
+                            <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">Leads</th>
+                            <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">Appointments</th>
+                            <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">Conv. Rate</th>
+                            <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">Revenue</th>
+                            <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">Avg Deal</th>
+                            <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">Trend</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {providerPerformance.map((provider, index) => (
+                            <tr key={provider.provider_id} className="border-b hover:bg-secondary/20 transition-colors">
+                              <td className="py-3 px-4">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-bold">#{index + 1}</span>
+                                  {index < 3 && (
+                                    <div className={cn("text-xs px-1.5 py-0.5 rounded-full",
+                                      index === 0 ? "bg-yellow-500/20 text-yellow-600" :
+                                        index === 1 ? "bg-gray-400/20 text-gray-600" :
+                                          "bg-orange-500/20 text-orange-600"
+                                    )}>
+                                      {index === 0 ? "🥇" : index === 1 ? "🥈" : "🥉"}
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="py-3 px-4">
+                                <div className="font-medium">{provider.provider_name}</div>
+                                <div className="text-xs text-muted-foreground">{provider.provider_id}</div>
+                              </td>
+                              <td className="text-right py-3 px-4 font-medium">{provider.total_leads.toLocaleString()}</td>
+                              <td className="text-right py-3 px-4 font-medium">{provider.total_appointments.toLocaleString()}</td>
+                              <td className="text-right py-3 px-4">
+                                <Badge variant={provider.conversion_rate > 15 ? "default" : provider.conversion_rate > 5 ? "secondary" : "destructive"}>
+                                  {provider.conversion_rate.toFixed(1)}%
+                                </Badge>
+                              </td>
+                              <td className="text-right py-3 px-4 font-medium">{formatCurrency(provider.total_revenue)}</td>
+                              <td className="text-right py-3 px-4 text-muted-foreground">{formatCurrency(provider.avg_deal_size)}</td>
+                              <td className="text-right py-3 px-4">
+                                {provider.trend === 'up' && <TrendingUp className="h-4 w-4 text-success inline" />}
+                                {provider.trend === 'down' && <TrendingDown className="h-4 w-4 text-destructive inline" />}
+                                {provider.trend === 'stable' && <div className="w-4 h-4 bg-muted-foreground/30 rounded-full inline-block"></div>}
+                              </td>
+                            </tr>
+                          ))}
+
+                          {providerPerformance.length === 0 && (
+                            <tr>
+                              <td colSpan={8} className="text-center py-8 text-muted-foreground">
+                                <p className="text-sm">No provider data available</p>
+                                <p className="text-xs mt-2">Provider performance will appear here as data is processed</p>
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </Card>
+
+                  {/* Charts Row */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {/* Conversion Rate Comparison */}
+                    <Card className="bg-card rounded-xl border border-border p-6">
+                      <h3 className="text-lg font-semibold mb-4">Conversion Rate Comparison</h3>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <BarChart data={providerPerformance.slice(0, 10)}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(215, 20%, 25%)" />
+                          <XAxis
+                            dataKey="provider_name"
+                            stroke="hsl(215, 20%, 65%)"
+                            angle={-45}
+                            textAnchor="end"
+                            height={80}
+                            fontSize={12}
+                          />
+                          <YAxis stroke="hsl(215, 20%, 65%)" />
+                          <Tooltip content={<CustomTooltip />} />
+                          <Bar dataKey="conversion_rate" fill="hsl(217, 91%, 60%)" name="Conversion Rate %" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </Card>
+
+                    {/* Revenue Attribution */}
+                    <Card className="bg-card rounded-xl border border-border p-6">
+                      <h3 className="text-lg font-semibold mb-4">Revenue Attribution</h3>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <PieChart>
+                          <Pie
+                            data={providerPerformance.slice(0, 8)}
+                            cx="50%"
+                            cy="50%"
+                            outerRadius={100}
+                            fill="#8884d8"
+                            dataKey="total_revenue"
+                            label={({ provider_name, value }) =>
+                              `${provider_name}: ${formatCurrency(value)}`
+                            }
+                          >
+                            {providerPerformance.slice(0, 8).map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            formatter={(value: number) => [formatCurrency(value), 'Revenue']}
+                            content={<CustomTooltip />}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </Card>
+                  </div>
+
+                  {/* Performance Trends */}
+                  <Card className="bg-card rounded-xl border border-border p-6">
+                    <h3 className="text-lg font-semibold mb-4">Performance Trends</h3>
                     <ResponsiveContainer width="100%" height={300}>
-                      <BarChart data={providerPerformance.slice(0, 10)}>
+                      <LineChart data={providerPerformance.slice(0, 6)}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(215, 20%, 25%)" />
                         <XAxis
                           dataKey="provider_name"
@@ -1131,76 +1182,26 @@ export default function Analytics() {
                         />
                         <YAxis stroke="hsl(215, 20%, 65%)" />
                         <Tooltip content={<CustomTooltip />} />
-                        <Bar dataKey="conversion_rate" fill="hsl(217, 91%, 60%)" name="Conversion Rate %" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </Card>
-
-                  {/* Revenue Attribution */}
-                  <Card className="bg-card rounded-xl border border-border p-6">
-                    <h3 className="text-lg font-semibold mb-4">Revenue Attribution</h3>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <PieChart>
-                        <Pie
-                          data={providerPerformance.slice(0, 8)}
-                          cx="50%"
-                          cy="50%"
-                          outerRadius={100}
-                          fill="#8884d8"
-                          dataKey="total_revenue"
-                          label={({ provider_name, value }) =>
-                            `${provider_name}: ${formatCurrency(value)}`
-                          }
-                        >
-                          {providerPerformance.slice(0, 8).map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                          ))}
-                        </Pie>
-                        <Tooltip
-                          formatter={(value: number) => [formatCurrency(value), 'Revenue']}
-                          content={<CustomTooltip />}
+                        <Legend />
+                        <Line
+                          type="monotone"
+                          dataKey="total_leads"
+                          stroke="hsl(217, 91%, 60%)"
+                          name="Total Leads"
+                          strokeWidth={2}
                         />
-                      </PieChart>
+                        <Line
+                          type="monotone"
+                          dataKey="total_appointments"
+                          stroke="hsl(142, 76%, 36%)"
+                          name="Appointments"
+                          strokeWidth={2}
+                        />
+                      </LineChart>
                     </ResponsiveContainer>
                   </Card>
-                </div>
-
-                {/* Performance Trends */}
-                <Card className="bg-card rounded-xl border border-border p-6">
-                  <h3 className="text-lg font-semibold mb-4">Performance Trends</h3>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <LineChart data={providerPerformance.slice(0, 6)}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(215, 20%, 25%)" />
-                      <XAxis
-                        dataKey="provider_name"
-                        stroke="hsl(215, 20%, 65%)"
-                        angle={-45}
-                        textAnchor="end"
-                        height={80}
-                        fontSize={12}
-                      />
-                      <YAxis stroke="hsl(215, 20%, 65%)" />
-                      <Tooltip content={<CustomTooltip />} />
-                      <Legend />
-                      <Line
-                        type="monotone"
-                        dataKey="total_leads"
-                        stroke="hsl(217, 91%, 60%)"
-                        name="Total Leads"
-                        strokeWidth={2}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="total_appointments"
-                        stroke="hsl(142, 76%, 36%)"
-                        name="Appointments"
-                        strokeWidth={2}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </Card>
-              </>
-            )}
+                </>
+              )}
             </TabsContent>
           )}
         </Tabs>

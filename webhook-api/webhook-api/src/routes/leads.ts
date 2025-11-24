@@ -98,11 +98,11 @@ leads.get('/', async (c) => {
         providerParams.push(webhookId)
       }
       if (fromDate) {
-        providerQuery += ' AND l.created_at >= ?'
+        providerQuery += ' AND (l.created_at >= ? OR l.created_at IS NULL)'
         providerParams.push(fromDate)
       }
       if (toDate) {
-        providerQuery += ' AND l.created_at <= ?'
+        providerQuery += ' AND (l.created_at <= ? OR l.created_at IS NULL)'
         providerParams.push(toDate)
       }
       
@@ -311,6 +311,7 @@ leads.get('/analytics/:webhookId', async (c) => {
 // Get all contacts with optional filtering and includes (MUST BE BEFORE /:leadId)
 leads.get('/contacts', async (c) => {
   const webhookId = c.req.query('webhook_id')
+  const providerId = c.req.query('provider_id')
   const limit = parseInt(c.req.query('limit') || '100')
   const includeParam = c.req.query('include') || 'basic'
 
@@ -333,7 +334,30 @@ leads.get('/contacts', async (c) => {
     let whereClause = ''
     const params = []
 
-    if (webhookId) {
+    // If provider_id is provided, filter by provider's webhooks
+    if (providerId) {
+      // Get webhook IDs for this provider
+      const { results: webhookMappings } = await db.prepare(`
+        SELECT webhook_id FROM webhook_provider_mapping WHERE provider_id = ?
+      `).bind(providerId).all()
+      
+      const providerWebhookIds = webhookMappings.map((w: any) => w.webhook_id)
+      
+      if (providerWebhookIds.length === 0) {
+        return c.json({
+          status: 'success',
+          contacts: [],
+          count: 0,
+          filters: { provider_id: providerId },
+          timestamp: new Date().toISOString()
+        })
+      }
+      
+      // Filter contacts by provider's webhooks
+      const placeholders = providerWebhookIds.map(() => '?').join(',')
+      whereClause = `WHERE webhook_id IN (${placeholders})`
+      params.push(...providerWebhookIds)
+    } else if (webhookId) {
       whereClause = 'WHERE webhook_id = ?'
       params.push(webhookId)
     }
@@ -368,14 +392,15 @@ leads.get('/contacts', async (c) => {
 
     params.push(limit)
     const contactsResults = await db.prepare(contactsQuery).bind(...params).all()
-    const contacts = contactsResults.results || []
+    let contacts = contactsResults.results || []
 
     // If leads are requested, fetch them for each contact
     if (includeLeads && contacts.length > 0) {
       const contactIds = contacts.map((c: any) => c.id)
       const placeholders = contactIds.map(() => '?').join(',')
 
-      const leadsResults = await db.prepare(`
+      // Build leads query - filter by provider if provider_id is provided
+      let leadsQuery = `
         SELECT
           l.id,
           l.contact_id,
@@ -398,8 +423,30 @@ leads.get('/contacts', async (c) => {
         FROM leads l
         LEFT JOIN workspaces w ON l.workspace_id = w.id
         WHERE l.contact_id IN (${placeholders})
-        ORDER BY l.created_at DESC
-      `).bind(...contactIds).all()
+      `
+      const leadsParams: any[] = [...contactIds]
+
+      // If provider_id is provided, also filter leads by provider's webhooks
+      if (providerId) {
+        const { results: webhookMappings } = await db.prepare(`
+          SELECT webhook_id FROM webhook_provider_mapping WHERE provider_id = ?
+        `).bind(providerId).all()
+        
+        const providerWebhookIds = webhookMappings.map((w: any) => w.webhook_id)
+        
+        if (providerWebhookIds.length > 0) {
+          const webhookPlaceholders = providerWebhookIds.map(() => '?').join(',')
+          leadsQuery += ` AND l.webhook_id IN (${webhookPlaceholders})`
+          leadsParams.push(...providerWebhookIds)
+        } else {
+          // Provider has no webhooks, return empty leads
+          leadsQuery += ` AND 1 = 0`
+        }
+      }
+
+      leadsQuery += ' ORDER BY l.created_at DESC'
+
+      const leadsResults = await db.prepare(leadsQuery).bind(...leadsParams).all()
 
       const leads = leadsResults.results || []
 
@@ -416,6 +463,12 @@ leads.get('/contacts', async (c) => {
       contacts.forEach((contact: any) => {
         contact.leads = leadsByContact.get(contact.id) || []
       })
+
+      // For provider filtering: remove contacts that don't have any leads after filtering
+      // This ensures providers only see contacts with actual leads from their webhooks
+      if (providerId) {
+        contacts = contacts.filter((contact: any) => contact.leads && contact.leads.length > 0)
+      }
     }
 
     return c.json({
@@ -423,6 +476,7 @@ leads.get('/contacts', async (c) => {
       count: contacts.length,
       filters: {
         webhook_id: webhookId || null,
+        provider_id: providerId || null,
         limit: limit,
         includes: includeFlags
       },
