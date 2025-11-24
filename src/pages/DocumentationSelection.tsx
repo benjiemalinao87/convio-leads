@@ -21,7 +21,7 @@ const documentOptions = [
   },
   {
     id: 'api-docs',
-    name: 'Home Project Partners Webhook API Documentation',
+    name: 'Buyerfound Webhook API Documentation',
     file: '/webhook-api/API_DOCUMENTATION.md',
     icon: Code,
     description: 'Complete API reference including enhanced contact search, lead management, and conversion tracking endpoints',
@@ -105,9 +105,8 @@ const DocumentationSelection = () => {
             return (
               <div
                 key={doc.id}
-                className={`group relative bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-6 cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-2xl hover:shadow-blue-500/25 ${
-                  isHovered ? 'border-blue-400 bg-gray-800/70' : ''
-                }`}
+                className={`group relative bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-6 cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-2xl hover:shadow-blue-500/25 ${isHovered ? 'border-blue-400 bg-gray-800/70' : ''
+                  }`}
                 onMouseEnter={() => setHoveredCard(doc.id)}
                 onMouseLeave={() => setHoveredCard(null)}
                 onClick={() => handleDocumentSelect(doc.id)}
@@ -130,15 +129,13 @@ const DocumentationSelection = () => {
                   <span className="text-xs text-gray-500 uppercase tracking-wide">
                     Click to read
                   </span>
-                  <ArrowRight className={`h-4 w-4 text-gray-500 transition-all duration-300 ${
-                    isHovered ? 'text-blue-400 translate-x-1' : ''
-                  }`} />
+                  <ArrowRight className={`h-4 w-4 text-gray-500 transition-all duration-300 ${isHovered ? 'text-blue-400 translate-x-1' : ''
+                    }`} />
                 </div>
 
                 {/* Hover effect overlay */}
-                <div className={`absolute inset-0 rounded-xl bg-gradient-to-r from-blue-600/10 to-purple-600/10 opacity-0 transition-opacity duration-300 ${
-                  isHovered ? 'opacity-100' : ''
-                }`} />
+                <div className={`absolute inset-0 rounded-xl bg-gradient-to-r from-blue-600/10 to-purple-600/10 opacity-0 transition-opacity duration-300 ${isHovered ? 'opacity-100' : ''
+                  }`} />
               </div>
             );
           })}

@@ -22,7 +22,7 @@ const documentOptions = [
   },
   {
     id: 'api-docs',
-    name: 'Home Project Partners Webhook API Documentation',
+    name: 'Buyerfound Webhook API Documentation',
     file: '/webhook-api/API_DOCUMENTATION.md',
     icon: Code,
     description: 'Complete API reference including enhanced contact search, lead management, and conversion tracking endpoints'
@@ -190,11 +190,9 @@ const Documentation = () => {
                     type="button"
                     key={doc.id}
                     onClick={() => handleDocumentChange(doc)}
-                    className={`w-full px-4 py-3 flex items-start gap-3 hover:bg-gray-700 transition-colors text-left ${
-                      selectedDoc.id === doc.id ? 'bg-gray-700' : ''
-                    } ${doc.id === documentOptions[0].id ? 'rounded-t-lg' : ''} ${
-                      doc.id === documentOptions[documentOptions.length - 1].id ? 'rounded-b-lg' : ''
-                    }`}
+                    className={`w-full px-4 py-3 flex items-start gap-3 hover:bg-gray-700 transition-colors text-left ${selectedDoc.id === doc.id ? 'bg-gray-700' : ''
+                      } ${doc.id === documentOptions[0].id ? 'rounded-t-lg' : ''} ${doc.id === documentOptions[documentOptions.length - 1].id ? 'rounded-b-lg' : ''
+                      }`}
                   >
                     <doc.icon className="w-5 h-5 text-blue-400 mt-0.5 flex-shrink-0" />
                     <div>

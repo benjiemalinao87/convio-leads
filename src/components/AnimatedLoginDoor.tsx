@@ -109,15 +109,14 @@ export default function AnimatedLoginDoor({ onLoginSuccess }: AnimatedLoginDoorP
         <div className="relative door-perspective">
           {/* Left Door Panel */}
           <div
-            className={`absolute inset-y-0 left-0 w-1/2 door-panel door-panel-left ${
-              doorState === 'closed'
+            className={`absolute inset-y-0 left-0 w-1/2 door-panel door-panel-left ${doorState === 'closed'
                 ? 'door-left-closed'
                 : doorState === 'opening'
-                ? 'door-left-opening'
-                : doorState === 'open'
-                ? 'door-left-open'
-                : 'door-left-closing'
-            }`}
+                  ? 'door-left-opening'
+                  : doorState === 'open'
+                    ? 'door-left-open'
+                    : 'door-left-closing'
+              }`}
           >
             <div className="h-full w-full bg-gradient-to-br from-primary/20 to-primary/5 backdrop-blur-sm border-r border-primary/30 rounded-l-lg flex items-center justify-center">
               <div className="text-center space-y-6 p-8">
@@ -133,15 +132,14 @@ export default function AnimatedLoginDoor({ onLoginSuccess }: AnimatedLoginDoorP
 
           {/* Right Door Panel */}
           <div
-            className={`absolute inset-y-0 right-0 w-1/2 door-panel door-panel-right ${
-              doorState === 'closed'
+            className={`absolute inset-y-0 right-0 w-1/2 door-panel door-panel-right ${doorState === 'closed'
                 ? 'door-right-closed'
                 : doorState === 'opening'
-                ? 'door-right-opening'
-                : doorState === 'open'
-                ? 'door-right-open'
-                : 'door-right-closing'
-            }`}
+                  ? 'door-right-opening'
+                  : doorState === 'open'
+                    ? 'door-right-open'
+                    : 'door-right-closing'
+              }`}
           >
             <div className="h-full w-full bg-gradient-to-bl from-accent/20 to-accent/5 backdrop-blur-sm border-l border-accent/30 rounded-r-lg flex items-center justify-center">
               <div className="text-center space-y-6 p-8">
@@ -157,9 +155,8 @@ export default function AnimatedLoginDoor({ onLoginSuccess }: AnimatedLoginDoorP
 
           {/* Login Form (Behind the doors) */}
           <Card
-            className={`relative glass-card transition-all duration-700 shadow-2xl border-0 ${
-              doorState === 'open' ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
-            }`}
+            className={`relative glass-card transition-all duration-700 shadow-2xl border-0 ${doorState === 'open' ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
+              }`}
             style={{
               transform: doorState === 'open' ? 'translateY(0)' : 'translateY(20px)',
             }}
@@ -257,7 +254,7 @@ export default function AnimatedLoginDoor({ onLoginSuccess }: AnimatedLoginDoorP
 
         {/* Footer */}
         <div className="text-center text-sm text-muted-foreground/80">
-          <p className="font-medium">Home Project Partners</p>
+          <p className="font-medium">Buyerfound</p>
           <p className="text-xs mt-1">Professional Lead Management Platform</p>
         </div>
       </div>

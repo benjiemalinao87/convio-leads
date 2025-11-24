@@ -194,7 +194,7 @@ export function OnboardingMaterialsPreview({ data }: OnboardingMaterialsPreviewP
               <div className="flex flex-col gap-2 pt-2">
                 <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-md border border-blue-200 dark:border-blue-800 text-xs">
                   <strong>To:</strong> {data.contact_email}<br />
-                  <strong>Subject:</strong> Welcome to Home Project Partners - Lead API Setup
+                  <strong>Subject:</strong> Welcome to Buyerfound - Lead API Setup
                 </div>
               </div>
             </div>
