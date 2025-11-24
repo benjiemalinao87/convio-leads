@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useAuth } from '@/hooks/useAuth'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
@@ -46,7 +47,7 @@ const WEBHOOK_API_BASE = 'https://api.homeprojectpartners.com'
 export function ProviderManagement() {
   const { user } = useAuth()
   const isAdminOrDev = user?.permission_type === 'admin' || user?.permission_type === 'dev'
-  
+
   const [providers, setProviders] = useState<Provider[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -88,7 +89,7 @@ export function ProviderManagement() {
     try {
       setLoading(true)
       setError(null)
-      
+
       const response = await fetch(`${WEBHOOK_API_BASE}/providers`)
       const data = await response.json()
 
@@ -136,7 +137,7 @@ export function ProviderManagement() {
 
     try {
       setCreating(true)
-      
+
       const response = await fetch(`${WEBHOOK_API_BASE}/providers`, {
         method: 'POST',
         headers: {
@@ -167,7 +168,7 @@ export function ProviderManagement() {
         rate_limit: 1000
       })
       setIsCreateDialogOpen(false)
-      
+
       // Refresh providers list
       await fetchProviders()
 
@@ -188,7 +189,7 @@ export function ProviderManagement() {
 
     try {
       setUpdating(true)
-      
+
       const response = await fetch(`${WEBHOOK_API_BASE}/providers/${editingProvider.provider_id}`, {
         method: 'PATCH',
         headers: {
@@ -210,7 +211,7 @@ export function ProviderManagement() {
 
       setIsEditDialogOpen(false)
       setEditingProvider(null)
-      
+
       // Refresh providers list
       await fetchProviders()
 
@@ -233,7 +234,7 @@ export function ProviderManagement() {
 
     try {
       setDeleting(providerId)
-      
+
       const response = await fetch(`${WEBHOOK_API_BASE}/providers/${providerId}`, {
         method: 'DELETE'
       })
@@ -248,7 +249,7 @@ export function ProviderManagement() {
         title: "Success",
         description: `Provider ${providerId} deleted successfully`,
       })
-      
+
       // Refresh providers list
       await fetchProviders()
 
@@ -284,7 +285,7 @@ export function ProviderManagement() {
         title: "Success",
         description: `Provider ${provider.provider_id} ${!provider.is_active ? 'activated' : 'deactivated'}`,
       })
-      
+
       // Refresh providers list
       await fetchProviders()
 
@@ -339,116 +340,116 @@ export function ProviderManagement() {
             Manage third-party providers who can send data to webhook endpoints
           </p>
         </div>
-        
+
         {isAdminOrDev && (
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Provider
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[600px]">
-            <DialogHeader>
-              <DialogTitle>Create New Provider</DialogTitle>
-              <DialogDescription>
-                Add a new third-party provider that can send data to webhook endpoints
-              </DialogDescription>
-            </DialogHeader>
-            
-            <div className="grid gap-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="provider-name">Provider Name *</Label>
-                <Input
-                  id="provider-name"
-                  placeholder="e.g., Click Ventures"
-                  value={formData.provider_name}
-                  onChange={(e) => setFormData({ ...formData, provider_name: e.target.value })}
-                />
-                {previewId && (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <span>Generated ID:</span>
-                    <code className="px-2 py-1 bg-muted rounded">{previewId}</code>
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="company-name">Company Name</Label>
-                <Input
-                  id="company-name"
-                  placeholder="e.g., Click Ventures LLC"
-                  value={formData.company_name}
-                  onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="contact-email">Contact Email</Label>
-                <Input
-                  id="contact-email"
-                  type="email"
-                  placeholder="e.g., api@clickventures.com"
-                  value={formData.contact_email}
-                  onChange={(e) => setFormData({ ...formData, contact_email: e.target.value })}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="contact-name">Primary Contact Name (Optional)</Label>
-                <Input
-                  id="contact-name"
-                  type="text"
-                  placeholder="e.g., John Smith"
-                  value={formData.contact_name}
-                  onChange={(e) => setFormData({ ...formData, contact_name: e.target.value })}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="contact-phone">Primary Contact Phone (Optional)</Label>
-                <Input
-                  id="contact-phone"
-                  type="tel"
-                  placeholder="e.g., +1-555-123-4567"
-                  value={formData.contact_phone}
-                  onChange={(e) => setFormData({ ...formData, contact_phone: e.target.value })}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="rate-limit">Rate Limit (requests/hour)</Label>
-                <Input
-                  id="rate-limit"
-                  type="number"
-                  placeholder="1000"
-                  value={formData.rate_limit}
-                  onChange={(e) => setFormData({ ...formData, rate_limit: parseInt(e.target.value) || 1000 })}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="notes">Notes</Label>
-                <Textarea
-                  id="notes"
-                  placeholder="Internal notes about this provider..."
-                  value={formData.notes}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-                Cancel
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Provider
               </Button>
-              <Button onClick={createProvider} disabled={creating}>
-                {creating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Create Provider
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[600px]">
+              <DialogHeader>
+                <DialogTitle>Create New Provider</DialogTitle>
+                <DialogDescription>
+                  Add a new third-party provider that can send data to webhook endpoints
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="grid gap-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="provider-name">Provider Name *</Label>
+                  <Input
+                    id="provider-name"
+                    placeholder="e.g., Click Ventures"
+                    value={formData.provider_name}
+                    onChange={(e) => setFormData({ ...formData, provider_name: e.target.value })}
+                  />
+                  {previewId && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <span>Generated ID:</span>
+                      <code className="px-2 py-1 bg-muted rounded">{previewId}</code>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="company-name">Company Name</Label>
+                  <Input
+                    id="company-name"
+                    placeholder="e.g., Click Ventures LLC"
+                    value={formData.company_name}
+                    onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="contact-email">Contact Email</Label>
+                  <Input
+                    id="contact-email"
+                    type="email"
+                    placeholder="e.g., api@clickventures.com"
+                    value={formData.contact_email}
+                    onChange={(e) => setFormData({ ...formData, contact_email: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="contact-name">Primary Contact Name (Optional)</Label>
+                  <Input
+                    id="contact-name"
+                    type="text"
+                    placeholder="e.g., John Smith"
+                    value={formData.contact_name}
+                    onChange={(e) => setFormData({ ...formData, contact_name: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="contact-phone">Primary Contact Phone (Optional)</Label>
+                  <Input
+                    id="contact-phone"
+                    type="tel"
+                    placeholder="e.g., +1-555-123-4567"
+                    value={formData.contact_phone}
+                    onChange={(e) => setFormData({ ...formData, contact_phone: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="rate-limit">Rate Limit (requests/hour)</Label>
+                  <Input
+                    id="rate-limit"
+                    type="number"
+                    placeholder="1000"
+                    value={formData.rate_limit}
+                    onChange={(e) => setFormData({ ...formData, rate_limit: parseInt(e.target.value) || 1000 })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="notes">Notes</Label>
+                  <Textarea
+                    id="notes"
+                    placeholder="Internal notes about this provider..."
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={createProvider} disabled={creating}>
+                  {creating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Create Provider
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         )}
       </div>
 
@@ -520,10 +521,10 @@ export function ProviderManagement() {
                           {provider.is_active ? "Active" : "Inactive"}
                         </Badge>
                         {isAdminOrDev && (
-                        <Switch
-                          checked={provider.is_active}
-                          onCheckedChange={() => toggleProviderStatus(provider)}
-                        />
+                          <Switch
+                            checked={provider.is_active}
+                            onCheckedChange={() => toggleProviderStatus(provider)}
+                          />
                         )}
                       </div>
                     </TableCell>
@@ -532,27 +533,27 @@ export function ProviderManagement() {
                     </TableCell>
                     <TableCell>
                       {isAdminOrDev && (
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => openEditDialog(provider)}
-                        >
-                          <Edit2 className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => deleteProvider(provider.provider_id)}
-                          disabled={deleting === provider.provider_id}
-                        >
-                          {deleting === provider.provider_id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Trash2 className="h-4 w-4" />
-                          )}
-                        </Button>
-                      </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openEditDialog(provider)}
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => deleteProvider(provider.provider_id)}
+                            disabled={deleting === provider.provider_id}
+                          >
+                            {deleting === provider.provider_id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </div>
                       )}
                     </TableCell>
                   </TableRow>
@@ -572,7 +573,7 @@ export function ProviderManagement() {
               Update provider information for {editingProvider?.provider_id}
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="edit-provider-name">Provider Name *</Label>
