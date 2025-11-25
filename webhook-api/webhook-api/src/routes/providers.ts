@@ -14,7 +14,7 @@ function generateProviderId(providerName: string): string {
 
   // Generate random 4-digit suffix
   const randomSuffix = Math.floor(1000 + Math.random() * 9000) // 1000-9999
-  
+
   return `${cleanName}_${randomSuffix}`
 }
 
@@ -102,7 +102,7 @@ providers.post('/', async (c) => {
 
     // Generate unique provider ID
     let providerId = generateProviderId(provider_name)
-    
+
     const db = (c.env as any).LEADS_DB
 
     // Check for ID collision and regenerate if needed
@@ -417,7 +417,12 @@ providers.delete('/:providerId', async (c) => {
       'DELETE FROM admin_onboarding_log WHERE provider_id = ?'
     ).bind(providerId).run()
 
-    // 5. Finally, delete the provider itself
+    // 5. Delete from users table (provider accounts)
+    await db.prepare(
+      'DELETE FROM users WHERE provider_id = ?'
+    ).bind(providerId).run()
+
+    // 6. Finally, delete the provider itself
     await db.prepare(
       'DELETE FROM lead_source_providers WHERE provider_id = ?'
     ).bind(providerId).run()
