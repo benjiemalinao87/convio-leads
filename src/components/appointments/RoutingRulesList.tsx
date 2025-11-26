@@ -44,6 +44,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
 import { CreateRoutingRuleDialog } from './CreateRoutingRuleDialog';
+import { EditRoutingRuleDialog } from './EditRoutingRuleDialog';
 
 interface RoutingRule {
   id: number;
@@ -67,6 +68,8 @@ interface RoutingRulesListProps {
 export function RoutingRulesList({ rules, onRefresh }: RoutingRulesListProps) {
   const [deleting, setDeleting] = useState<number | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [selectedRule, setSelectedRule] = useState<RoutingRule | null>(null);
   const { toast } = useToast();
 
   const handleDeleteRule = async (ruleId: number) => {
@@ -138,6 +141,11 @@ export function RoutingRulesList({ rules, onRefresh }: RoutingRulesListProps) {
         variant: "destructive",
       });
     }
+  };
+
+  const handleEditRule = (rule: RoutingRule) => {
+    setSelectedRule(rule);
+    setShowEditDialog(true);
   };
 
   const formatDateTime = (dateString: string) => {
@@ -376,7 +384,7 @@ export function RoutingRulesList({ rules, onRefresh }: RoutingRulesListProps) {
                                           </>
                                         )}
                                       </DropdownMenuItem>
-                                      <DropdownMenuItem>
+                                      <DropdownMenuItem onClick={() => handleEditRule(rule)}>
                                         <Edit className="h-4 w-4 mr-2" />
                                         Edit Rule
                                       </DropdownMenuItem>
@@ -431,6 +439,13 @@ export function RoutingRulesList({ rules, onRefresh }: RoutingRulesListProps) {
         open={showCreateDialog}
         onOpenChange={setShowCreateDialog}
         onSuccess={onRefresh}
+      />
+
+      <EditRoutingRuleDialog
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+        onSuccess={onRefresh}
+        rule={selectedRule}
       />
     </div>
   );
