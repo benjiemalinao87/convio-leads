@@ -70,6 +70,14 @@ const ContactDetail = () => {
 
   const API_BASE = 'https://api.homeprojectpartners.com';
 
+  // Safe date formatting helper
+  const formatDate = (dateString: string | null | undefined) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return 'N/A';
+    return date.toLocaleDateString();
+  };
+
   useEffect(() => {
     if (contactId) {
       fetchContactData();
@@ -316,7 +324,7 @@ const ContactDetail = () => {
                       </div>
                       <div>
                         <label className="text-sm font-medium text-muted-foreground">Created</label>
-                        <p>{new Date(contact.created_at).toLocaleDateString()}</p>
+                        <p>{formatDate(contact.created_at)}</p>
                       </div>
                     </div>
                   </CardContent>
@@ -435,7 +443,7 @@ const ContactDetail = () => {
                           {formatCurrency(lead.revenue_potential || 0)}
                         </div>
                         <div className="text-sm text-muted-foreground">
-                          {new Date(lead.created_at).toLocaleDateString()}
+                          {formatDate(lead.created_at)}
                         </div>
                       </div>
                     </div>

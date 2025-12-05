@@ -67,6 +67,14 @@ export default function Dashboard() {
 
   const API_BASE = 'https://api.homeprojectpartners.com';
 
+  // Safe date formatting helper
+  const formatDate = (dateString: string | null | undefined, options?: Intl.DateTimeFormatOptions) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return 'N/A';
+    return date.toLocaleDateString('en-US', options || {});
+  };
+
   useEffect(() => {
     fetchDashboardData();
   }, [providerId]);
@@ -304,7 +312,7 @@ export default function Dashboard() {
             {dailyActivity.length > 0 ? dailyActivity.map((day) => (
               <div key={day.date} className="flex items-center justify-between py-2">
                 <div className="text-sm text-muted-foreground">
-                  {new Date(day.date).toLocaleDateString('en-US', {
+                  {formatDate(day.date, {
                     weekday: 'short',
                     month: 'short',
                     day: 'numeric'
