@@ -173,6 +173,7 @@ leads.get('/', async (c) => {
 // Get lead statistics/counts
 leads.get('/statistics', async (c) => {
   const webhookId = c.req.query('webhook_id')
+  const providerId = c.req.query('provider_id')
   const status = c.req.query('status')
   const fromDate = c.req.query('from_date')
   const toDate = c.req.query('to_date')
@@ -186,12 +187,96 @@ leads.get('/statistics', async (c) => {
 
   try {
     const db = new LeadDatabase((c.env as any).LEADS_DB)
-    const statistics = await db.getLeadStatistics({
-      status,
-      webhookId,
-      fromDate,
-      toDate
-    })
+    
+    // If provider_id is provided, we need custom query to filter by provider's webhooks
+    let statistics;
+    
+    if (providerId) {
+      const leadDb = (c.env as any).LEADS_DB
+      
+      // Get webhook IDs for this provider
+      const { results: webhookMappings } = await leadDb.prepare(`
+        SELECT webhook_id FROM webhook_provider_mapping WHERE provider_id = ?
+      `).bind(providerId).all()
+      
+      const providerWebhookIds = webhookMappings.map((w: any) => w.webhook_id)
+      
+      if (providerWebhookIds.length === 0) {
+        // Provider has no webhooks, return empty statistics
+        statistics = {
+          total_count: 0,
+          unique_webhooks: 0,
+          days_active: 0,
+          first_lead_date: null,
+          last_lead_date: null,
+          converted_count: 0,
+          new_count: 0,
+          contacted_count: 0,
+          qualified_count: 0,
+          rejected_count: 0
+        }
+      } else {
+        // Build custom query for provider's webhooks
+        const placeholders = providerWebhookIds.map(() => '?').join(',')
+        let statsQuery = `
+          SELECT
+            COUNT(*) as total_count,
+            COUNT(DISTINCT webhook_id) as unique_webhooks,
+            MIN(created_at) as first_lead_date,
+            MAX(created_at) as last_lead_date,
+            SUM(CASE WHEN status = 'new' THEN 1 ELSE 0 END) as new_count,
+            SUM(CASE WHEN status = 'contacted' THEN 1 ELSE 0 END) as contacted_count,
+            SUM(CASE WHEN status = 'qualified' THEN 1 ELSE 0 END) as qualified_count,
+            SUM(CASE WHEN status = 'converted' THEN 1 ELSE 0 END) as converted_count,
+            SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected_count
+          FROM leads
+          WHERE webhook_id IN (${placeholders})
+        `
+        
+        const params = [...providerWebhookIds]
+        
+        if (status) {
+          statsQuery += ' AND status = ?'
+          params.push(status)
+        }
+        if (fromDate) {
+          statsQuery += ' AND created_at >= ?'
+          params.push(fromDate)
+        }
+        if (toDate) {
+          statsQuery += ' AND created_at <= ?'
+          params.push(toDate)
+        }
+        
+        const result = await leadDb.prepare(statsQuery).bind(...params).first()
+        
+        // Calculate days active
+        const daysActive = result?.first_lead_date && result?.last_lead_date
+          ? Math.ceil((new Date(result.last_lead_date as string).getTime() - new Date(result.first_lead_date as string).getTime()) / (1000 * 60 * 60 * 24))
+          : 0
+        
+        statistics = {
+          total_count: result?.total_count || 0,
+          unique_webhooks: result?.unique_webhooks || 0,
+          days_active: daysActive,
+          first_lead_date: result?.first_lead_date,
+          last_lead_date: result?.last_lead_date,
+          converted_count: result?.converted_count || 0,
+          new_count: result?.new_count || 0,
+          contacted_count: result?.contacted_count || 0,
+          qualified_count: result?.qualified_count || 0,
+          rejected_count: result?.rejected_count || 0
+        }
+      }
+    } else {
+      // Use normal statistics query
+      statistics = await db.getLeadStatistics({
+        status,
+        webhookId,
+        fromDate,
+        toDate
+      })
+    }
 
     // Calculate conversion rate if we have data
     const conversionRate = statistics.total_count > 0
@@ -202,6 +287,7 @@ leads.get('/statistics', async (c) => {
       status: 'success',
       filters: {
         webhook_id: webhookId || null,
+        provider_id: providerId || null,
         status: status || null,
         from_date: fromDate || null,
         to_date: toDate || null

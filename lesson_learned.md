@@ -258,3 +258,156 @@ December 5, 2025
 - No breaking changes for existing users
 - Can be deployed immediately
 - Recommend testing with provider accounts after deployment
+
+---
+
+# Lesson Learned - Setting Dark Mode as Default
+
+## Issue
+User wanted dark mode to be the default theme for the application instead of light mode.
+
+## Problem Analysis
+The theme system had two initialization points:
+1. **index.html script** - Runs before React to prevent theme flash
+2. **ThemeContext.tsx** - React context that manages theme state
+
+Both were defaulting to light mode when no preference was stored in localStorage.
+
+## Root Cause
+The default theme logic was checking if theme was explicitly 'dark', otherwise defaulting to light mode. This meant:
+- First-time visitors got light mode
+- Users who cleared their localStorage got light mode
+- The fallback behavior wasn't explicitly set to dark
+
+## Solution Implemented
+
+### 1. Updated index.html Script
+**What was changed:**
+- Changed condition from checking `if (theme === 'dark')` to `if (theme === 'light')`
+- Inverted the logic so dark mode is applied unless explicitly set to light
+
+**Before:**
+```javascript
+if (theme === 'dark') {
+  document.documentElement.classList.add('dark');
+} else {
+  document.documentElement.classList.remove('dark');
+}
+```
+
+**After:**
+```javascript
+// Default to dark mode if no preference is stored
+if (theme === 'light') {
+  document.documentElement.classList.remove('dark');
+} else {
+  document.documentElement.classList.add('dark');
+}
+```
+
+### 2. Updated ThemeContext.tsx Initialization
+**What was changed:**
+- Changed the fallback value from checking HTML class to directly returning `true`
+- Simplified the logic and made it explicitly default to dark mode
+
+**Before:**
+```typescript
+const [isDarkMode, setIsDarkMode] = useState(() => {
+  const stored = localStorage.getItem(THEME_STORAGE_KEY);
+  if (stored !== null) {
+    return stored === 'dark';
+  }
+  // Fallback to current HTML class state
+  return document.documentElement.classList.contains('dark');
+});
+```
+
+**After:**
+```typescript
+const [isDarkMode, setIsDarkMode] = useState(() => {
+  const stored = localStorage.getItem(THEME_STORAGE_KEY);
+  if (stored !== null) {
+    return stored === 'dark';
+  }
+  // Default to dark mode
+  return true;
+});
+```
+
+## How It Works
+1. **First-time visitors**: Get dark mode by default
+2. **Returning users**: Their preference is loaded from localStorage
+3. **Theme switching**: Users can still switch to light mode, which is saved
+4. **No flash**: The index.html script prevents any theme flash on load
+
+## Key Learnings
+
+### ✅ What Worked Well
+1. **Two-point initialization** - Both index.html and React context needed updating for consistency
+2. **localStorage persistence** - User preferences are still respected
+3. **Simple logic inversion** - Just flipping the condition was enough
+4. **Comment clarity** - Added clear comments about the default behavior
+
+### ❌ What Should Be Avoided
+1. **Don't update only one location** - Must update both index.html and ThemeContext.tsx
+2. **Don't forget the anti-flash script** - The index.html script is critical for UX
+3. **Don't remove the localStorage check** - User preferences should always take priority
+4. **Don't make assumptions about HTML state** - Better to explicitly set the default
+
+### 🔧 How to Fix Similar Theme Default Issues
+
+**Step 1: Identify All Theme Initialization Points**
+- Check index.html for inline scripts
+- Check ThemeContext or theme provider for useState initialization
+- Look for any other places that set initial theme
+
+**Step 2: Update the Anti-Flash Script (index.html)**
+```javascript
+// Invert the logic - check for the non-default theme
+if (theme === 'light') { // or 'dark' if light is default
+  // Remove or add 'dark' class accordingly
+}
+```
+
+**Step 3: Update React Context Default**
+```typescript
+const [isDarkMode, setIsDarkMode] = useState(() => {
+  const stored = localStorage.getItem(THEME_STORAGE_KEY);
+  if (stored !== null) {
+    return stored === 'dark';
+  }
+  return true; // or false for light mode default
+});
+```
+
+**Step 4: Maintain Consistency**
+- Ensure both locations have the same default behavior
+- Test with cleared localStorage to verify default
+- Test with saved preferences to verify persistence
+
+## Testing Checklist
+
+### When Changing Default Theme:
+- [ ] Test first-time visit (clear localStorage)
+- [ ] Test with light mode preference saved
+- [ ] Test with dark mode preference saved
+- [ ] Test theme toggle functionality
+- [ ] Check for any flash of wrong theme on load
+- [ ] Verify localStorage is updated on theme change
+- [ ] Test in different browsers
+- [ ] Test with browser refresh
+- [ ] Verify CSS classes are applied correctly
+- [ ] Check that all components respect the theme
+
+## Files Modified
+1. `/index.html` - Updated theme initialization script (lines 21-31)
+2. `/src/contexts/ThemeContext.tsx` - Updated default state value (lines 25-35)
+
+## Date Implemented
+December 5, 2025
+
+## Impact
+- No breaking changes
+- Existing users with saved preferences are unaffected
+- New users and users with cleared localStorage now get dark mode
+- Theme switching functionality remains intact

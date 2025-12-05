@@ -20,6 +20,7 @@ import {
   Download
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/hooks/useAuth';
 
 // Types
 interface ConversionAnalytics {
@@ -74,6 +75,10 @@ interface Conversion {
 }
 
 export default function ConversionDashboard() {
+  const { user } = useAuth();
+  const isProvider = user?.permission_type === 'provider';
+  const providerId = user?.provider_id;
+  
   const [analytics, setAnalytics] = useState<ConversionAnalytics | null>(null);
   const [funnel, setFunnel] = useState<ConversionFunnel | null>(null);
   const [recentConversions, setRecentConversions] = useState<Conversion[]>([]);
@@ -89,7 +94,7 @@ export default function ConversionDashboard() {
     // Set up auto-refresh every 30 seconds
     const interval = setInterval(fetchData, 30000);
     return () => clearInterval(interval);
-  }, [dateRange, workspaceFilter, refreshKey]);
+  }, [dateRange, workspaceFilter, refreshKey, providerId]);
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -100,7 +105,8 @@ export default function ConversionDashboard() {
     const params = new URLSearchParams({
       from_date: fromDate.toISOString(),
       to_date: new Date().toISOString(),
-      ...(workspaceFilter !== 'all' && { workspace_id: workspaceFilter })
+      ...(workspaceFilter !== 'all' && { workspace_id: workspaceFilter }),
+      ...(isProvider && providerId && { provider_id: providerId })
     });
 
     try {

@@ -14,6 +14,7 @@ import {
   Activity
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/hooks/useAuth';
 
 // API interfaces
 interface APIStatistics {
@@ -54,6 +55,10 @@ interface APILead {
 }
 
 export default function Dashboard() {
+  const { user } = useAuth();
+  const isProvider = user?.permission_type === 'provider';
+  const providerId = user?.provider_id;
+  
   const [statistics, setStatistics] = useState<APIStatistics | null>(null);
   const [webhooks, setWebhooks] = useState<APIWebhook[]>([]);
   const [recentLeads, setRecentLeads] = useState<APILead[]>([]);
@@ -64,17 +69,21 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchDashboardData();
-  }, []);
+  }, [providerId]);
 
   const fetchDashboardData = async () => {
     setIsLoading(true);
     setError(null);
 
     try {
+      // Build query params for provider filtering
+      const providerParams = isProvider && providerId ? `?provider_id=${providerId}` : '';
+      const leadsParams = isProvider && providerId ? `?provider_id=${providerId}&limit=20` : '?limit=20';
+      
       const [statsResponse, webhooksResponse, leadsResponse] = await Promise.all([
-        fetch(`${API_BASE}/leads/statistics`),
-        fetch(`${API_BASE}/webhook`),
-        fetch(`${API_BASE}/leads?limit=20`)
+        fetch(`${API_BASE}/leads/statistics${providerParams}`),
+        fetch(`${API_BASE}/webhook${providerParams}`),
+        fetch(`${API_BASE}/leads${leadsParams}`)
       ]);
 
       if (statsResponse.ok) {
@@ -257,9 +266,14 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Leads by Source */}
         <Card className="bg-card rounded-xl border border-border p-6">
-          <h3 className="text-lg font-semibold mb-4 text-foreground">Leads by Source</h3>
+          <h3 className="text-lg font-semibold mb-4 text-foreground">
+            Leads by Source
+            {leadsBySource.length > 5 && (
+              <span className="text-xs text-muted-foreground ml-2">(Top 5 of {leadsBySource.length})</span>
+            )}
+          </h3>
           <div className="space-y-4">
-            {leadsBySource.length > 0 ? leadsBySource.map((source, index) => (
+            {leadsBySource.length > 0 ? leadsBySource.slice(0, 5).map((source, index) => (
               <div key={source.source} className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">
                   <div className={`w-3 h-3 rounded-full ${

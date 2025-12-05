@@ -89,8 +89,8 @@ export class LeadDatabase {
       lead.policy_type || null, lead.coverage_amount || null, lead.current_premium || null,
       lead.property_value || null, lead.claims_history || null,
       lead.raw_payload, lead.ip_address || null, lead.user_agent || null,
-      // Timestamp fields - let DB use defaults
-      null, null, null, // created_at, updated_at, processed_at
+      // Timestamp fields - use CURRENT_TIMESTAMP for created_at and updated_at
+      new Date().toISOString(), new Date().toISOString(), null, // created_at, updated_at, processed_at
       lead.status || 'new', null, // status, notes
       lead.conversion_score || null, lead.revenue_potential || null,
       null, null, // status_changed_at, status_changed_by
