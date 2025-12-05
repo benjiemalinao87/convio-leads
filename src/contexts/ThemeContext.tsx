@@ -23,15 +23,15 @@ interface ThemeProviderProps {
 const THEME_STORAGE_KEY = 'convio-theme-preference';
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
-  // Initialize from localStorage or current HTML class state
+  // Initialize from localStorage or default to dark mode
   const [isDarkMode, setIsDarkMode] = useState(() => {
     // Check localStorage first
     const stored = localStorage.getItem(THEME_STORAGE_KEY);
     if (stored !== null) {
       return stored === 'dark';
     }
-    // Fallback to current HTML class state (set by script in index.html)
-    return document.documentElement.classList.contains('dark');
+    // Default to dark mode
+    return true;
   });
 
   // Apply theme to HTML element and persist to localStorage
