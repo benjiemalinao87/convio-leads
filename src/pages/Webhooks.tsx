@@ -33,6 +33,7 @@ import {
   Activity
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 import ApiDocumentation from '@/components/ApiDocumentation';
 import SoftDeleteDialog from '@/components/webhooks/SoftDeleteDialog';
@@ -78,6 +79,10 @@ interface WebhookWithStats {
 }
 
 export default function Webhooks() {
+  const { user } = useAuth();
+  const isProvider = user?.permission_type === 'provider';
+  const providerId = user?.provider_id;
+  
   const [webhooks, setWebhooks] = useState<WebhookWithStats[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -98,15 +103,21 @@ export default function Webhooks() {
 
   useEffect(() => {
     fetchWebhooks();
-  }, []);
+  }, [providerId]);
 
   const fetchWebhooks = async () => {
     try {
       setIsLoading(true);
       setError(null);
 
+      // Build API URL with provider_id filter if user is a provider
+      const params = new URLSearchParams();
+      if (isProvider && providerId) {
+        params.append('provider_id', providerId);
+      }
+
       // Fetch webhook configurations
-      const webhooksResponse = await fetch(`${API_BASE}/webhook`);
+      const webhooksResponse = await fetch(`${API_BASE}/webhook?${params}`);
       if (!webhooksResponse.ok) {
         throw new Error('Failed to fetch webhooks');
       }
@@ -305,25 +316,31 @@ export default function Webhooks() {
         {/* Header */}
         <PageHeader
           title="Webhooks"
-          description="Manage your webhook endpoints for automated lead collection"
+          description={isProvider 
+            ? "View your webhook endpoints for automated lead collection" 
+            : "Manage your webhook endpoints for automated lead collection"}
           actions={
             <div className="flex gap-2">
-              <Button
-                onClick={() => setIsDeletedWebhooksPanelOpen(true)}
-                variant="outline"
-                className="flex items-center gap-2"
-              >
-                <RotateCcw className="h-4 w-4" />
-                View Deleted
-              </Button>
-              <Button
-                onClick={() => setIsApiDocOpen(true)}
-                variant="outline"
-                className="flex items-center gap-2"
-              >
-                <FileText className="h-4 w-4" />
-                API Docs
-              </Button>
+              {!isProvider && (
+                <>
+                  <Button
+                    onClick={() => setIsDeletedWebhooksPanelOpen(true)}
+                    variant="outline"
+                    className="flex items-center gap-2"
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                    View Deleted
+                  </Button>
+                  <Button
+                    onClick={() => setIsApiDocOpen(true)}
+                    variant="outline"
+                    className="flex items-center gap-2"
+                  >
+                    <FileText className="h-4 w-4" />
+                    API Docs
+                  </Button>
+                </>
+              )}
               <Button
                 onClick={fetchWebhooks}
                 disabled={isLoading}
@@ -332,16 +349,29 @@ export default function Webhooks() {
                 <RefreshCw className={cn("h-4 w-4 mr-2", isLoading && "animate-spin")} />
                 Refresh
               </Button>
-              <Button
-                onClick={() => setIsCreateDialogOpen(true)}
-                className="flex items-center gap-2"
-              >
-                <Plus className="h-4 w-4" />
-                Add Webhook
-              </Button>
+              {!isProvider && (
+                <Button
+                  onClick={() => setIsCreateDialogOpen(true)}
+                  className="flex items-center gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add Webhook
+                </Button>
+              )}
             </div>
           }
         />
+
+        {/* Provider Filter Notice */}
+        {isProvider && (
+          <Card className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
+            <CardContent className="pt-6">
+              <p className="text-sm text-blue-800 dark:text-blue-200">
+                <strong>Provider View:</strong> You are viewing only the webhooks associated with your provider account ({providerId}).
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Summary KPI Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -487,15 +517,17 @@ export default function Webhooks() {
 
               {/* Compact Action Buttons */}
               <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleManageForwarding(webhook)}
-                  className="flex-1 h-8 text-xs"
-                >
-                  <Share2 className="w-3 h-3 mr-1.5" />
-                  Forwarding
-                </Button>
+                {!isProvider && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleManageForwarding(webhook)}
+                    className="flex-1 h-8 text-xs"
+                  >
+                    <Share2 className="w-3 h-3 mr-1.5" />
+                    Forwarding
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
@@ -508,15 +540,17 @@ export default function Webhooks() {
                   <Activity className="w-3 h-3 mr-1.5" />
                   Activity
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleDeleteWebhook(webhook)}
-                  className="h-8 w-8 p-0 text-destructive hover:text-destructive-foreground hover:bg-destructive"
-                  title="Delete webhook"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </Button>
+                {!isProvider && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleDeleteWebhook(webhook)}
+                    className="h-8 w-8 p-0 text-destructive hover:text-destructive-foreground hover:bg-destructive"
+                    title="Delete webhook"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                )}
               </div>
             </Card>
           ))}
@@ -573,22 +607,26 @@ export default function Webhooks() {
                         >
                           <Copy className="h-4 w-4" />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleManageForwarding(webhook)}
-                          className="h-8 w-8 p-0"
-                        >
-                          <Share2 className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeleteWebhook(webhook)}
-                          className="h-8 w-8 p-0 text-destructive hover:text-destructive-foreground hover:bg-destructive"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        {!isProvider && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleManageForwarding(webhook)}
+                              className="h-8 w-8 p-0"
+                            >
+                              <Share2 className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteWebhook(webhook)}
+                              className="h-8 w-8 p-0 text-destructive hover:text-destructive-foreground hover:bg-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>

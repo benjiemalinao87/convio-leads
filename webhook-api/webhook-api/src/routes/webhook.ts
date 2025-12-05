@@ -606,13 +606,14 @@ webhook.post('/:webhookId', async (c) => {
   }
 })
 
-// List all configured webhooks
+// List all configured webhooks (with provider filtering support)
 webhook.get('/', async (c) => {
   try {
     const db = ((c.env as any) as any).LEADS_DB
+    const providerId = c.req.query('provider_id')
     
-    // Fetch webhook configurations with statistics from D1 database (exclude soft-deleted)
-    const { results } = await db.prepare(`
+    // Build query based on provider filter
+    let query = `
       SELECT
         w.webhook_id,
         w.name,
@@ -627,10 +628,47 @@ webhook.get('/', async (c) => {
         SUM(CASE WHEN l.revenue_potential IS NOT NULL THEN l.revenue_potential ELSE 0 END) as total_revenue
       FROM webhook_configs w
       LEFT JOIN leads l ON w.webhook_id = l.webhook_id
-      WHERE w.deleted_at IS NULL
+    `
+    
+    const params: any[] = []
+    const whereConditions: string[] = ['w.deleted_at IS NULL']
+    
+    // If provider_id is provided, filter by provider's webhooks
+    if (providerId) {
+      // Add JOIN with webhook_provider_mapping
+      query = `
+        SELECT
+          w.webhook_id,
+          w.name,
+          w.description,
+          w.lead_type,
+          w.is_active,
+          w.total_leads,
+          w.created_at,
+          w.last_lead_at,
+          COUNT(l.id) as actual_lead_count,
+          AVG(CASE WHEN l.status = 'converted' THEN 1.0 ELSE 0.0 END) * 100 as conversion_rate,
+          SUM(CASE WHEN l.revenue_potential IS NOT NULL THEN l.revenue_potential ELSE 0 END) as total_revenue
+        FROM webhook_configs w
+        INNER JOIN webhook_provider_mapping wpm ON w.webhook_id = wpm.webhook_id
+        LEFT JOIN leads l ON w.webhook_id = l.webhook_id
+      `
+      whereConditions.push('wpm.provider_id = ?')
+      params.push(providerId)
+    }
+    
+    // Add WHERE clause
+    query += ` WHERE ${whereConditions.join(' AND ')}`
+    
+    // Add GROUP BY and ORDER BY
+    query += `
       GROUP BY w.webhook_id, w.name, w.description, w.lead_type, w.is_active, w.total_leads, w.created_at, w.last_lead_at
       ORDER BY w.is_active DESC, w.created_at DESC
-    `).all()
+    `
+
+    const { results } = params.length > 0 
+      ? await db.prepare(query).bind(...params).all()
+      : await db.prepare(query).all()
 
     const webhooks = results.map((config: any) => ({
       id: config.webhook_id,
@@ -654,11 +692,13 @@ webhook.get('/', async (c) => {
     return c.json({
       service: 'Webhook API',
       total_webhooks: webhooks.length,
+      ...(providerId && { provider_id: providerId }),
       webhooks,
       usage: {
         health_check: 'GET /webhook/{webhookId}',
         receive_lead: 'POST /webhook/{webhookId}',
         list_all: 'GET /webhook',
+        list_by_provider: 'GET /webhook?provider_id={providerId}',
         create_webhook: 'POST /webhook',
         delete_webhook: 'DELETE /webhook/{webhookId}'
       },

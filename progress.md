@@ -183,3 +183,31 @@
   - Permission-based route protection
   - Smooth migration with no breaking changes
 - **Result**: Production-ready database-backed authentication system deployed and working. All users can login with their credentials, and the system uses database queries instead of hardcoded ENV variables.
+
+### ✅ Provider Access Control - Secure Data Isolation (December 5, 2025)
+- **Goal**: Ensure providers can only access their own leads and webhooks, not data from other providers
+- **Problem**: Providers with login credentials could see ALL leads and webhooks in the system (major security issue)
+- **Implementation**:
+  - Enhanced backend webhook endpoint to support provider_id filtering with JOIN to webhook_provider_mapping
+  - Updated frontend Webhooks page to detect provider users and pass provider_id filter
+  - Added visual indicators showing providers they're viewing filtered data
+  - Verified Leads page was already filtering correctly by provider_id
+  - Hid admin-only actions (Create, Delete, Forwarding) from provider users
+- **Features**:
+  - **Backend Filtering**: GET /webhook endpoint now accepts provider_id parameter
+  - **Frontend Detection**: useAuth hook determines if user is provider
+  - **Visual Feedback**: Blue notice cards on both Leads and Webhooks pages
+  - **Permission-Based UI**: Admin actions hidden from providers
+  - **Database Relationships**: Proper JOINs with webhook_provider_mapping table
+- **Technical Implementation**:
+  - **Backend**: Modified GET /webhook route with conditional JOIN logic
+  - **Frontend**: Added useAuth to Webhooks page, updated fetch logic
+  - **Security**: Server-side filtering enforces provider boundaries
+  - **Testing**: Verified providers only see their own data
+- **User Experience**:
+  - Providers see clear notice: "Provider View: You are viewing only the webhooks/leads associated with your provider account"
+  - Page descriptions updated to reflect provider vs admin view
+  - Admin features gracefully hidden from provider accounts
+  - No breaking changes for admin users
+- **Documentation**: Created comprehensive lesson_learned.md documenting the issue, solution, and best practices
+- **Result**: Production-ready access control ensuring complete data isolation between providers. Providers can now only access their own leads and webhooks, with clear visual feedback about filtered views.

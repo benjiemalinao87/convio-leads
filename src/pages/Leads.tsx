@@ -360,7 +360,9 @@ const Leads = () => {
         {/* Header with refresh button */}
         <PageHeader
           title="Leads Management"
-          description="Manage and track all your leads and contacts"
+          description={isProvider 
+            ? "View and track your leads and contacts" 
+            : "Manage and track all your leads and contacts"}
           actions={
             <Button
               onClick={fetchLeads}
@@ -372,6 +374,17 @@ const Leads = () => {
             </Button>
           }
         />
+
+        {/* Provider Filter Notice */}
+        {isProvider && (
+          <Card className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
+            <CardContent className="pt-6">
+              <p className="text-sm text-blue-800 dark:text-blue-200">
+                <strong>Provider View:</strong> You are viewing only the leads from webhooks associated with your provider account ({providerId}).
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Error state */}
         {error && (
