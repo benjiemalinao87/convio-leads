@@ -64,6 +64,7 @@ interface AppointmentListProps {
 
 export function AppointmentList({ appointments, loading, onRefresh }: AppointmentListProps) {
   const [forwarding, setForwarding] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState<number | null>(null);
   const { toast } = useToast();
 
   const handleForwardAppointment = async (appointmentId: number) => {
@@ -100,6 +101,47 @@ export function AppointmentList({ appointments, loading, onRefresh }: Appointmen
       });
     } finally {
       setForwarding(null);
+    }
+  };
+
+  const handleDeleteAppointment = async (appointmentId: number, customerName: string) => {
+    if (!confirm(`Are you sure you want to delete the appointment for "${customerName || 'this customer'}"?`)) {
+      return;
+    }
+
+    try {
+      setDeleting(appointmentId);
+      const response = await fetch(`https://api.homeprojectpartners.com/appointments/${appointmentId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast({
+          title: "Success",
+          description: "Appointment deleted successfully",
+        });
+        onRefresh(); // Refresh the list
+      } else {
+        toast({
+          title: "Error",
+          description: data.error || "Failed to delete appointment",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error deleting appointment:', error);
+      toast({
+        title: "Error",
+        description: "Failed to connect to API",
+        variant: "destructive",
+      });
+    } finally {
+      setDeleting(null);
     }
   };
 
@@ -336,9 +378,13 @@ export function AppointmentList({ appointments, loading, onRefresh }: Appointmen
                           Edit Appointment
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-red-600">
+                        <DropdownMenuItem 
+                          className="text-red-600"
+                          onClick={() => handleDeleteAppointment(appointment.id, appointment.customer_name)}
+                          disabled={deleting === appointment.id}
+                        >
                           <Trash2 className="h-4 w-4 mr-2" />
-                          Delete
+                          {deleting === appointment.id ? 'Deleting...' : 'Delete'}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>

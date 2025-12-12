@@ -81,12 +81,13 @@ export function Sidebar({ isCollapsed, onToggleCollapse }: SidebarProps) {
   // Filter navigation based on user permission type
   const getFilteredNavigation = () => {
     if (user?.permission_type === 'provider') {
-      // Providers see Contacts, Analytics, and Settings
+      // Providers see Contacts, Appointments, Analytics, and Settings
       return [
         {
           title: 'Leads & Contacts',
           items: [
             { name: 'Contacts', href: '/contacts', icon: Users, badge: null },
+            { name: 'Appointments', href: '/appointments', icon: Calendar, badge: null },
           ]
         },
         {

@@ -672,9 +672,11 @@ appointmentsRouter.get('/', async (c) => {
     const fromDate = c.req.query('from_date')
     const toDate = c.req.query('to_date')
     const serviceType = c.req.query('service_type')
+    const providerId = c.req.query('provider_id') // New: filter by provider
     const limit = parseInt(c.req.query('limit') || '50')
     const offset = parseInt(c.req.query('offset') || '0')
 
+    // Base query - optionally join with webhook_provider_mapping if filtering by provider
     let query = `
       SELECT
         a.*,
@@ -687,10 +689,17 @@ appointmentsRouter.get('/', async (c) => {
       LEFT JOIN contacts c ON a.contact_id = c.id
       LEFT JOIN leads l ON a.lead_id = l.id
       LEFT JOIN workspaces w ON a.matched_workspace_id = w.id
+      ${providerId ? 'INNER JOIN webhook_provider_mapping wpm ON l.webhook_id = wpm.webhook_id' : ''}
       WHERE 1=1
     `
 
     const params: any[] = []
+
+    // Filter by provider if specified
+    if (providerId) {
+      query += ' AND wpm.provider_id = ?'
+      params.push(providerId)
+    }
 
     if (workspaceId) {
       query += ' AND a.matched_workspace_id = ?'
@@ -723,10 +732,18 @@ appointmentsRouter.get('/', async (c) => {
     const results = await db.prepare(query).bind(...params).all()
 
     // Get total count for pagination
-    let countQuery = `SELECT COUNT(*) as total FROM appointments a WHERE 1=1`
+    let countQuery = `
+      SELECT COUNT(*) as total 
+      FROM appointments a
+      ${providerId ? 'LEFT JOIN leads l ON a.lead_id = l.id INNER JOIN webhook_provider_mapping wpm ON l.webhook_id = wpm.webhook_id' : ''}
+      WHERE 1=1
+    `
     const countParams: any[] = []
-    let paramIndex = 0
 
+    if (providerId) {
+      countQuery += ' AND wpm.provider_id = ?'
+      countParams.push(providerId)
+    }
     if (workspaceId) {
       countQuery += ' AND a.matched_workspace_id = ?'
       countParams.push(workspaceId)
@@ -885,6 +902,56 @@ appointmentsRouter.get('/history', async (c) => {
     return c.json({
       success: false,
       error: 'Failed to fetch appointment history',
+      timestamp: new Date().toISOString()
+    }, 500)
+  }
+})
+
+// DELETE /appointments/:id - Delete an appointment
+appointmentsRouter.delete('/:id', async (c) => {
+  try {
+    const db = c.env.LEADS_DB
+    const appointmentId = c.req.param('id')
+
+    // Check if appointment exists
+    const appointment = await db.prepare(`
+      SELECT id, customer_name, service_type FROM appointments WHERE id = ?
+    `).bind(appointmentId).first()
+
+    if (!appointment) {
+      return c.json({
+        success: false,
+        error: 'Appointment not found',
+        timestamp: new Date().toISOString()
+      }, 404)
+    }
+
+    // Delete appointment events first (foreign key constraint)
+    await db.prepare(`
+      DELETE FROM appointment_events WHERE appointment_id = ?
+    `).bind(appointmentId).run()
+
+    // Delete the appointment
+    await db.prepare(`
+      DELETE FROM appointments WHERE id = ?
+    `).bind(appointmentId).run()
+
+    return c.json({
+      success: true,
+      message: 'Appointment deleted successfully',
+      deleted_appointment: {
+        id: appointment.id,
+        customer_name: appointment.customer_name,
+        service_type: appointment.service_type
+      },
+      timestamp: new Date().toISOString()
+    })
+
+  } catch (error) {
+    console.error('Error deleting appointment:', error)
+    return c.json({
+      success: false,
+      error: 'Failed to delete appointment',
       timestamp: new Date().toISOString()
     }, 500)
   }

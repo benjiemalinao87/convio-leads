@@ -43,6 +43,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 import { AppointmentRoutingManager } from '@/components/appointments/AppointmentRoutingManager';
 import { AppointmentList } from '@/components/appointments/AppointmentList';
 import { RoutingRulesList } from '@/components/appointments/RoutingRulesList';
@@ -92,12 +93,22 @@ const Appointments = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const { toast } = useToast();
+  const { user } = useAuth();
+
+  // Check if user is a provider
+  const isProvider = user?.permission_type === 'provider';
+  const providerId = user?.provider_id;
 
   // Fetch appointments
   const fetchAppointments = async () => {
     try {
       setLoading(true);
-      const response = await fetch('https://api.homeprojectpartners.com/appointments?limit=100');
+      // Filter by provider_id if user is a provider
+      const url = isProvider && providerId
+        ? `https://api.homeprojectpartners.com/appointments?limit=100&provider_id=${providerId}`
+        : 'https://api.homeprojectpartners.com/appointments?limit=100';
+      
+      const response = await fetch(url);
       const data = await response.json();
 
       if (data.success) {
@@ -144,7 +155,7 @@ const Appointments = () => {
   useEffect(() => {
     fetchAppointments();
     fetchRoutingRules();
-  }, []);
+  }, [providerId]);
 
   // Filter appointments based on search and status
   const filteredAppointments = appointments.filter(appointment => {
