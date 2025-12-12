@@ -237,16 +237,23 @@ export default function Analytics() {
     });
 
     try {
-      // Fetch core analytics data
-      const [overviewRes, leadsRes, funnelRes] = await Promise.all([
+      // Fetch core analytics data including appointments
+      const appointmentsParams = new URLSearchParams({
+        limit: '1000',
+        ...(isProvider && providerId && { provider_id: providerId })
+      });
+
+      const [overviewRes, leadsRes, funnelRes, appointmentsRes] = await Promise.all([
         fetch(`${API_BASE}/conversions/analytics?${params}`),
         fetch(`${API_BASE}/leads?limit=1000&${params}`),
-        fetch(`${API_BASE}/conversions/funnel?${params}`)
+        fetch(`${API_BASE}/conversions/funnel?${params}`),
+        fetch(`${API_BASE}/appointments?${appointmentsParams}`)
       ]);
 
       // Process leads data first to get accurate count
       let totalLeadsCount = 0;
       let leadsBySourceData: Array<{ source: string; count: number; percentage: number }> = [];
+      let totalAppointmentsCount = 0;
 
       if (leadsRes.ok) {
         const leadsData = await leadsRes.json();
@@ -267,6 +274,12 @@ export default function Analytics() {
             percentage: totalLeadsCount > 0 ? (count / totalLeadsCount) * 100 : 0
           }));
         }
+      }
+
+      // Process appointments data to get actual count
+      if (appointmentsRes.ok) {
+        const appointmentsData = await appointmentsRes.json();
+        totalAppointmentsCount = appointmentsData.appointments?.length || 0;
       }
 
       if (overviewRes.ok) {
