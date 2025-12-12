@@ -287,7 +287,7 @@ export default function Analytics() {
         // Transform data to match expected format
         const transformedAnalytics: ExtendedAnalyticsData = {
           total_leads: totalLeadsCount, // Use actual leads count from leads API
-          total_appointments: 0, // Will be calculated from appointments data
+          total_appointments: totalAppointmentsCount, // Use actual appointments count
           conversion_rate: parseFloat(data.analytics?.summary?.conversion_rate || '0'),
           total_revenue: data.analytics?.summary?.total_value || 0,
           avg_response_time: 2.4, // Default for now
