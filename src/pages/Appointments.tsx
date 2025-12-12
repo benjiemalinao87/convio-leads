@@ -198,33 +198,60 @@ const Appointments = () => {
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h1 className="text-3xl font-bold">Appointment Routing</h1>
+            <h1 className="text-3xl font-bold">
+              {isProvider ? 'My Appointments' : 'Appointment Routing'}
+            </h1>
             <p className="text-muted-foreground">
-              Manage appointments and routing rules for automatic assignment
+              {isProvider 
+                ? 'View appointments associated with your provider account'
+                : 'Manage appointments and routing rules for automatic assignment'
+              }
             </p>
           </div>
         </div>
 
-        {/* Tabs */}
+        {/* Provider Notice */}
+        {isProvider && (
+          <Card className="bg-blue-500/10 border-blue-500/30">
+            <CardContent className="py-3">
+              <p className="text-sm text-blue-400">
+                <strong>Provider View:</strong> You are viewing only appointments associated with your provider account.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Tabs - Show all tabs for admin/dev, only appointments for providers */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="appointments" className="flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
-              Appointments
-            </TabsTrigger>
-            <TabsTrigger value="routing" className="flex items-center gap-2">
-              <Route className="h-4 w-4" />
-              Routing Rules
-            </TabsTrigger>
-            <TabsTrigger value="history" className="flex items-center gap-2">
-              <Clock className="h-4 w-4" />
-              History
-            </TabsTrigger>
-            <TabsTrigger value="workspace" className="flex items-center gap-2">
-              <Building className="h-4 w-4" />
-              Workspace
-            </TabsTrigger>
-          </TabsList>
+          {isProvider ? (
+            // Providers only see Appointments tab
+            <TabsList className="grid w-full grid-cols-1">
+              <TabsTrigger value="appointments" className="flex items-center gap-2">
+                <Calendar className="h-4 w-4" />
+                Appointments
+              </TabsTrigger>
+            </TabsList>
+          ) : (
+            // Admin/Dev see all tabs
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="appointments" className="flex items-center gap-2">
+                <Calendar className="h-4 w-4" />
+                Appointments
+              </TabsTrigger>
+              <TabsTrigger value="routing" className="flex items-center gap-2">
+                <Route className="h-4 w-4" />
+                Routing Rules
+              </TabsTrigger>
+              <TabsTrigger value="history" className="flex items-center gap-2">
+                <Clock className="h-4 w-4" />
+                History
+              </TabsTrigger>
+              <TabsTrigger value="workspace" className="flex items-center gap-2">
+                <Building className="h-4 w-4" />
+                Workspace
+              </TabsTrigger>
+            </TabsList>
+          )}
 
           {/* Appointments Tab */}
           <TabsContent value="appointments" className="space-y-6">
@@ -273,23 +300,29 @@ const Appointments = () => {
             </Card>
           </TabsContent>
 
-          {/* Routing Rules Tab */}
-          <TabsContent value="routing" className="space-y-6">
-            <RoutingRulesList
-              rules={routingRules}
-              onRefresh={fetchRoutingRules}
-            />
-          </TabsContent>
+          {/* Routing Rules Tab - Admin/Dev only */}
+          {!isProvider && (
+            <TabsContent value="routing" className="space-y-6">
+              <RoutingRulesList
+                rules={routingRules}
+                onRefresh={fetchRoutingRules}
+              />
+            </TabsContent>
+          )}
 
-          {/* History Tab */}
-          <TabsContent value="history" className="space-y-6">
-            <AppointmentHistory onRefresh={fetchAppointments} />
-          </TabsContent>
+          {/* History Tab - Admin/Dev only */}
+          {!isProvider && (
+            <TabsContent value="history" className="space-y-6">
+              <AppointmentHistory onRefresh={fetchAppointments} />
+            </TabsContent>
+          )}
 
-          {/* Workspace Tab */}
-          <TabsContent value="workspace" className="space-y-6">
-            <AppointmentRoutingManager onRefresh={fetchRoutingRules} />
-          </TabsContent>
+          {/* Workspace Tab - Admin/Dev only */}
+          {!isProvider && (
+            <TabsContent value="workspace" className="space-y-6">
+              <AppointmentRoutingManager onRefresh={fetchRoutingRules} />
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     </Layout>
