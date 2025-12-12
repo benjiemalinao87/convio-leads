@@ -277,6 +277,7 @@ appointmentsRouter.post('/receive', async (c) => {
 
     if (body.lead_id) {
       // Fetch lead with contact info - use ONLY this data, ignore request body customer fields
+      // Use COALESCE to prefer contact data but fall back to lead data if contact fields are empty
       leadData = await db.prepare(`
         SELECT 
           l.id,
@@ -284,10 +285,10 @@ appointmentsRouter.post('/receive', async (c) => {
           l.zip_code,
           l.productid,
           l.state,
-          c.first_name,
-          c.last_name,
-          c.email,
-          c.phone
+          COALESCE(NULLIF(c.first_name, ''), l.first_name) as first_name,
+          COALESCE(NULLIF(c.last_name, ''), l.last_name) as last_name,
+          COALESCE(NULLIF(c.email, ''), l.email) as email,
+          COALESCE(NULLIF(c.phone, ''), l.phone) as phone
         FROM leads l
         LEFT JOIN contacts c ON l.contact_id = c.id
         WHERE l.id = ?

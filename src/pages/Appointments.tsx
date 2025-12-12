@@ -149,10 +149,10 @@ const Appointments = () => {
   // Filter appointments based on search and status
   const filteredAppointments = appointments.filter(appointment => {
     const matchesSearch = searchTerm === '' ||
-      appointment.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      appointment.customer_phone.includes(searchTerm) ||
-      appointment.service_type.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      appointment.workspace_name.toLowerCase().includes(searchTerm.toLowerCase());
+      (appointment.customer_name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+      (appointment.customer_phone || '').includes(searchTerm) ||
+      (appointment.service_type?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+      (appointment.workspace_name?.toLowerCase() || '').includes(searchTerm.toLowerCase());
 
     const matchesStatus = statusFilter === 'all' || appointment.status === statusFilter;
 

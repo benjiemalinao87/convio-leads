@@ -1497,3 +1497,139 @@ Successfully deployed updated backend code to Cloudflare Workers using `wrangler
 - **Reduced Support**: No manual user account creation needed
 - **Consistent Experience**: All providers get user accounts automatically
 - **Onboarding Efficiency**: Complete provider setup in single flow
+
+## Appointments Page "Invalid time value" RangeError Fix (December 12, 2025)
+
+### Problem
+Navigating to `/appointments` route in production caused a crash with the error:
+```
+RangeError: Invalid time value
+    at yue (index-exSMyg1h.js:1547:10953)
+    at gw (index-exSMyg1h.js:1547:12208)
+```
+
+The page displayed blank with console errors indicating a date formatting issue.
+
+### Root Cause Analysis
+1. **Primary Issue**: In `AppointmentList.tsx`, the `formatDateTime` function used `date-fns` `formatDistanceToNow()` without validating the date first
+2. **Date Creation**: `new Date(dateString)` creates an "Invalid Date" object when passed null, undefined, or malformed strings
+3. **API Data**: The appointments API can return records with null or invalid `scheduled_at` values
+4. **Crash Point**: `formatDistanceToNow(invalidDate)` throws "RangeError: Invalid time value"
+5. **Secondary Issue**: Filter logic in `Appointments.tsx` called `.toLowerCase()` on `workspace_name` which can be `null`
+
+### Solution Applied
+
+#### 1. Fixed `AppointmentList.tsx` - formatDateTime function
+**Before**:
+```typescript
+const formatDateTime = (dateString: string) => {
+  const date = new Date(dateString);
+  return {
+    date: date.toLocaleDateString(),
+    time: date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    relative: formatDistanceToNow(date, { addSuffix: true })
+  };
+};
+```
+
+**After**:
+```typescript
+const formatDateTime = (dateString: string | null | undefined) => {
+  // Handle null, undefined, or empty strings
+  if (!dateString) {
+    return {
+      date: 'Not scheduled',
+      time: '-',
+      relative: 'No date'
+    };
+  }
+
+  const date = new Date(dateString);
+  
+  // Check if the date is valid
+  if (isNaN(date.getTime())) {
+    return {
+      date: 'Invalid date',
+      time: '-',
+      relative: 'Invalid'
+    };
+  }
+
+  return {
+    date: date.toLocaleDateString(),
+    time: date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    relative: formatDistanceToNow(date, { addSuffix: true })
+  };
+};
+```
+
+#### 2. Fixed `Appointments.tsx` - filter function
+**Before**:
+```typescript
+const filteredAppointments = appointments.filter(appointment => {
+  const matchesSearch = searchTerm === '' ||
+    appointment.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    appointment.customer_phone.includes(searchTerm) ||
+    appointment.service_type.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    appointment.workspace_name.toLowerCase().includes(searchTerm.toLowerCase());
+  ...
+});
+```
+
+**After**:
+```typescript
+const filteredAppointments = appointments.filter(appointment => {
+  const matchesSearch = searchTerm === '' ||
+    (appointment.customer_name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+    (appointment.customer_phone || '').includes(searchTerm) ||
+    (appointment.service_type?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+    (appointment.workspace_name?.toLowerCase() || '').includes(searchTerm.toLowerCase());
+  ...
+});
+```
+
+#### 3. Fixed `AppointmentHistory.tsx` - formatDateTime function
+Applied same pattern with null checks and date validation.
+
+### Key Lessons
+
+#### Date Handling
+- ✅ **DO**: Always validate date strings before creating Date objects
+- ✅ **DO**: Check for null/undefined before passing to date formatting functions
+- ✅ **DO**: Use `isNaN(date.getTime())` to check if a Date is valid
+- ✅ **DO**: Provide graceful fallback values for invalid/missing dates
+- ✅ **DO**: Handle the TypeScript type correctly (`string | null | undefined`)
+- ❌ **DON'T**: Pass potentially null values directly to `new Date()`
+- ❌ **DON'T**: Use date-fns functions without validating the Date object first
+- ❌ **DON'T**: Assume API data always contains valid date strings
+
+#### Null Safety in Filters
+- ✅ **DO**: Use optional chaining (`?.`) when accessing potentially null properties
+- ✅ **DO**: Provide fallback values (`|| ''`) when calling string methods
+- ✅ **DO**: Check interface types to identify nullable fields
+- ❌ **DON'T**: Call `.toLowerCase()` on nullable properties without checking
+
+#### Error Investigation
+- ✅ **DO**: Check the minified error stack trace for clues (look for date functions like `formatDistanceToNow`)
+- ✅ **DO**: Trace the error back to the specific component and line
+- ✅ **DO**: Consider what API data could cause the error
+- ✅ **DO**: Check all similar patterns in related components
+- ❌ **DON'T**: Fix only the first error found - check for similar issues
+
+### Files Modified
+- `/src/components/appointments/AppointmentList.tsx` - Added date validation to formatDateTime
+- `/src/pages/Appointments.tsx` - Added null-safe filter logic
+- `/src/components/appointments/AppointmentHistory.tsx` - Added date validation to formatDateTime
+
+### How to Identify "Invalid time value" Errors
+1. Error message: `RangeError: Invalid time value`
+2. Stack trace will include date-fns function names (minified)
+3. Usually occurs in `.map()` or `.forEach()` loops processing array data
+4. Check for any `new Date()`, `toLocaleDateString()`, `formatDistanceToNow()` calls
+5. The culprit is usually a null, undefined, or malformed date string from API data
+
+### Prevention
+- Add date validation helpers to utility files for consistent handling
+- Consider adding API response validation to catch invalid dates early
+- Use TypeScript strict mode to catch nullable property access at compile time
+- Add defensive coding in any function that processes date strings

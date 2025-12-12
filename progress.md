@@ -211,3 +211,22 @@
   - No breaking changes for admin users
 - **Documentation**: Created comprehensive lesson_learned.md documenting the issue, solution, and best practices
 - **Result**: Production-ready access control ensuring complete data isolation between providers. Providers can now only access their own leads and webhooks, with clear visual feedback about filtered views.
+
+### ✅ Appointments Page "Invalid time value" Bug Fix (December 12, 2025)
+- **Goal**: Fix production crash when navigating to `/appointments` route
+- **Problem**: Page crashed with "RangeError: Invalid time value" error preventing all users from viewing appointments
+- **Root Cause**:
+  - `formatDateTime` function in `AppointmentList.tsx` used `date-fns` `formatDistanceToNow()` without validating dates first
+  - API returning appointments with null/invalid `scheduled_at` values caused `new Date(null)` to create invalid Date objects
+  - Filter function called `.toLowerCase()` on `workspace_name` which can be `null`
+- **Implementation**:
+  - Added null/undefined checks before creating Date objects
+  - Added `isNaN(date.getTime())` validation to detect invalid dates
+  - Provided graceful fallback values ('Not scheduled', 'Invalid date') for missing/invalid dates
+  - Added optional chaining (`?.`) and fallback values (`|| ''`) in filter function
+  - Fixed same issue in `AppointmentHistory.tsx`
+- **Files Modified**:
+  - `/src/components/appointments/AppointmentList.tsx` - Added date validation to formatDateTime
+  - `/src/pages/Appointments.tsx` - Added null-safe filter logic
+  - `/src/components/appointments/AppointmentHistory.tsx` - Added date validation to formatDateTime
+- **Result**: Appointments page now handles null/invalid dates gracefully, displaying "Not scheduled" instead of crashing

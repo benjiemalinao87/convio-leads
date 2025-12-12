@@ -168,8 +168,20 @@ export function AppointmentHistory({ onRefresh }: AppointmentHistoryProps) {
     }
   };
 
-  const formatDateTime = (dateString: string) => {
-    return new Date(dateString).toLocaleString('en-US', {
+  const formatDateTime = (dateString: string | null | undefined) => {
+    // Handle null, undefined, or empty strings
+    if (!dateString) {
+      return 'Not available';
+    }
+
+    const date = new Date(dateString);
+    
+    // Check if the date is valid
+    if (isNaN(date.getTime())) {
+      return 'Invalid date';
+    }
+
+    return date.toLocaleString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',

@@ -151,8 +151,27 @@ export function AppointmentList({ appointments, loading, onRefresh }: Appointmen
     }).format(amount);
   };
 
-  const formatDateTime = (dateString: string) => {
+  const formatDateTime = (dateString: string | null | undefined) => {
+    // Handle null, undefined, or empty strings
+    if (!dateString) {
+      return {
+        date: 'Not scheduled',
+        time: '-',
+        relative: 'No date'
+      };
+    }
+
     const date = new Date(dateString);
+    
+    // Check if the date is valid
+    if (isNaN(date.getTime())) {
+      return {
+        date: 'Invalid date',
+        time: '-',
+        relative: 'Invalid'
+      };
+    }
+
     return {
       date: date.toLocaleDateString(),
       time: date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
