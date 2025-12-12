@@ -112,7 +112,7 @@ const Leads = () => {
       // Build API URL with provider_id filter if user is a provider
       const params = new URLSearchParams({
         include: 'leads',
-        limit: '1000',
+        limit: '500', // Reduced from 1000 to avoid database limits
         ...(isProvider && providerId && { provider_id: providerId })
       });
 

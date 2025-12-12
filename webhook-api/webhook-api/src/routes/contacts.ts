@@ -76,46 +76,53 @@ contacts.get('/', async (c) => {
     const contacts = contactsResults.results || []
 
     // If leads are requested, fetch them for each contact
+    // Batch the query to avoid SQLite parameter limits (max ~999 parameters)
     if (includeLeads && contacts.length > 0) {
       const contactIds = contacts.map((c: any) => c.id)
-      const placeholders = contactIds.map(() => '?').join(',')
-
-      const leadsResults = await db.prepare(`
-        SELECT
-          l.id,
-          l.contact_id,
-          l.webhook_id,
-          l.lead_type,
-          l.first_name,
-          l.last_name,
-          l.email,
-          l.phone,
-          l.source,
-          l.status,
-          l.revenue_potential,
-          l.conversion_score,
-          l.priority,
-          l.assigned_to,
-          l.workspace_id,
-          l.created_at,
-          l.updated_at,
-          w.name as workspace_name
-        FROM leads l
-        LEFT JOIN workspaces w ON l.workspace_id = w.id
-        WHERE l.contact_id IN (${placeholders})
-        ORDER BY l.created_at DESC
-      `).bind(...contactIds).all()
-
-      const leads = leadsResults.results || []
-
-      // Group leads by contact_id
+      const BATCH_SIZE = 100 // D1 has stricter limits, use smaller batches
       const leadsByContact = new Map()
-      leads.forEach((lead: any) => {
-        if (!leadsByContact.has(lead.contact_id)) {
-          leadsByContact.set(lead.contact_id, [])
-        }
-        leadsByContact.get(lead.contact_id).push(lead)
-      })
+
+      // Process contacts in batches
+      for (let i = 0; i < contactIds.length; i += BATCH_SIZE) {
+        const batch = contactIds.slice(i, i + BATCH_SIZE)
+        const placeholders = batch.map(() => '?').join(',')
+
+        const leadsResults = await db.prepare(`
+          SELECT
+            l.id,
+            l.contact_id,
+            l.webhook_id,
+            l.lead_type,
+            l.first_name,
+            l.last_name,
+            l.email,
+            l.phone,
+            l.source,
+            l.status,
+            l.revenue_potential,
+            l.conversion_score,
+            l.priority,
+            l.assigned_to,
+            l.workspace_id,
+            l.created_at,
+            l.updated_at,
+            w.name as workspace_name
+          FROM leads l
+          LEFT JOIN workspaces w ON l.workspace_id = w.id
+          WHERE l.contact_id IN (${placeholders})
+          ORDER BY l.created_at DESC
+        `).bind(...batch).all()
+
+        const leads = leadsResults.results || []
+
+        // Group leads by contact_id
+        leads.forEach((lead: any) => {
+          if (!leadsByContact.has(lead.contact_id)) {
+            leadsByContact.set(lead.contact_id, [])
+          }
+          leadsByContact.get(lead.contact_id).push(lead)
+        })
+      }
 
       // Add leads to each contact
       contacts.forEach((contact: any) => {
