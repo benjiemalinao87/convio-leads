@@ -9,6 +9,8 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ProviderManagement } from '@/components/admin/ProviderManagement';
 import { useAuth } from '@/hooks/useAuth';
+import { useSearchParams } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import { 
   User, 
   Bell, 
@@ -19,19 +21,26 @@ import {
   Mail,
   Smartphone,
   Save,
-  Users
+  Users,
+  FileText
 } from 'lucide-react';
+import { ProviderFormEmbed } from '@/components/admin/ProviderFormEmbed';
 
 const Settings = () => {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
   const isProvider = user?.permission_type === 'provider';
   const isAdminOrDev = user?.permission_type === 'admin' || user?.permission_type === 'dev';
+  
+  // Set default tab based on URL parameter, or default to 'general'
+  const [defaultTab, setDefaultTab] = useState(tabParam && (isProvider ? ['general', 'security', 'notifications', 'forms'].includes(tabParam) : ['general', 'security', 'notifications', 'providers', 'api'].includes(tabParam)) ? tabParam : 'general');
 
   return (
     <Layout>
       <div className="space-y-6">
-        <Tabs defaultValue="general" className="w-full">
-          <TabsList className={`grid w-full ${isProvider ? 'grid-cols-3' : 'grid-cols-5'}`}>
+        <Tabs value={defaultTab} onValueChange={setDefaultTab} className="w-full">
+          <TabsList className={`grid w-full ${isProvider ? 'grid-cols-4' : 'grid-cols-5'}`}>
             <TabsTrigger value="general">
               <User className="h-4 w-4 mr-2" />
               General
@@ -44,6 +53,12 @@ const Settings = () => {
               <Bell className="h-4 w-4 mr-2" />
               Notifications
             </TabsTrigger>
+            {isProvider && (
+              <TabsTrigger value="forms">
+                <FileText className="h-4 w-4 mr-2" />
+                Forms
+              </TabsTrigger>
+            )}
             {isAdminOrDev && (
               <>
             <TabsTrigger value="providers">
@@ -246,6 +261,15 @@ const Settings = () => {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {isProvider && user?.provider_id && (
+            <TabsContent value="forms" className="space-y-6">
+              <ProviderFormEmbed
+                providerId={user.provider_id}
+                providerName={user.email?.split('@')[0] || 'Your Provider Account'}
+              />
+            </TabsContent>
+          )}
 
           {isAdminOrDev && (
             <>

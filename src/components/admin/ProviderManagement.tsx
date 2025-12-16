@@ -12,7 +12,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Alert, AlertDescription } from '../ui/alert'
 import { Separator } from '../ui/separator'
 import { toast } from '../ui/use-toast'
-import { Loader2, Plus, Edit2, Trash2, AlertCircle, CheckCircle2, Copy } from 'lucide-react'
+import { Loader2, Plus, Edit2, Trash2, AlertCircle, CheckCircle2, Copy, Code } from 'lucide-react'
+import { ProviderFormEmbed } from './ProviderFormEmbed'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip'
 
 interface Provider {
   id: number
@@ -57,6 +59,8 @@ export function ProviderManagement() {
   const [creating, setCreating] = useState(false)
   const [updating, setUpdating] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [embedDialogOpen, setEmbedDialogOpen] = useState(false)
+  const [selectedProviderForEmbed, setSelectedProviderForEmbed] = useState<Provider | null>(null)
 
   // Form state
   const [formData, setFormData] = useState<CreateProviderData>({
@@ -533,27 +537,60 @@ export function ProviderManagement() {
                     </TableCell>
                     <TableCell>
                       {isAdminOrDev && (
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => openEditDialog(provider)}
-                          >
-                            <Edit2 className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => deleteProvider(provider.provider_id)}
-                            disabled={deleting === provider.provider_id}
-                          >
-                            {deleting === provider.provider_id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Trash2 className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </div>
+                        <TooltipProvider>
+                          <div className="flex items-center gap-2">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedProviderForEmbed(provider)
+                                    setEmbedDialogOpen(true)
+                                  }}
+                                >
+                                  <Code className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>View embed code</p>
+                              </TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => openEditDialog(provider)}
+                                >
+                                  <Edit2 className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Edit provider</p>
+                              </TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => deleteProvider(provider.provider_id)}
+                                  disabled={deleting === provider.provider_id}
+                                >
+                                  {deleting === provider.provider_id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Delete provider</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                        </TooltipProvider>
                       )}
                     </TableCell>
                   </TableRow>
@@ -654,6 +691,24 @@ export function ProviderManagement() {
               Update Provider
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Embed Code Dialog */}
+      <Dialog open={embedDialogOpen} onOpenChange={setEmbedDialogOpen}>
+        <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Embeddable Form for {selectedProviderForEmbed?.provider_name}</DialogTitle>
+            <DialogDescription>
+              Copy the embed code below to add this form to your website
+            </DialogDescription>
+          </DialogHeader>
+          {selectedProviderForEmbed && (
+            <ProviderFormEmbed
+              providerId={selectedProviderForEmbed.provider_id}
+              providerName={selectedProviderForEmbed.provider_name}
+            />
+          )}
         </DialogContent>
       </Dialog>
     </div>

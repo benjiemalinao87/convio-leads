@@ -15,7 +15,8 @@ import {
   Sun,
   LogOut,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  FileText
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -81,7 +82,7 @@ export function Sidebar({ isCollapsed, onToggleCollapse }: SidebarProps) {
   // Filter navigation based on user permission type
   const getFilteredNavigation = () => {
     if (user?.permission_type === 'provider') {
-      // Providers see Contacts, Appointments, Analytics, and Settings
+      // Providers see Contacts, Appointments, Analytics, Forms, and Settings
       return [
         {
           title: 'Leads & Contacts',
@@ -99,6 +100,7 @@ export function Sidebar({ isCollapsed, onToggleCollapse }: SidebarProps) {
         {
           title: 'Configuration',
           items: [
+            { name: 'Forms', href: '/settings?tab=forms', icon: FileText, badge: null },
             { name: 'Settings', href: '/settings', icon: Settings, badge: null },
           ]
         },

@@ -19,6 +19,7 @@ import Appointments from "./pages/Appointments";
 import MermaidTest from "./pages/MermaidTest";
 import AdminOnboarding from "./pages/AdminOnboarding";
 import SidebarLayoutMockup from "./pages/SidebarLayoutMockup";
+import EmbeddableForm from "./pages/EmbeddableForm";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -131,6 +132,9 @@ const App = () => (
 
             {/* Public admin onboarding portal */}
             <Route path="/admin/onboarding" element={<AdminOnboarding />} />
+
+            {/* Public embeddable form */}
+            <Route path="/form" element={<EmbeddableForm />} />
 
             {/* Catch-all route */}
             <Route path="*" element={<NotFound />} />

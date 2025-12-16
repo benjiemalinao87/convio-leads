@@ -14,6 +14,7 @@ import { providersRouter } from './routes/providers'
 import { leadForwardingRouter } from './routes/lead-forwarding'
 import { adminOnboardingRouter } from './routes/admin-onboarding'
 import authRouter from './routes/auth'
+import { formsRouter } from './routes/forms'
 import { requestValidation } from './middleware/validation'
 import { errorHandler } from './middleware/error-handler'
 import { webhookDeletionConsumer, processPendingDeletions } from './queue/webhook-deletion'
@@ -77,6 +78,7 @@ app.route('/routing-rules', routingRulesRouter)
 app.route('/providers', providersRouter)
 app.route('/admin', adminOnboardingRouter)
 app.route('/auth', authRouter)
+app.route('/forms', formsRouter)
 
 // Root endpoint
 app.get('/', (c) => {
