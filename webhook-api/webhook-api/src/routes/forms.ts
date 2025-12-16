@@ -19,11 +19,17 @@ interface FormSubmissionRequest {
   email?: string
   phone?: string
   address?: string
+  address2?: string // Apartment, unit, suite
   city?: string
   state?: string
   zipCode?: string
   productid?: string
   source?: string
+  subsource?: string // Specific campaign, affiliate, or channel
+  landing_page_url?: string // Page URL where form was submitted
+  consent_description?: string // Full SMS/marketing consent language
+  consent_value?: boolean // true = consent given, false = not given
+  tcpa_compliance?: boolean // Was TCPA language shown & agreed to
   notes?: string
   appointment?: {
     appointment_date: string // ISO datetime
@@ -86,8 +92,8 @@ formsRouter.post('/submit', async (c) => {
       }, 404)
     }
 
-    // Get webhook_id for this provider and verify the mapping is valid
-    const webhookMapping = await db.prepare(`
+    // Get or create webhook_id for this provider's form submissions
+    let webhookMapping = await db.prepare(`
       SELECT wpm.webhook_id, wc.webhook_id as verified_webhook_id
       FROM webhook_provider_mapping wpm
       INNER JOIN webhook_configs wc ON wpm.webhook_id = wc.webhook_id
@@ -95,29 +101,56 @@ formsRouter.post('/submit', async (c) => {
       LIMIT 1
     `).bind(body.provider_id).first()
 
+    let webhookId: string
+
     if (!webhookMapping || !webhookMapping.webhook_id) {
-      return c.json({
-        success: false,
-        error: 'Provider not configured',
-        message: `No active webhook configured for provider ${body.provider_id}`
-      }, 400)
-    }
+      // Auto-create a form webhook for this provider
+      // Generate webhook_id: {provider_id}_form_ws_us_general
+      const generatedWebhookId = `${body.provider_id}_form_ws_us_general`
+      
+      // Check if webhook config exists, if not create it
+      const existingWebhook = await db.prepare(`
+        SELECT webhook_id FROM webhook_configs WHERE webhook_id = ?
+      `).bind(generatedWebhookId).first()
 
-    const webhookId = webhookMapping.webhook_id as string
+      if (!existingWebhook) {
+        // Create webhook config
+        await db.prepare(`
+          INSERT INTO webhook_configs (webhook_id, name, description, lead_type, is_active, created_at, updated_at)
+          VALUES (?, ?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `).bind(
+          generatedWebhookId,
+          `Form Submissions - ${body.provider_id}`,
+          `Auto-generated webhook for form submissions from provider ${body.provider_id}`,
+          'form'
+        ).run()
+      }
 
-    // Double-check: Verify webhook is actually mapped to this provider
-    const verificationCheck = await db.prepare(`
-      SELECT provider_id
-      FROM webhook_provider_mapping
-      WHERE webhook_id = ? AND provider_id = ?
-    `).bind(webhookId, body.provider_id).first()
+      // Create webhook_provider_mapping
+      await db.prepare(`
+        INSERT OR IGNORE INTO webhook_provider_mapping (webhook_id, provider_id, created_at)
+        VALUES (?, ?, CURRENT_TIMESTAMP)
+      `).bind(generatedWebhookId, body.provider_id).run()
 
-    if (!verificationCheck) {
-      return c.json({
-        success: false,
-        error: 'Provider mapping verification failed',
-        message: `Webhook ${webhookId} is not mapped to provider ${body.provider_id}`
-      }, 500)
+      // Update provider's allowed_webhooks
+      const providerData = await db.prepare(`
+        SELECT allowed_webhooks FROM lead_source_providers WHERE provider_id = ?
+      `).bind(body.provider_id).first()
+      
+      let allowedWebhooks = providerData?.allowed_webhooks ? JSON.parse(providerData.allowed_webhooks as string) : []
+      if (!Array.isArray(allowedWebhooks)) allowedWebhooks = []
+      if (!allowedWebhooks.includes(generatedWebhookId)) {
+        allowedWebhooks.push(generatedWebhookId)
+        await db.prepare(`
+          UPDATE lead_source_providers
+          SET allowed_webhooks = ?
+          WHERE provider_id = ?
+        `).bind(JSON.stringify(allowedWebhooks), body.provider_id).run()
+      }
+
+      webhookId = generatedWebhookId
+    } else {
+      webhookId = webhookMapping.webhook_id as string
     }
 
     // Normalize phone number if provided
@@ -210,11 +243,16 @@ formsRouter.post('/submit', async (c) => {
       email: body.email,
       phone: normalizedPhone || undefined,
       address: body.address,
+      address2: body.address2, // Apartment, unit, suite
       city: body.city,
       state: body.state,
       zip_code: body.zipCode,
       source: body.source || `form-submission:${body.provider_id}`, // Include provider_id in source
-      subsource: body.provider_id, // Store provider_id directly in subsource field for easy reference
+      subsource: body.subsource || body.provider_id, // Use provided subsource or default to provider_id
+      landing_page_url: body.landing_page_url,
+      consent_description: body.consent_description,
+      consent_value: body.consent_value,
+      tcpa_compliance: body.tcpa_compliance,
       productid: body.productid,
       raw_payload: JSON.stringify({
         ...body,

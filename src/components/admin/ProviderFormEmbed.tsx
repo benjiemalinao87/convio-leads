@@ -17,7 +17,7 @@ export function ProviderFormEmbed({ providerId, providerName }: ProviderFormEmbe
   const [height, setHeight] = useState('800')
   const [width, setWidth] = useState('100%')
 
-  const baseUrl = 'https://dash.homeprojectpartners.com'
+  const baseUrl = 'https://app.buyerfound.ai'
   const formUrl = `${baseUrl}/form?provider_id=${providerId}`
 
   const iframeCode = `<iframe 
