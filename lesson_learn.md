@@ -1633,3 +1633,52 @@ Applied same pattern with null checks and date validation.
 - Consider adding API response validation to catch invalid dates early
 - Use TypeScript strict mode to catch nullable property access at compile time
 - Add defensive coding in any function that processes date strings
+
+## Forwarding Rule "Edit Rule" Button Fix (January 5, 2026)
+
+### Problem
+The "Edit Rule" dropdown menu item in the Lead Forwarding Rules section was not working. Clicking it did nothing - the button was just displaying text without any functionality.
+
+### Root Cause
+In `ForwardingRulesList.tsx`, the "Edit Rule" `DropdownMenuItem` had no `onClick` handler. It was a placeholder that was never implemented:
+
+```typescript
+// Before - No onClick handler!
+<DropdownMenuItem>
+  <Edit className="h-4 w-4 mr-2" />
+  Edit Rule
+</DropdownMenuItem>
+```
+
+### Solution Applied
+
+#### 1. Modified `CreateForwardingRuleDialog.tsx` to Support Edit Mode
+- Added `ForwardingRule` interface to define the rule structure
+- Added optional `editRule` prop to accept a rule to edit
+- Created `isEditMode` flag to detect create vs edit mode
+- Added `useEffect` to populate form when `editRule` is provided
+- Modified `handleSubmit` to use PUT method for updates vs POST for creates
+- Updated dialog title and button text based on mode
+- API endpoint switches between POST (create) and PUT (update)
+
+#### 2. Updated `ForwardingRulesList.tsx` with Edit Functionality
+- Added `editingRule` state to track which rule is being edited
+- Created `handleEditRule(rule)` function that sets the editing rule and opens dialog
+- Created `handleDialogClose()` function that resets editing state when dialog closes
+- Added `onClick={() => handleEditRule(rule)}` to the "Edit Rule" dropdown item
+- Passed `editRule={editingRule}` prop to `CreateForwardingRuleDialog`
+
+### Key Lessons
+- ✅ **DO**: Always wire up onClick handlers for action buttons - placeholder UI creates confusion
+- ✅ **DO**: Design dialog components to support both create and edit modes from the start
+- ✅ **DO**: Use a single dialog component for create/edit to maintain consistent UI and validation
+- ✅ **DO**: Reset editing state when dialog closes to prevent stale data
+- ✅ **DO**: Update dialog title and button text to reflect the current mode
+- ✅ **DO**: Use appropriate HTTP methods (POST for create, PUT for update)
+- ❌ **DON'T**: Leave UI elements as non-functional placeholders without clear indication
+- ❌ **DON'T**: Create separate dialog components for create and edit when the form is identical
+- ❌ **DON'T**: Forget to reset state when dialogs close to prevent stale data on re-open
+
+### Files Modified
+- `/src/components/leads/CreateForwardingRuleDialog.tsx` - Added edit mode support with editRule prop
+- `/src/components/leads/ForwardingRulesList.tsx` - Added edit handler and wired up onClick

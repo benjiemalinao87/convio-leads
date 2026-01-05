@@ -83,10 +83,25 @@ interface ForwardingRulesListProps {
 export function ForwardingRulesList({ webhookId, rules, onRefresh }: ForwardingRulesListProps) {
   const [deleting, setDeleting] = useState<number | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [editingRule, setEditingRule] = useState<ForwardingRule | null>(null);
   const [forwardingEnabled, setForwardingEnabled] = useState(false);
   const [loadingMasterToggle, setLoadingMasterToggle] = useState(false);
   const [fetchingMasterToggle, setFetchingMasterToggle] = useState(true);
   const { toast } = useToast();
+
+  // Handle editing a rule
+  const handleEditRule = (rule: ForwardingRule) => {
+    setEditingRule(rule);
+    setShowCreateDialog(true);
+  };
+
+  // Handle dialog close - reset editing state
+  const handleDialogClose = (open: boolean) => {
+    setShowCreateDialog(open);
+    if (!open) {
+      setEditingRule(null);
+    }
+  };
 
   // Fetch master forwarding toggle status
   const fetchMasterToggle = async () => {
@@ -540,7 +555,7 @@ export function ForwardingRulesList({ webhookId, rules, onRefresh }: ForwardingR
                                           </>
                                         )}
                                       </DropdownMenuItem>
-                                      <DropdownMenuItem>
+                                      <DropdownMenuItem onClick={() => handleEditRule(rule)}>
                                         <Edit className="h-4 w-4 mr-2" />
                                         Edit Rule
                                       </DropdownMenuItem>
@@ -594,8 +609,9 @@ export function ForwardingRulesList({ webhookId, rules, onRefresh }: ForwardingR
       <CreateForwardingRuleDialog
         webhookId={webhookId}
         open={showCreateDialog}
-        onOpenChange={setShowCreateDialog}
+        onOpenChange={handleDialogClose}
         onSuccess={onRefresh}
+        editRule={editingRule}
       />
     </div>
   );

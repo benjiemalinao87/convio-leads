@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -32,11 +32,27 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
+interface ForwardingRule {
+  id: number;
+  source_webhook_id: string;
+  target_webhook_id: string;
+  target_webhook_url: string;
+  product_types: string[];
+  zip_codes: string[];
+  states: string[];
+  priority: number;
+  is_active: boolean;
+  forward_enabled: boolean;
+  forward_count: number;
+  notes: string | null;
+}
+
 interface CreateForwardingRuleDialogProps {
   webhookId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
+  editRule?: ForwardingRule | null; // Optional: pass rule to edit
 }
 
 interface FormData {
@@ -74,7 +90,7 @@ const US_STATES = [
   'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY'
 ];
 
-export function CreateForwardingRuleDialog({ webhookId, open, onOpenChange, onSuccess }: CreateForwardingRuleDialogProps) {
+export function CreateForwardingRuleDialog({ webhookId, open, onOpenChange, onSuccess, editRule }: CreateForwardingRuleDialogProps) {
   const [loading, setLoading] = useState(false);
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [csvError, setCsvError] = useState('');
@@ -82,7 +98,9 @@ export function CreateForwardingRuleDialog({ webhookId, open, onOpenChange, onSu
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
-  const [formData, setFormData] = useState<FormData>({
+  const isEditMode = !!editRule;
+
+  const getDefaultFormData = (): FormData => ({
     target_webhook_id: '',
     target_webhook_url: '',
     product_types: [],
@@ -93,10 +111,34 @@ export function CreateForwardingRuleDialog({ webhookId, open, onOpenChange, onSu
     notes: '',
   });
 
+  const [formData, setFormData] = useState<FormData>(getDefaultFormData());
+
   const [newProductType, setNewProductType] = useState('');
   const [newZipCode, setNewZipCode] = useState('');
   const [newState, setNewState] = useState('');
   const [zipCodesText, setZipCodesText] = useState('');
+
+  // Populate form when editing
+  useEffect(() => {
+    if (open && editRule) {
+      setFormData({
+        target_webhook_id: editRule.target_webhook_id,
+        target_webhook_url: editRule.target_webhook_url,
+        product_types: editRule.product_types || [],
+        zip_codes: editRule.zip_codes || ['*'],
+        states: editRule.states || ['*'],
+        priority: editRule.priority,
+        forward_enabled: editRule.forward_enabled,
+        notes: editRule.notes || '',
+      });
+    } else if (!open) {
+      // Reset form when dialog closes
+      setFormData(getDefaultFormData());
+      setCsvFile(null);
+      setCsvPreview([]);
+      setZipCodesText('');
+    }
+  }, [open, editRule]);
 
   // Quick action: Create catch-all rule template
   const fillCatchAllTemplate = () => {
@@ -313,20 +355,32 @@ export function CreateForwardingRuleDialog({ webhookId, open, onOpenChange, onSu
     try {
       setLoading(true);
 
-      // Auto-generate webhook ID if empty
+      // Auto-generate webhook ID if empty (only for new rules)
       const targetWebhookId = formData.target_webhook_id.trim() ||
         `target_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-      const endpoint = useBulk
-        ? `https://api.homeprojectpartners.com/webhook/${webhookId}/forwarding-rules/bulk`
-        : `https://api.homeprojectpartners.com/webhook/${webhookId}/forwarding-rules`;
+      // Use PUT for edit, POST for create
+      let endpoint: string;
+      let method: string;
 
-      const requestBody = useBulk
+      if (isEditMode && editRule) {
+        endpoint = `https://api.homeprojectpartners.com/webhook/${webhookId}/forwarding-rules/${editRule.id}`;
+        method = 'PUT';
+      } else if (useBulk) {
+        endpoint = `https://api.homeprojectpartners.com/webhook/${webhookId}/forwarding-rules/bulk`;
+        method = 'POST';
+      } else {
+        endpoint = `https://api.homeprojectpartners.com/webhook/${webhookId}/forwarding-rules`;
+        method = 'POST';
+      }
+
+      const requestBody = useBulk && !isEditMode
         ? {
             target_webhook_id: targetWebhookId,
             target_webhook_url: formData.target_webhook_url,
             product_types: formData.product_types,
             zip_codes_csv: formData.zip_codes.join(','),
+            states: formData.states,
             priority: formData.priority,
             forward_enabled: formData.forward_enabled,
             notes: formData.notes || undefined,
@@ -336,13 +390,14 @@ export function CreateForwardingRuleDialog({ webhookId, open, onOpenChange, onSu
             target_webhook_url: formData.target_webhook_url,
             product_types: formData.product_types,
             zip_codes: formData.zip_codes,
+            states: formData.states,
             priority: formData.priority,
             forward_enabled: formData.forward_enabled,
             notes: formData.notes || undefined,
           };
 
       const response = await fetch(endpoint, {
-        method: 'POST',
+        method,
         headers: {
           'Content-Type': 'application/json',
         },
@@ -354,32 +409,21 @@ export function CreateForwardingRuleDialog({ webhookId, open, onOpenChange, onSu
       if (data.success) {
         toast({
           title: "Success",
-          description: `Forwarding rule created successfully with ${data.rule.zip_count} zip codes`,
+          description: isEditMode 
+            ? "Forwarding rule updated successfully"
+            : `Forwarding rule created successfully with ${data.rule?.zip_count || formData.zip_codes.length} zip codes`,
         });
         onSuccess();
         onOpenChange(false);
-        // Reset form
-        setFormData({
-          target_webhook_id: '',
-          target_webhook_url: '',
-          product_types: [],
-          zip_codes: [],
-          priority: 1,
-          forward_enabled: true,
-          notes: '',
-        });
-        setCsvFile(null);
-        setCsvPreview([]);
-        setZipCodesText('');
       } else {
         toast({
           title: "Error",
-          description: data.error || "Failed to create forwarding rule",
+          description: data.error || `Failed to ${isEditMode ? 'update' : 'create'} forwarding rule`,
           variant: "destructive",
         });
       }
     } catch (error) {
-      console.error('Error creating forwarding rule:', error);
+      console.error(`Error ${isEditMode ? 'updating' : 'creating'} forwarding rule:`, error);
       toast({
         title: "Error",
         description: "Failed to connect to API",
@@ -394,9 +438,12 @@ export function CreateForwardingRuleDialog({ webhookId, open, onOpenChange, onSu
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Create Lead Forwarding Rule</DialogTitle>
+          <DialogTitle>{isEditMode ? 'Edit Lead Forwarding Rule' : 'Create Lead Forwarding Rule'}</DialogTitle>
           <DialogDescription>
-            Configure automatic forwarding criteria for incoming leads from webhook: <strong>{webhookId}</strong>
+            {isEditMode 
+              ? <>Update forwarding criteria for rule #{editRule?.id}</>
+              : <>Configure automatic forwarding criteria for incoming leads from webhook: <strong>{webhookId}</strong></>
+            }
           </DialogDescription>
 
           {/* Quick Action: Catch-All Template */}
@@ -702,8 +749,11 @@ export function CreateForwardingRuleDialog({ webhookId, open, onOpenChange, onSu
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
             Cancel
           </Button>
-          <Button onClick={() => handleSubmit(formData.zip_codes.length > 100)} disabled={loading}>
-            {loading ? 'Creating...' : 'Create Forwarding Rule'}
+          <Button onClick={() => handleSubmit(formData.zip_codes.length > 100 && !isEditMode)} disabled={loading}>
+            {loading 
+              ? (isEditMode ? 'Updating...' : 'Creating...') 
+              : (isEditMode ? 'Update Forwarding Rule' : 'Create Forwarding Rule')
+            }
           </Button>
         </DialogFooter>
       </DialogContent>

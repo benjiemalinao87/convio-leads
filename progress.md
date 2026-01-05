@@ -230,3 +230,19 @@
   - `/src/pages/Appointments.tsx` - Added null-safe filter logic
   - `/src/components/appointments/AppointmentHistory.tsx` - Added date validation to formatDateTime
 - **Result**: Appointments page now handles null/invalid dates gracefully, displaying "Not scheduled" instead of crashing
+
+### ✅ Lead Forwarding Rule "Edit Rule" Button Fix (January 5, 2026)
+- **Goal**: Fix non-functional "Edit Rule" button in Lead Forwarding Rules dropdown menu
+- **Problem**: Clicking "Edit Rule" did nothing - the button was a placeholder with no onClick handler
+- **Root Cause**: `DropdownMenuItem` in `ForwardingRulesList.tsx` had no `onClick` handler wired up
+- **Implementation**:
+  - Modified `CreateForwardingRuleDialog.tsx` to support edit mode via optional `editRule` prop
+  - Added `isEditMode` detection to switch between create (POST) and update (PUT) operations
+  - Added `useEffect` to populate form when editing an existing rule
+  - Updated dialog title and button text dynamically based on mode
+  - Added `editingRule` state and `handleEditRule()` function in `ForwardingRulesList.tsx`
+  - Wired up `onClick={() => handleEditRule(rule)}` to the "Edit Rule" dropdown item
+- **Files Modified**:
+  - `/src/components/leads/CreateForwardingRuleDialog.tsx` - Added edit mode support
+  - `/src/components/leads/ForwardingRulesList.tsx` - Added edit handler and onClick
+- **Result**: Edit Rule now opens the dialog pre-populated with the existing rule's data, allowing users to modify and save changes
